@@ -1,0 +1,1 @@
+sed -i 's/const location = CityResolver.resolveCity({ province, court: court, rawText: text });/const location = CityResolver.resolveCity({ province, court, caseNumber, rawText: text });/' src/services/parser/LaborInfoParserAdapter.ts

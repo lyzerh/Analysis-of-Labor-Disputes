@@ -1,0 +1,8 @@
+{
+  "name": "深圳劳动仲裁文书本地研究库",
+  "description": "专为企业法务打造的深圳公开劳动仲裁裁决书本地解析、纯浏览器离线文本分析引擎、抗辩与证据实证研判及研究报告系统",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
