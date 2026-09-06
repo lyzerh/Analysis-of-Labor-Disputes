@@ -26,7 +26,8 @@ export type NavTab =
   | 'caseResearch'
   | 'defenseReference'
   | 'dataManagement'
-  | 'settings';
+  | 'settings'
+  | 'userGuide';
 
 interface SidebarProps {
   currentTab: NavTab;

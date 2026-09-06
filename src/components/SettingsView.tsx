@@ -10,10 +10,15 @@ import {
   CheckCircle,
   Database,
   Info,
+  BookOpen,
 } from 'lucide-react';
 import { db } from '../db';
 
-export const SettingsView: React.FC = () => {
+interface SettingsViewProps {
+  onNavigateToGuide?: () => void;
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide }) => {
   const [storageInfo, setStorageInfo] = useState<{ used: string; quota: string; percent: number }>({
     used: '计算中...',
     quota: '计算中...',
@@ -66,6 +71,28 @@ export const SettingsView: React.FC = () => {
         <p className="text-xs text-slate-500 mt-1">
           查看本地 IndexedDB 存储资源占用、规则解析引擎运行状态以及离线运行策略。
         </p>
+      </div>
+
+      
+      {/* User Guide Card */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100 shadow-2xs space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-blue-200/50">
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-blue-600" />
+            使用教程
+          </h3>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+            提供从案例采集到案例分析的完整使用流程。对于第一次使用系统的用户，建议点击右侧按钮查看，快速了解如何使用各项法务工具。
+          </p>
+          <button 
+            onClick={() => onNavigateToGuide && onNavigateToGuide()}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center shrink-0"
+          >
+            查看教程
+          </button>
+        </div>
       </div>
 
       {/* Architecture Card */}

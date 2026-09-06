@@ -18,6 +18,7 @@ import { LaborAnalyticsTest } from './components/LaborAnalyticsTest';
 import { DefenseStrategyAnalysis } from './components/DefenseStrategyAnalysis';
 import { DataManagement } from './components/DataManagement';
 import { SettingsView } from './components/SettingsView';
+import { UserGuideView } from './components/UserGuideView';
 import { CaseDetailModal } from './components/CaseDetailModal';
 import { ArbitrationCase, CaseFilterOptions } from './types';
 import { DataService } from './services/data/dataService';
@@ -134,7 +135,8 @@ export function App() {
             <DataManagement onDataChanged={refreshSummaryStats} />
           )}
 
-          {currentTab === 'settings' && <SettingsView />}
+          {currentTab === 'settings' && <SettingsView onNavigateToGuide={() => setCurrentTab('userGuide')} />}
+          {currentTab === 'userGuide' && <UserGuideView onNavigate={(tab) => setCurrentTab(tab)} />}
         </main>
       </div>
 
