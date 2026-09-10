@@ -135,7 +135,7 @@ export const LaborInfoReview: React.FC = () => {
       const changes = savedReview.reviewerChanges;
       setEditEmployeeParty(changes.employeeParty ?? parsed.employeeParty ?? '');
       setEditEmployerParty(changes.employerParty ?? parsed.employerParty ?? '');
-      setEditOverallResult(changes.overallResult ?? parsed.overallResult);
+      setEditOverallResult(changes.applicantOutcome ?? changes.overallResult ?? parsed.applicantOutcome ?? parsed.overallResult);
       setEditClaims(changes.claims ? JSON.parse(JSON.stringify(changes.claims)) : JSON.parse(JSON.stringify(parsed.claims)));
       setEditDefenses(changes.employerDefenses ? JSON.parse(JSON.stringify(changes.employerDefenses)) : JSON.parse(JSON.stringify(parsed.employerDefenses)));
       setEditEvidence(changes.evidence ? JSON.parse(JSON.stringify(changes.evidence)) : JSON.parse(JSON.stringify(parsed.evidence)));
@@ -144,7 +144,7 @@ export const LaborInfoReview: React.FC = () => {
     } else {
       setEditEmployeeParty(parsed.employeeParty || '');
       setEditEmployerParty(parsed.employerParty || '');
-      setEditOverallResult(parsed.overallResult);
+      setEditOverallResult(parsed.applicantOutcome ?? parsed.overallResult);
       setEditClaims(JSON.parse(JSON.stringify(parsed.claims || [])));
       setEditDefenses(JSON.parse(JSON.stringify(parsed.employerDefenses || [])));
       setEditEvidence(JSON.parse(JSON.stringify(parsed.evidence || [])));
@@ -162,7 +162,7 @@ export const LaborInfoReview: React.FC = () => {
 
     setEditEmployeeParty(parsed.employeeParty || '');
     setEditEmployerParty(parsed.employerParty || '');
-    setEditOverallResult(parsed.overallResult);
+    setEditOverallResult(parsed.applicantOutcome ?? parsed.overallResult);
     setEditClaims(JSON.parse(JSON.stringify(parsed.claims || [])));
     setEditDefenses(JSON.parse(JSON.stringify(parsed.employerDefenses || [])));
     setEditEvidence(JSON.parse(JSON.stringify(parsed.evidence || [])));
@@ -187,9 +187,12 @@ export const LaborInfoReview: React.FC = () => {
       reviewerChanges: {
         employeeParty: editEmployeeParty.trim() || null,
         employerParty: editEmployerParty.trim() || null,
+        applicantRole: parsed.applicantRole,
+        applicantOutcome: editOverallResult,
         claims: editClaims,
         employerDefenses: editDefenses,
         evidence: editEvidence,
+        // 兼容旧版本读取；语义与 applicantOutcome 相同。
         overallResult: editOverallResult,
         customNotes: editCustomNotes.trim() || undefined,
       },
@@ -743,14 +746,14 @@ export const LaborInfoReview: React.FC = () => {
                 </div>
               </div>
 
-              {/* 3. 裁判结果四分类核验 (overallResult) */}
+              {/* 3. 申请人视角裁判结果核验 (applicantOutcome) */}
               <div className="space-y-2 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-800">
                   <span className="flex items-center gap-1.5">
                     <Scale className="w-4 h-4 text-purple-600" />
-                    二、综合裁判结果校验 (Overall Result)
+                    二、申请人请求结果校验 (Applicant Outcome)
                   </span>
-                  <span className="text-2xs text-slate-400">禁止根据标题猜测，必须对照主文</span>
+                  <span className="text-2xs text-slate-400">以申请人身份为视角，必须对照主文</span>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">

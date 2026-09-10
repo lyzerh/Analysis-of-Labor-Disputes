@@ -3,6 +3,11 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { GeminiSemanticResolver } from "./src/services/semantic/GeminiSemanticResolver";
+import { DEFAULT_SEMANTIC_MODEL } from "./src/services/semantic/SemanticPrompt";
+import { parseSemanticResolutionInput, SemanticSchemaError } from "./src/services/semantic/SemanticResolutionSchema";
+import { resolveAndValidateSemanticReferences } from "./src/services/semantic/SemanticResolver";
+import { SemanticResolverError } from "./src/services/semantic/SemanticResolverError";
 
 dotenv.config();
 
@@ -32,9 +37,61 @@ function getAIClient(): GoogleGenAI {
   return aiClient;
 }
 
+let semanticResolver: GeminiSemanticResolver | null = null;
+function getSemanticResolver(): GeminiSemanticResolver {
+  if (!semanticResolver) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new SemanticResolverError('provider_error', 'Gemini semantic resolver is not configured');
+    }
+    semanticResolver = new GeminiSemanticResolver({
+      apiKey,
+      modelName: process.env.GEMINI_SEMANTIC_MODEL || DEFAULT_SEMANTIC_MODEL,
+    });
+  }
+  return semanticResolver;
+}
+
 // Health check endpoint
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.post("/api/semantic/resolve", async (req, res) => {
+  const startedAt = Date.now();
+  let caseId = 'unknown';
+  let fragmentCount = 0;
+  try {
+    const input = parseSemanticResolutionInput(req.body);
+    caseId = input.caseId;
+    fragmentCount = input.unresolvedFragments.length;
+    const result = await resolveAndValidateSemanticReferences(getSemanticResolver(), input);
+    console.info('[SemanticResolver]', {
+      caseId,
+      fragmentCount,
+      provider: 'gemini',
+      model: process.env.GEMINI_SEMANTIC_MODEL || DEFAULT_SEMANTIC_MODEL,
+      latencyMs: Date.now() - startedAt,
+      accepted: result.accepted.length,
+      humanReview: result.humanReview.length,
+      rejected: result.rejected.length,
+      errorCode: result.errorCode,
+    });
+    return res.json(result);
+  } catch (error) {
+    const isSchema = error instanceof SemanticSchemaError;
+    const code = isSchema ? 'schema_invalid' : (error as { code?: string })?.code || 'provider_error';
+    console.warn('[SemanticResolver]', {
+      caseId,
+      fragmentCount,
+      provider: 'gemini',
+      latencyMs: Date.now() - startedAt,
+      errorCode: code,
+    });
+    return res.status(isSchema ? 400 : 503).json({
+      error: { code, message: isSchema ? 'Invalid semantic resolution input' : 'Semantic resolver unavailable' },
+    });
+  }
 });
 
 // Helper function to validate allowed target domain (strictly restricted to hrss.sz.gov.cn)

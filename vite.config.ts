@@ -3,9 +3,17 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-export default defineConfig(() => {
+const GITHUB_PAGES_BASE = '/Analysis-of-Labor-Disputes/';
+
+export default defineConfig(({ mode }) => {
+  const isPagesBuild = mode === 'pages';
+
   return {
+    base: isPagesBuild ? GITHUB_PAGES_BASE : '/',
     plugins: [react(), tailwindcss()],
+    build: {
+      outDir: isPagesBuild ? 'dist-pages' : 'dist',
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

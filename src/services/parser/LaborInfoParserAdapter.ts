@@ -1,12 +1,18 @@
 import { CityResolver } from "./CityResolver";
 import {
   ArbitrationCase,
+  CaseParty,
+  ClaimProceduralBasis,
+  ClaimReferenceCandidate,
   ClaimSupportStatus,
   DecisionOutcome,
   EmployerDefenseItem,
   EvidenceItem,
+  JudgmentAction,
+  JudgmentActionItem,
   LaborInfoClaimItem,
   LaborInfoParsedResult,
+  LaborRole,
   LegalOutcomeType,
   PartyRecognitionResult,
   ParseQuality,
@@ -14,6 +20,15 @@ import {
   RawDocument,
 } from '../../types';
 import { ParserUtils } from './ParserUtils';
+import { resolvePartyOutcomes } from '../outcome/OutcomeResolver';
+import { AmountResolver } from './AmountResolver';
+
+interface ClaimPatternDefinition {
+  name: string;
+  keywords: string[];
+  decisionKeywords: { support: string[]; reject: string[] };
+  extractAmountRegex?: RegExp;
+}
 
 /**
  * 工劳网文书结构化解析适配器
@@ -50,6 +65,7 @@ export class LaborInfoParserAdapter {
 
     // 5. 提取诉求并识别支持状态
     const claims = this.extractClaimsWithSupport(text, sections, parties);
+    const unresolvedReferences = this.extractUnresolvedReferences(sections.decision || '');
 
     // 6. 企业抗辩识别
     const employerDefenses = this.extractEmployerDefenses(text, sections);
@@ -170,15 +186,20 @@ export class LaborInfoParserAdapter {
       caseNumber: baseInfo.caseNumber,
       employeeParty: parties.employeeParty,
       employerParty: parties.employerParty,
+      applicantRole: parties.applicantRole,
+      parties: parties.parties || [],
       partyConfidence: parties.confidence,
       disputeType,
       claims,
+      unresolvedReferences,
       employerDefenses,
       evidence,
       courtReasoning,
       keyLegalPoints,
+      applicantOutcome: outcomes.overallResult,
       employeeOutcome: outcomes.employeeOutcome,
       employerOutcome: outcomes.employerOutcome,
+      // 兼容旧消费者：overallResult 始终是申请人视角，不是劳动者视角。
       overallResult: outcomes.overallResult,
       arbitrationCase,
       rawTextLength: text.length,
@@ -406,10 +427,13 @@ export class LaborInfoParserAdapter {
       }
     }
 
+    const parties = this.extractCaseParties(text, employeeParty, employerParty);
+
     return {
       employeeParty,
       employerParty,
       applicantRole,
+      parties,
       confidence,
       reason: `匹配模式: P1(${firstParty1 || '无'}) / P2(${firstParty2 || '无'}) -> 判定员工: ${employeeParty || '未识别'}, 雇主: ${employerParty || '未识别'}`,
     };
@@ -570,7 +594,7 @@ export class LaborInfoParserAdapter {
     }
 
     // 裁判主文
-    const decisionMatch = text.match(/(?:判决如下|裁决如下|裁定如下|本院判决|综上)[：:\s]+([\s\S]*?)(?=(?:如不服|审\s*判\s*长|审\s*判\s*员|仲\s*裁\s*员|书\s*记\s*员|$))/);
+    const decisionMatch = text.match(/(?:综上[，,、\s]*(?:本院)?判决如下|本院判决如下|判决如下|判决|裁决如下|裁定如下)[：:\s]+([\s\S]*?)(?=(?:如不服|审\s*判\s*长|审\s*判\s*员|仲\s*裁\s*员|书\s*记\s*员|$))/);
     if (decisionMatch) sections.decision = decisionMatch[1].trim();
 
     return sections;
@@ -588,12 +612,7 @@ export class LaborInfoParserAdapter {
     const decisionText = sections.decision || '';
 
     // 预定义的标准诉求字典
-    const claimPatterns: Array<{
-      name: string;
-      keywords: string[];
-      decisionKeywords: { support: string[]; reject: string[] };
-      extractAmountRegex?: RegExp;
-    }> = [
+    const claimPatterns: ClaimPatternDefinition[] = [
       {
         name: '违法解除劳动合同赔偿金',
         keywords: ['违法解除劳动合同赔偿金', '违法辞退赔偿金', '违法解除赔偿金', '解除劳动合同赔偿金'],
@@ -643,6 +662,14 @@ export class LaborInfoParserAdapter {
         },
       },
       {
+        name: '未休年休假工资',
+        keywords: ['未休年休假工资', '年休假工资', '未休年假工资'],
+        decisionKeywords: {
+          support: ['支付未休年休假工资', '支付年休假工资', '支持未休年假工资'],
+          reject: ['驳回未休年休假工资', '不予支持年休假工资', '无需支付未休年假工资'],
+        },
+      },
+      {
         name: '未签书面劳动合同二倍工资差额',
         keywords: ['未签书面劳动合同二倍工资', '二倍工资差额', '双倍工资差额', '双倍工资', '二倍工资'],
         decisionKeywords: {
@@ -668,6 +695,8 @@ export class LaborInfoParserAdapter {
       }
     ];
 
+    const judgmentActions = this.extractJudgmentActions(decisionText, claimPatterns);
+
     // 按顺序匹配，且移除已匹配文本，避免互相干扰
     let remainingText = text;
     for (const pat of claimPatterns) {
@@ -680,42 +709,317 @@ export class LaborInfoParserAdapter {
       });
 
       let status: ClaimSupportStatus = 'unclear';
-      const hasSupport = pat.decisionKeywords.support.some((kw) => decisionText.includes(kw));
-      const hasReject = pat.decisionKeywords.reject.some((kw) => decisionText.includes(kw));
+      const claimType = this.normalizeClaimType(pat.name);
+      const claimId = `claim_${claims.length + 1}`;
+      const sourceText = this.findClaimSourceText(text, decisionText, pat.keywords);
+      const claimantMetadata = this.resolveClaimantMetadata(sourceText, parties);
+      const localActions = judgmentActions.filter((item) => item.targetClaimType === claimType);
+      const genericApplicantActions = judgmentActions.filter((item) =>
+        !item.targetClaimType
+        && (item.targetPartyRole === 'plaintiff' || item.targetPartyRole === 'appellant')
+      );
+      const applicableActions = localActions.length > 0 ? localActions : genericApplicantActions;
+      const hasSupport = applicableActions.some((item) => item.action === 'support' || item.action === 'pay');
+      const hasReject = applicableActions.some((item) => item.action === 'reject');
+      const requestedAmount = AmountResolver.extractAmountNearAliases(sourceText, pat.keywords)
+        ?? localActions.find((item) => item.requestedAmount !== undefined)?.requestedAmount;
+      const awardedAmount = localActions.find((item) => item.awardedAmount !== undefined)?.awardedAmount;
+      const amountOutcome = AmountResolver.resolveAmountOutcome(requestedAmount, awardedAmount);
 
-      // 具体针对本案特殊处理或精准判决文书识别：
-      // 法院裁决书中通常把具体的支持金额写出来，其他驳回
-      // 我们通过查金额是否在 decisionText 里且和该请求一致，或者结合驳回逻辑
-      if (hasSupport && !hasReject) {
-        status = 'supported';
-      } else if (!hasSupport && hasReject) {
+      if (!hasSupport && hasReject) {
         status = 'not_supported';
       } else if (hasSupport && hasReject) {
         status = 'partially_supported';
-      } else {
-        if (decisionText.includes('驳回原告') || decisionText.includes('驳回申请人')) {
-           status = hasSupport ? 'partially_supported' : 'not_supported';
-        } else if (decisionText.includes('支付')) {
-           status = 'supported';
-        }
+      } else if (hasSupport && applicableActions.some((item) => /全部|全额/.test(item.sourceText))) {
+        status = 'supported';
+      } else if (amountOutcome !== undefined) {
+        status = amountOutcome;
+      } else if (hasSupport) {
+        status = 'supported';
       }
+
+      const judgmentItems = localActions.map((item) => ({
+        ...item,
+        referenceResolution: {
+          sourceText: item.sourceText,
+          referencedClaimIds: [claimId],
+          confidence: item.referenceResolution?.resolutionMethod === 'rule' ? 0.8 : 1,
+          resolutionMethod: item.referenceResolution?.resolutionMethod === 'rule' ? 'rule' as const : 'direct' as const,
+          needsSemanticResolution: false,
+        },
+      }));
       
       claims.push({
+        id: claimId,
         claimName: pat.name,
-        claimant: parties.applicantRole === 'employer' ? 'employer' : 'employee',
+        claimType,
+        claimant: claimantMetadata.claimantRole,
+        claimantRole: claimantMetadata.claimantRole,
+        claimantPartyId: claimantMetadata.claimantPartyId,
+        proceduralBasis: claimantMetadata.proceduralBasis,
         supportStatus: status,
+        requestedAmount,
+        awardedAmount,
+        sourceText,
+        judgmentItems,
       });
     }
 
     if (claims.length === 0) {
+      const applicantActions = judgmentActions.filter((item) =>
+        !item.targetClaimType
+        && (item.targetPartyRole === 'plaintiff' || item.targetPartyRole === 'appellant')
+      );
+      const hasApplicantSupport = applicantActions.some((item) => item.action === 'support');
+      const hasApplicantReject = applicantActions.some((item) => item.action === 'reject');
       claims.push({
+        id: 'claim_1',
         claimName: '劳动争议综合请求 (报酬/补偿)',
-        claimant: 'employee',
-        supportStatus: decisionText.includes('驳回') ? 'not_supported' : (decisionText.includes('支付') ? 'supported' : 'unclear'),
+        claimType: /上诉人|上诉请求|撤销原判/.test(text) ? 'procedural_appeal' : 'general_labor_claim',
+        claimant: parties.applicantRole,
+        claimantRole: parties.applicantRole,
+        claimantPartyId: this.findPartyId(parties, parties.applicantRole, ['plaintiff', 'applicant', 'appellant']),
+        proceduralBasis: /上诉人|上诉请求|撤销原判/.test(text) ? 'appeal_request' : 'unknown',
+        supportStatus: hasApplicantSupport && hasApplicantReject
+          ? 'partially_supported'
+          : hasApplicantSupport
+            ? 'supported'
+            : hasApplicantReject
+              ? 'not_supported'
+              : 'unclear',
+        sourceText: this.findProceduralRequestSource(text),
       });
     }
 
     return claims;
+  }
+
+  private static extractCaseParties(
+    text: string,
+    employeeParty: string | null,
+    employerParty: string | null,
+  ): CaseParty[] {
+    const proceduralRoleMap: Record<string, CaseParty['proceduralRoles'][number]> = {
+      原告: 'plaintiff',
+      被告: 'defendant',
+      上诉人: 'appellant',
+      被上诉人: 'appellee',
+      申请人: 'applicant',
+      被申请人: 'respondent',
+      反诉原告: 'counterclaimant',
+      反诉人: 'counterclaimant',
+      第三人: 'third_party',
+    };
+    const partyMap = new Map<string, CaseParty>();
+    const rolePattern = /(反诉原告|反诉人|被上诉人|上诉人|被申请人|申请人|原告|被告|第三人)(?:[（(][^）)]*[）)])?[：:\s]+([^，,。；;\n\r]+)/g;
+    let roleMatch: RegExpExecArray | null;
+
+    while ((roleMatch = rolePattern.exec(text)) !== null) {
+      const label = roleMatch[1];
+      const name = this.cleanPartyName(roleMatch[2]);
+      if (!name) continue;
+      const proceduralRole = proceduralRoleMap[label] || 'unknown';
+      const existing = partyMap.get(name);
+      if (existing) {
+        if (!existing.proceduralRoles.includes(proceduralRole)) {
+          existing.proceduralRoles.push(proceduralRole);
+        }
+      } else {
+        let laborRole: LaborRole = 'unknown';
+        if (name === employeeParty) laborRole = 'employee';
+        else if (name === employerParty) laborRole = 'employer';
+        else if (proceduralRole === 'third_party') laborRole = 'other';
+        partyMap.set(name, {
+          id: `party_${partyMap.size + 1}`,
+          name,
+          laborRole,
+          proceduralRoles: [proceduralRole],
+        });
+      }
+    }
+
+    const defendantParty = [...partyMap.values()].find((party) =>
+      party.proceduralRoles.includes('defendant') || party.proceduralRoles.includes('respondent')
+    );
+    if (defendantParty && /(?:被告|被申请人)[^。；\n]*(?:提出反诉|反诉请求|提起反诉)/.test(text)) {
+      if (!defendantParty.proceduralRoles.includes('counterclaimant')) {
+        defendantParty.proceduralRoles.push('counterclaimant');
+      }
+    }
+
+    return [...partyMap.values()];
+  }
+
+  /**
+   * 将裁判主文拆成最小动作片段。这里只识别明确写出的动作、程序对象和请求类型，
+   * 不处理跨段指代、复杂反诉关系或二审继承。
+   */
+  private static extractJudgmentActions(
+    decisionText: string,
+    claimPatterns: ClaimPatternDefinition[] = []
+  ): JudgmentActionItem[] {
+    if (!decisionText.trim()) return [];
+
+    const actions = decisionText
+      .split(/[。；;，,\n\r]+/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((sourceText): JudgmentActionItem => {
+        let action: JudgmentAction = 'unclear';
+        if (/驳回|不予支持|无需支付|不予处理|不属于(?:人民法院|民事诉讼|劳动争议)/.test(sourceText)) {
+          action = 'reject';
+        } else if (/予以支持|支持/.test(sourceText)) {
+          action = 'support';
+        } else if (/支付|补缴|补发/.test(sourceText)) {
+          action = 'pay';
+        } else if (/维持(?:原判|原裁决)/.test(sourceText)) {
+          action = 'maintain';
+        } else if (/撤销/.test(sourceText)) {
+          action = 'revoke';
+        }
+
+        let targetPartyRole: JudgmentActionItem['targetPartyRole'] = 'unknown';
+        if (/被告[^。；，,]*(?:反诉|请求)/.test(sourceText)) {
+          targetPartyRole = 'defendant';
+        } else if (/被上诉人/.test(sourceText)) {
+          targetPartyRole = 'appellee';
+        } else if (/上诉人|上诉请求/.test(sourceText)) {
+          targetPartyRole = 'appellant';
+        } else if (/原告|申请人/.test(sourceText)) {
+          targetPartyRole = 'plaintiff';
+        }
+
+        // 只有主文片段明确出现请求别名时才绑定 claim；“驳回原告”等通用措辞保持无具体 claim。
+        const matchedPattern = claimPatterns.find((pat) =>
+          pat.keywords.some((keyword) => sourceText.includes(keyword))
+        );
+
+        const requestedAmount = AmountResolver.extractRequestedAmount(sourceText);
+        const awardedAmount = action === 'reject'
+          ? 0
+          : AmountResolver.extractAwardedAmount(sourceText)
+            ?? (action === 'pay' ? AmountResolver.extractFirstAmount(sourceText) : undefined);
+
+        return {
+          action,
+          targetPartyRole,
+          targetClaimType: matchedPattern ? this.normalizeClaimType(matchedPattern.name) : undefined,
+          requestedAmount,
+          awardedAmount,
+          sourceText,
+        };
+      })
+      .filter((item) => item.action !== 'unclear' || !!item.targetClaimType);
+
+    for (let index = 1; index < actions.length; index++) {
+      const current = actions[index];
+      const previous = actions[index - 1];
+      if (!current.targetClaimType && previous.targetClaimType && current.action !== 'unclear') {
+        current.targetClaimType = previous.targetClaimType;
+        current.referenceResolution = {
+          sourceText: current.sourceText,
+          referencedClaimIds: [],
+          confidence: 0.8,
+          resolutionMethod: 'rule',
+          needsSemanticResolution: false,
+        };
+      }
+    }
+
+    return actions;
+  }
+
+  private static normalizeClaimType(claimName: string): string {
+    const types: Record<string, string> = {
+      违法解除劳动合同赔偿金: 'unlawful_termination_compensation',
+      未依法缴纳社会保险经济补偿金: 'social_insurance_compensation',
+      补缴社会保险费: 'social_insurance_contribution',
+      解除劳动合同经济补偿金: 'economic_compensation',
+      代通知金: 'notice_pay',
+      加班工资: 'overtime_pay',
+      未休年休假工资: 'annual_leave_pay',
+      未签书面劳动合同二倍工资差额: 'double_wage_difference',
+      '拖欠/未付劳动报酬': 'unpaid_remuneration',
+      劳动关系解除确认: 'employment_termination_confirmation',
+    };
+    return types[claimName] || claimName;
+  }
+
+  private static findClaimSourceText(text: string, decisionText: string, aliases: string[]): string {
+    const decisionIndex = decisionText ? text.indexOf(decisionText) : -1;
+    const requestText = decisionIndex >= 0 ? text.slice(0, decisionIndex) : text;
+    const fragments = requestText.split(/[。；;\n\r]+/).map((part) => part.trim()).filter(Boolean);
+    const matches = fragments.filter((fragment) => aliases.some((alias) => fragment.includes(alias)));
+    return matches.find((fragment) => /请求|主张|要求|反诉|诉请/.test(fragment)) || matches[0] || '';
+  }
+
+  private static resolveClaimantMetadata(
+    sourceText: string,
+    parties: PartyRecognitionResult,
+  ): {
+    claimantRole: LaborRole;
+    claimantPartyId?: string;
+    proceduralBasis: ClaimProceduralBasis;
+  } {
+    const isCounterclaim = /反诉|(?:被告|被申请人|被上诉人)[^。；]*请求/.test(sourceText);
+    const isAppealRequest = /上诉人|上诉请求|撤销原判/.test(sourceText);
+    const isApplication = /申请人/.test(sourceText) && !isCounterclaim;
+    let claimantRole: LaborRole = parties.applicantRole;
+    let proceduralBasis: ClaimProceduralBasis = 'original_claim';
+    let targetRoles: CaseParty['proceduralRoles'] = ['plaintiff'];
+
+    if (isCounterclaim) {
+      claimantRole = parties.applicantRole === 'employee'
+        ? 'employer'
+        : parties.applicantRole === 'employer'
+          ? 'employee'
+          : 'unknown';
+      proceduralBasis = 'counterclaim';
+      targetRoles = ['counterclaimant', 'defendant', 'respondent', 'appellee'];
+    } else if (isAppealRequest) {
+      proceduralBasis = 'appeal_request';
+      targetRoles = ['appellant'];
+    } else if (isApplication) {
+      proceduralBasis = 'application';
+      targetRoles = ['applicant'];
+    }
+
+    return {
+      claimantRole,
+      claimantPartyId: this.findPartyId(parties, claimantRole, targetRoles),
+      proceduralBasis,
+    };
+  }
+
+  private static findPartyId(
+    parties: PartyRecognitionResult,
+    laborRole: LaborRole,
+    proceduralRoles: CaseParty['proceduralRoles'],
+  ): string | undefined {
+    return parties.parties?.find((party) =>
+      party.laborRole === laborRole
+      && proceduralRoles.some((role) => party.proceduralRoles.includes(role))
+    )?.id;
+  }
+
+  private static findProceduralRequestSource(text: string): string {
+    return text.split(/[。；;\n\r]+/).find((fragment) =>
+      /上诉人|上诉请求|撤销原判|申请人|反诉/.test(fragment)
+    )?.trim() || '';
+  }
+
+  private static extractUnresolvedReferences(decisionText: string): ClaimReferenceCandidate[] {
+    return decisionText
+      .split(/[。；;\n\r]+/)
+      .map((part) => part.trim())
+      .filter((part) => /上述|前述|该项请求|第[一二三四五六七八九十]+项|其余请求/.test(part))
+      .map((sourceText) => ({
+        sourceText,
+        referencedClaimIds: [],
+        confidence: 0,
+        resolutionMethod: 'unresolved' as const,
+        needsSemanticResolution: true,
+      }));
   }
 
   /**
@@ -972,9 +1276,14 @@ export class LaborInfoParserAdapter {
     employerOutcome: LegalOutcomeType;
     overallResult: LegalOutcomeType;
   } {
-    const text = decisionText.toLowerCase();
-
-    const isApplicantEmployee = parties.applicantRole !== 'employer';
+    // unknown 没有足够事实建立任何一方视角，禁止默认落入劳动者或企业分支。
+    if (parties.applicantRole === 'unknown') {
+      return {
+        employeeOutcome: 'unclear',
+        employerOutcome: 'unclear',
+        overallResult: 'unclear',
+      };
+    }
 
     // 统计诉求支持状态
     const supportedClaims = claims.filter((c) => c.supportStatus === 'supported').length;
@@ -982,58 +1291,39 @@ export class LaborInfoParserAdapter {
     const rejectedClaims = claims.filter((c) => c.supportStatus === 'not_supported').length;
     const totalClaims = claims.length;
 
-    let employeeOutcome: LegalOutcomeType = 'unclear';
-    let employerOutcome: LegalOutcomeType = 'unclear';
-    let overallResult: LegalOutcomeType = 'unclear';
+    const actions = this.extractJudgmentActions(decisionText);
+    const applicantActions = actions.filter((item) =>
+      item.targetPartyRole === 'plaintiff' || item.targetPartyRole === 'appellant'
+    );
+    const hasApplicantSupport = applicantActions.some((item) => item.action === 'support');
+    const hasApplicantReject = applicantActions.some((item) => item.action === 'reject');
+    const hasUnscopedOtherReject = actions.some((item) =>
+      item.action === 'reject'
+      && item.targetPartyRole === 'unknown'
+      && /其他/.test(item.sourceText)
+    );
 
-    // 强特征关键词分析
-    const hasFullReject = text.includes('驳回原告的全部诉讼请求') || text.includes('驳回申请人的全部仲裁请求') || text.includes('驳回原告全部诉讼请求');
-    const hasFullSupport = text.includes('全额支付') || (supportedClaims === totalClaims && totalClaims > 0 && rejectedClaims === 0);
-    const hasPartial = text.includes('驳回原告的其他诉讼请求') || text.includes('驳回原告其他诉讼请求') || text.includes('驳回其他仲裁请求') || (supportedClaims > 0 && rejectedClaims > 0) || partialClaims > 0;
-
-    if (hasFullReject) {
-      if (isApplicantEmployee) {
-        employeeOutcome = 'not_supported';
-        employerOutcome = 'supported';
-      } else {
-        employeeOutcome = 'supported';
-        employerOutcome = 'not_supported';
-      }
-      overallResult = 'not_supported';
-    } else if (hasFullSupport) {
-      if (isApplicantEmployee) {
-        employeeOutcome = 'supported';
-        employerOutcome = 'not_supported';
-      } else {
-        employeeOutcome = 'not_supported';
-        employerOutcome = 'supported';
-      }
-      overallResult = 'supported';
-    } else if (hasPartial) {
-      employeeOutcome = 'partially_supported';
-      employerOutcome = 'partially_supported';
-      overallResult = 'partially_supported';
-    } else if (text.includes('支付') || text.includes('赔偿') || text.includes('补偿')) {
-      if (text.includes('驳回')) {
-        employeeOutcome = 'partially_supported';
-        employerOutcome = 'partially_supported';
-        overallResult = 'partially_supported';
-      } else {
-        employeeOutcome = isApplicantEmployee ? 'supported' : 'not_supported';
-        employerOutcome = isApplicantEmployee ? 'not_supported' : 'supported';
-        overallResult = 'supported';
-      }
-    } else if (text.includes('驳回')) {
-      employeeOutcome = isApplicantEmployee ? 'not_supported' : 'supported';
-      employerOutcome = isApplicantEmployee ? 'supported' : 'not_supported';
-      overallResult = 'not_supported';
-    } else {
-      employeeOutcome = 'unclear';
-      employerOutcome = 'unclear';
-      overallResult = 'unclear';
+    let applicantOutcome: LegalOutcomeType = 'unclear';
+    if ((hasApplicantSupport && hasApplicantReject)
+      || (hasUnscopedOtherReject && (hasApplicantSupport || supportedClaims > 0))
+      || partialClaims > 0
+      || (supportedClaims > 0 && rejectedClaims > 0)) {
+      applicantOutcome = 'partially_supported';
+    } else if (hasApplicantReject) {
+      applicantOutcome = 'not_supported';
+    } else if (hasApplicantSupport) {
+      applicantOutcome = 'supported';
+    } else if (supportedClaims === totalClaims && totalClaims > 0 && rejectedClaims === 0) {
+      applicantOutcome = 'supported';
+    } else if (rejectedClaims === totalClaims && totalClaims > 0 && supportedClaims === 0) {
+      applicantOutcome = 'not_supported';
     }
 
-    return { employeeOutcome, employerOutcome, overallResult };
+    const { employeeOutcome, employerOutcome } = resolvePartyOutcomes(
+      parties.applicantRole,
+      applicantOutcome
+    );
+    return { employeeOutcome, employerOutcome, overallResult: applicantOutcome };
   }
 
   /**
@@ -1064,12 +1354,13 @@ export class LaborInfoParserAdapter {
     overall: LegalOutcomeType,
     parties: PartyRecognitionResult
   ): DecisionOutcome {
-    const isEmp = parties.applicantRole !== 'employer';
+    if (parties.applicantRole === 'unknown') return '调解/其他';
+    const isEmployeeApplicant = parties.applicantRole === 'employee';
     if (overall === 'supported') {
-      return isEmp ? '用人单位败诉' : '用人单位胜诉';
+      return isEmployeeApplicant ? '用人单位败诉' : '用人单位胜诉';
     }
     if (overall === 'not_supported') {
-      return isEmp ? '用人单位胜诉' : '用人单位败诉';
+      return isEmployeeApplicant ? '用人单位胜诉' : '用人单位败诉';
     }
     if (overall === 'partially_supported') {
       return '部分支持';

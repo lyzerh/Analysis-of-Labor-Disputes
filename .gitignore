@@ -1,7 +1,9 @@
 node_modules/
 build/
 dist/
+dist-pages/
 coverage/
+audit-output/
 .DS_Store
 *.log
 .env*

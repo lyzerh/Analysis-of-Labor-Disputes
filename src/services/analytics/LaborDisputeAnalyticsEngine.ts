@@ -397,8 +397,9 @@ export class LaborDisputeAnalyticsEngine {
     };
 
     records.forEach((r) => {
-      // 找出与此 disputeType 相关的 claims
+      // 只统计由目标角色提出的相关请求；不得把另一方请求结果反转成目标角色结果。
       const relevantClaims = r.claims?.filter(c => {
+        if (c.claimant !== role) return false;
         const cName = c.claimName || '';
         // 映射逻辑
         if (disputeType === '违法解除赔偿金' && cName.includes('违法解除')) return true;
@@ -433,11 +434,6 @@ export class LaborDisputeAnalyticsEngine {
       } else {
         // 退回整体 outcome
         outcome = role === 'employee' ? r.employeeOutcome : r.employerOutcome;
-      }
-
-      // 如果角色是企业，则将劳动者的结果反转
-      if (role === 'employer' && outcome !== 'partially_supported' && outcome !== 'unclear' && relevantClaims && relevantClaims.length > 0) {
-        outcome = outcome === 'supported' ? 'not_supported' : 'supported';
       }
 
       if (outcome === 'supported') {

@@ -511,13 +511,77 @@ export interface LaborInfoCrawlSummary {
  */
 export type ClaimSupportStatus = 'supported' | 'partially_supported' | 'not_supported' | 'unclear';
 
+/** 裁判请求提出方的劳动关系身份。unknown 不得默认映射为任何一方。 */
+export type ApplicantRole = 'employee' | 'employer' | 'unknown';
+
+export type LaborRole = 'employee' | 'employer' | 'other' | 'unknown';
+
+export type ProceduralRole =
+  | 'plaintiff'
+  | 'defendant'
+  | 'appellant'
+  | 'appellee'
+  | 'applicant'
+  | 'respondent'
+  | 'counterclaimant'
+  | 'third_party'
+  | 'unknown';
+
+export interface CaseParty {
+  id: string;
+  name: string;
+  laborRole: LaborRole;
+  proceduralRoles: ProceduralRole[];
+}
+
+export type ClaimProceduralBasis =
+  | 'original_claim'
+  | 'counterclaim'
+  | 'appeal_request'
+  | 'application'
+  | 'unknown';
+
+export type ReferenceResolutionMethod = 'direct' | 'ordinal' | 'rule' | 'llm' | 'unresolved';
+
+export interface ClaimReferenceCandidate {
+  sourceText: string;
+  referencedClaimIds: string[];
+  confidence: number;
+  resolutionMethod: ReferenceResolutionMethod;
+  needsSemanticResolution: boolean;
+}
+
+/** 裁判主文中的最小动作模型，用于隔离动作、程序对象与具体请求。 */
+export type JudgmentAction = 'support' | 'reject' | 'pay' | 'maintain' | 'revoke' | 'unclear';
+
+export interface JudgmentActionItem {
+  id?: string;
+  action: JudgmentAction;
+  targetPartyRole: 'plaintiff' | 'defendant' | 'appellant' | 'appellee' | 'unknown';
+  targetClaimType?: string;
+  requestedAmount?: number;
+  awardedAmount?: number;
+  referenceResolution?: ClaimReferenceCandidate;
+  sourceText: string;
+}
+
 /**
  * 诉求条目
  */
 export interface LaborInfoClaimItem {
+  id?: string;
   claimName: string;
-  claimant: 'employee' | 'employer' | 'other';
+  claimType?: string;
+  claimant: LaborRole;
+  claimantRole?: LaborRole;
+  claimantPartyId?: string;
+  proceduralBasis?: ClaimProceduralBasis;
   supportStatus: ClaimSupportStatus;
+  requestedAmount?: number;
+  awardedAmount?: number;
+  sourceText?: string;
+  judgmentItems?: JudgmentActionItem[];
+  referenceResolution?: ClaimReferenceCandidate;
   amount?: number;
   reason?: string;
 }
@@ -528,7 +592,8 @@ export interface LaborInfoClaimItem {
 export interface PartyRecognitionResult {
   employeeParty: string | null;
   employerParty: string | null;
-  applicantRole: 'employee' | 'employer' | 'unknown';
+  applicantRole: ApplicantRole;
+  parties?: CaseParty[];
   confidence: number; // 0 - 1.0
   reason?: string;
 }
@@ -554,6 +619,8 @@ export interface LaborInfoParsedResult {
   // 当事人识别
   employeeParty: string | null;
   employerParty: string | null;
+  applicantRole: ApplicantRole;
+  parties: CaseParty[];
   partyConfidence: number;
 
   // 争议类型
@@ -561,6 +628,7 @@ export interface LaborInfoParsedResult {
 
   // 诉求列表
   claims: LaborInfoClaimItem[];
+  unresolvedReferences: ClaimReferenceCandidate[];
 
   // 企业抗辩
   employerDefenses: EmployerDefenseItem[];
@@ -573,8 +641,10 @@ export interface LaborInfoParsedResult {
   keyLegalPoints: string[];
 
   // 结果四分类
+  applicantOutcome: LegalOutcomeType;
   employeeOutcome: LegalOutcomeType;
   employerOutcome: LegalOutcomeType;
+  /** @deprecated 兼容字段；语义等同 applicantOutcome，不是 employeeOutcome。 */
   overallResult: LegalOutcomeType;
 
   // 衍生 ArbitrationCase 对象
@@ -677,11 +747,16 @@ export interface ParserReviewRecord {
   reviewerChanges: {
     employeeParty?: string | null;
     employerParty?: string | null;
+    applicantRole?: ApplicantRole;
+    applicantOutcome?: LegalOutcomeType;
+    employeeOutcome?: LegalOutcomeType;
+    employerOutcome?: LegalOutcomeType;
     claims?: LaborInfoClaimItem[];
     employerDefenses?: EmployerDefenseItem[];
     evidence?: EvidenceItem[];
     courtReasoning?: string;
     keyLegalPoints?: string[];
+    /** @deprecated 兼容旧审核数据；语义为 applicantOutcome。 */
     overallResult?: LegalOutcomeType;
     disputeType?: string[];
     customNotes?: string;
@@ -718,6 +793,8 @@ export interface AnalysisCaseRecord {
   // 主体信息 (Parties)
   employeeParty: string | null;
   employerParty: string | null;
+  applicantRole: ApplicantRole;
+  parties: CaseParty[];
 
   // 裁判理由与核心要点
   courtReasoning: string;
@@ -729,10 +806,13 @@ export interface AnalysisCaseRecord {
 
   // 诉求清单 (Claims)
   claims: LaborInfoClaimItem[];
+  unresolvedReferences: ClaimReferenceCandidate[];
 
   // 裁判结果四分类 (Outcomes)
+  applicantOutcome: LegalOutcomeType;
   employeeOutcome: LegalOutcomeType;
   employerOutcome: LegalOutcomeType;
+  /** @deprecated 兼容字段；语义等同 applicantOutcome，不是 employeeOutcome。 */
   overallResult: LegalOutcomeType;
 
   // 质量指标与审核状态 (Quality & Validation)

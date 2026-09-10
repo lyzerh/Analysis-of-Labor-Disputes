@@ -107,7 +107,9 @@ export class DefenseStrategyAnalyzer {
 
     const analyzedCaseCount = includedRecords.length;
     const employerSupportedCases = includedRecords.filter((r) => r.employerOutcome === 'supported');
-    const employerNonSupportedCases = includedRecords.filter((r) => r.employerOutcome !== 'supported');
+    const employerNonSupportedCases = includedRecords.filter(
+      (r) => r.employerOutcome === 'partially_supported' || r.employerOutcome === 'not_supported'
+    );
 
     // 2. 企业抗辩增强排行
     const defenseRanking = this.analyzeDefenseRanking(includedRecords);
@@ -234,7 +236,9 @@ export class DefenseStrategyAnalyzer {
         const hasDefense = r.employerDefenses?.some((d) =>
           d.defenseType.includes(defenseName) || defenseName.includes(d.defenseType)
         );
-        return hasDefense && r.employerOutcome !== 'supported';
+        return hasDefense && (
+          r.employerOutcome === 'partially_supported' || r.employerOutcome === 'not_supported'
+        );
       });
 
       if (failedRecords.length === 0) return;

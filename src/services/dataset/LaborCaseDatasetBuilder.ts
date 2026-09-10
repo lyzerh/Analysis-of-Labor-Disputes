@@ -12,6 +12,7 @@ import { CityResolver } from '../parser/CityResolver';
 import { LaborInfoParserAdapter } from '../parser/LaborInfoParserAdapter';
 import { ParserEvaluator } from '../parser/ParserEvaluator';
 import { ReviewStorageService } from '../data/ReviewStorageService';
+import { resolvePartyOutcomes } from '../outcome/OutcomeResolver';
 
 /**
  * 珠三角 9 大核心城市列表
@@ -137,26 +138,27 @@ export class LaborCaseDatasetBuilder {
       ? changes.keyLegalPoints
       : (parsed.keyLegalPoints || []);
 
-    const overallResult: LegalOutcomeType = (hasReviewerChanges && changes?.overallResult)
-      ? changes.overallResult
-      : (parsed.overallResult || 'unclear');
+    const applicantRole = changes?.applicantRole ?? parsed.applicantRole ?? 'unknown';
+    const applicantOutcome: LegalOutcomeType = changes?.applicantOutcome
+      ?? changes?.overallResult
+      ?? parsed.applicantOutcome
+      ?? parsed.overallResult
+      ?? 'unclear';
+    // 兼容旧字段；其语义固定为申请人视角。
+    const overallResult = applicantOutcome;
 
-    // 5. 推导胜负结果 (四分类)
-    let employeeOutcome: LegalOutcomeType = 'unclear';
-    let employerOutcome: LegalOutcomeType = 'unclear';
+    // 5. Parser 的明确 party outcomes 是事实来源；仅在 Review 改了 Outcome/角色时确定性重算。
+    let employeeOutcome = parsed.employeeOutcome ?? 'unclear';
+    let employerOutcome = parsed.employerOutcome ?? 'unclear';
+    const reviewChangesPerspective = changes?.applicantRole !== undefined
+      || changes?.applicantOutcome !== undefined
+      || changes?.overallResult !== undefined;
 
-    if (overallResult === 'supported') {
-      employeeOutcome = 'supported';
-      employerOutcome = 'not_supported';
-    } else if (overallResult === 'not_supported') {
-      employeeOutcome = 'not_supported';
-      employerOutcome = 'supported';
-    } else if (overallResult === 'partially_supported') {
-      employeeOutcome = 'partially_supported';
-      employerOutcome = 'partially_supported';
-    } else {
-      employeeOutcome = 'unclear';
-      employerOutcome = 'unclear';
+    if (changes?.employeeOutcome !== undefined && changes?.employerOutcome !== undefined) {
+      employeeOutcome = changes.employeeOutcome;
+      employerOutcome = changes.employerOutcome;
+    } else if (reviewChangesPerspective) {
+      ({ employeeOutcome, employerOutcome } = resolvePartyOutcomes(applicantRole, applicantOutcome));
     }
 
     // 6. 识别城市与珠三角 (PRD) 属性
@@ -205,13 +207,17 @@ export class LaborCaseDatasetBuilder {
       disputeType,
       employeeParty,
       employerParty,
+      applicantRole,
+      parties: parsed.parties || [],
 
       employerDefenses,
       evidence,
       claims,
+      unresolvedReferences: parsed.unresolvedReferences || [],
       courtReasoning,
       keyLegalPoints,
 
+      applicantOutcome,
       employeeOutcome,
       employerOutcome,
       overallResult,
