@@ -2,6 +2,12 @@
  * 深圳劳动仲裁文书本地研究库 - 核心数据类型定义
  */
 
+import type {
+  AppliedSemanticRelation,
+  ReviewableSemanticResolutionCandidate,
+  SemanticResolutionStatus,
+} from './services/semantic/types';
+
 export type DocumentContentType = 'html' | 'txt' | 'pdf' | 'mht' | 'pasted' | 'json';
 
 export type DecisionOutcome = '用人单位胜诉' | '用人单位败诉' | '部分支持' | '调解/其他';
@@ -629,6 +635,10 @@ export interface LaborInfoParsedResult {
   // 诉求列表
   claims: LaborInfoClaimItem[];
   unresolvedReferences: ClaimReferenceCandidate[];
+  semanticRelations?: AppliedSemanticRelation[];
+  humanReviewCandidates?: ReviewableSemanticResolutionCandidate[];
+  semanticResolutionStatus?: SemanticResolutionStatus;
+  semanticResolutionErrorCode?: string;
 
   // 企业抗辩
   employerDefenses: EmployerDefenseItem[];
@@ -807,6 +817,10 @@ export interface AnalysisCaseRecord {
   // 诉求清单 (Claims)
   claims: LaborInfoClaimItem[];
   unresolvedReferences: ClaimReferenceCandidate[];
+  semanticRelations?: AppliedSemanticRelation[];
+  humanReviewCandidates?: ReviewableSemanticResolutionCandidate[];
+  semanticResolutionStatus?: SemanticResolutionStatus;
+  semanticResolutionErrorCode?: string;
 
   // 裁判结果四分类 (Outcomes)
   applicantOutcome: LegalOutcomeType;

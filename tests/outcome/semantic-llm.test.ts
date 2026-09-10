@@ -50,6 +50,21 @@ const fakeClient = (text?: string, error?: unknown): GeminiGenerateClient => ({
   },
 });
 
+const sequenceClient = (...steps: Array<{ text?: string; error?: unknown }>) => {
+  let callCount = 0;
+  const client: GeminiGenerateClient = {
+    models: {
+      generateContent: async () => {
+        const step = steps[Math.min(callCount, steps.length - 1)];
+        callCount += 1;
+        if (step.error) throw step.error;
+        return { text: step.text };
+      },
+    },
+  };
+  return { client, getCallCount: () => callCount };
+};
+
 describe('SemanticResolutionSchema', () => {
   it('accepts the strict relationship-only response', () => {
     const response = {
@@ -165,6 +180,13 @@ describe('MockSemanticResolver orchestration', () => {
 
 describe('GeminiSemanticResolver provider boundary without network', () => {
   const input = semanticInput('该项请求不予支持');
+  const validWire = JSON.stringify({
+    candidates: [{
+      fragmentId: 'fragment-1', referencedClaimIds: ['claim-1'],
+      courtTreatment: 'rejected', confidence: 0.95,
+      sourceText: '该项请求不予支持', reasoningType: 'anaphora', resolutionMethod: 'llm',
+    }],
+  });
 
   it('adds server-controlled Gemini provenance to schema-valid JSON', async () => {
     const wire = {
@@ -193,14 +215,107 @@ describe('GeminiSemanticResolver provider boundary without network', () => {
 
   it('classifies a provider 429 without exposing its message', async () => {
     const resolver = new GeminiSemanticResolver({
-      apiKey: 'test-only', client: fakeClient(undefined, { status: 429, message: 'secret upstream detail' }),
+      apiKey: 'test-only',
+      client: fakeClient(undefined, { status: 429, message: 'secret upstream detail' }),
+      maxAttempts: 1,
     });
     await expect(resolver.resolve(input)).rejects.toMatchObject({ code: 'rate_limited' });
   });
 
+  it('classifies a provider deadline as timeout', async () => {
+    const resolver = new GeminiSemanticResolver({
+      apiKey: 'test-only',
+      client: fakeClient(undefined, { status: 504, message: 'DEADLINE_EXCEEDED: deadline expired' }),
+      maxAttempts: 1,
+    });
+    await expect(resolver.resolve(input)).rejects.toMatchObject({ code: 'timeout' });
+  });
+
+  it.each([
+    ['503', { status: 503, message: 'temporarily unavailable' }],
+    ['504', { status: 504, message: 'DEADLINE_EXCEEDED: deadline expired' }],
+  ])('retries a transient %s once and then succeeds', async (_label, transientError) => {
+    const sequence = sequenceClient({ error: transientError }, { text: validWire });
+    const delays: number[] = [];
+    const resolver = new GeminiSemanticResolver({
+      apiKey: 'test-only',
+      client: sequence.client,
+      sleep: async (delayMs) => { delays.push(delayMs); },
+    });
+
+    await expect(resolver.resolve(input)).resolves.toHaveLength(1);
+    expect(sequence.getCallCount()).toBe(2);
+    expect(resolver.getAttemptCount()).toBe(2);
+    expect(delays).toEqual([500]);
+  });
+
+  it('stops after three repeated 503 responses and falls back unresolved', async () => {
+    const sequence = sequenceClient({ error: { status: 503, message: 'temporarily unavailable' } });
+    const delays: number[] = [];
+    const resolver = new GeminiSemanticResolver({
+      apiKey: 'test-only',
+      client: sequence.client,
+      sleep: async (delayMs) => { delays.push(delayMs); },
+    });
+
+    const result = await resolveAndValidateSemanticReferences(resolver, input);
+    expect(result).toMatchObject({
+      status: 'fallback_unresolved',
+      errorCode: 'provider_error',
+      attemptCount: 3,
+      unresolvedFragments: input.unresolvedFragments,
+    });
+    expect(sequence.getCallCount()).toBe(3);
+    expect(delays).toEqual([500, 1_000]);
+  });
+
+  it('does not retry a 404 model-unavailable response', async () => {
+    const sequence = sequenceClient({ error: { status: 404, message: 'model unavailable' } });
+    const resolver = new GeminiSemanticResolver({
+      apiKey: 'test-only', client: sequence.client, sleep: async () => undefined,
+    });
+
+    const result = await resolveAndValidateSemanticReferences(resolver, input);
+    expect(result).toMatchObject({
+      status: 'fallback_unresolved', errorCode: 'provider_error', attemptCount: 1,
+    });
+    expect(sequence.getCallCount()).toBe(1);
+  });
+
+  it('does not retry a schema-invalid provider response', async () => {
+    const sequence = sequenceClient({ text: JSON.stringify({ candidates: [{ outcome: 'rejected' }] }) });
+    const resolver = new GeminiSemanticResolver({
+      apiKey: 'test-only', client: sequence.client, sleep: async () => undefined,
+    });
+
+    await expect(resolver.resolve(input)).rejects.toMatchObject({ code: 'schema_invalid', attemptCount: 1 });
+    expect(sequence.getCallCount()).toBe(1);
+  });
+
+  it('does not retry a validator-rejected semantic candidate', async () => {
+    const lowConfidenceWire = JSON.stringify({
+      candidates: [{
+        fragmentId: 'fragment-1', referencedClaimIds: ['claim-1'],
+        courtTreatment: 'rejected', confidence: 0.5,
+        sourceText: '该项请求不予支持', reasoningType: 'anaphora', resolutionMethod: 'llm',
+      }],
+    });
+    const sequence = sequenceClient({ text: lowConfidenceWire });
+    const resolver = new GeminiSemanticResolver({
+      apiKey: 'test-only', client: sequence.client, sleep: async () => undefined,
+    });
+
+    const result = await resolveAndValidateSemanticReferences(resolver, input);
+    expect(result.rejected[0].reasons).toContain('confidence_below_rejection_threshold');
+    expect(sequence.getCallCount()).toBe(1);
+    expect(result.attemptCount).toBe(1);
+  });
+
   it('enforces timeout even if a provider promise never settles', async () => {
     const client: GeminiGenerateClient = { models: { generateContent: () => new Promise(() => undefined) } };
-    const resolver = new GeminiSemanticResolver({ apiKey: 'test-only', client, timeoutMs: 5 });
+    const resolver = new GeminiSemanticResolver({
+      apiKey: 'test-only', client, timeoutMs: 5, attemptTimeoutMs: 5, maxAttempts: 1,
+    });
     await expect(resolver.resolve(input)).rejects.toMatchObject({ code: 'timeout' });
   });
 

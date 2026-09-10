@@ -8,11 +8,14 @@ import {
 import {
   buildSemanticPrompt,
   DEFAULT_SEMANTIC_MODEL,
+  SEMANTIC_LLM_ATTEMPT_TIMEOUT_MS,
+  SEMANTIC_LLM_MAX_ATTEMPTS,
   SEMANTIC_LLM_TIMEOUT_MS,
   SEMANTIC_MAX_OUTPUT_TOKENS,
   SEMANTIC_PROMPT_VERSION,
   SEMANTIC_SYSTEM_INSTRUCTION,
   SEMANTIC_TEMPERATURE,
+  SEMANTIC_RETRY_BASE_DELAY_MS,
 } from './SemanticPrompt';
 import type {
   SemanticResolutionCandidate,
@@ -24,6 +27,10 @@ export interface GeminiSemanticResolverOptions {
   apiKey: string;
   modelName?: string;
   timeoutMs?: number;
+  attemptTimeoutMs?: number;
+  maxAttempts?: number;
+  retryBaseDelayMs?: number;
+  sleep?: (delayMs: number) => Promise<void>;
   client?: GeminiGenerateClient;
   now?: () => Date;
 }
@@ -44,7 +51,12 @@ const classifyProviderError = (error: unknown): SemanticResolverError => {
   const status = Number(candidate?.status || candidate?.code) || undefined;
   const message = `${candidate?.name || ''} ${candidate?.message || ''}`.toLowerCase();
   if (status === 429) return new SemanticResolverError('rate_limited', 'Gemini rate limit reached', status);
-  if (message.includes('timeout') || message.includes('aborted') || candidate?.name === 'AbortError') {
+  if (message.includes('timeout')
+    || message.includes('aborted')
+    || message.includes('deadline exceeded')
+    || message.includes('deadline_expired')
+    || message.includes('deadline expired')
+    || candidate?.name === 'AbortError') {
     return new SemanticResolverError('timeout', 'Gemini semantic resolution timed out', status);
   }
   if (status && status >= 500) return new SemanticResolverError('provider_error', 'Gemini service failed', status);
@@ -54,11 +66,26 @@ const classifyProviderError = (error: unknown): SemanticResolverError => {
   return new SemanticResolverError('provider_error', 'Gemini semantic resolution failed', status);
 };
 
+const isRetryableProviderError = (error: SemanticResolverError): boolean =>
+  error.code === 'rate_limited'
+  || error.code === 'timeout'
+  || error.code === 'network_error'
+  || error.status === 503
+  || error.status === 504;
+
+const wait = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, delayMs));
+
 export class GeminiSemanticResolver implements SemanticResolver {
   private readonly client: GeminiGenerateClient;
   private readonly modelName: string;
   private readonly timeoutMs: number;
+  private readonly attemptTimeoutMs: number;
+  private readonly maxAttempts: number;
+  private readonly retryBaseDelayMs: number;
+  private readonly sleep: (delayMs: number) => Promise<void>;
   private readonly now: () => Date;
+  private lastAttemptCount = 0;
   private queue: Promise<void> = Promise.resolve();
 
   constructor(options: GeminiSemanticResolverOptions) {
@@ -68,7 +95,15 @@ export class GeminiSemanticResolver implements SemanticResolver {
     this.client = options.client ?? new GoogleGenAI({ apiKey: options.apiKey });
     this.modelName = options.modelName ?? DEFAULT_SEMANTIC_MODEL;
     this.timeoutMs = options.timeoutMs ?? SEMANTIC_LLM_TIMEOUT_MS;
+    this.attemptTimeoutMs = options.attemptTimeoutMs ?? SEMANTIC_LLM_ATTEMPT_TIMEOUT_MS;
+    this.maxAttempts = options.maxAttempts ?? SEMANTIC_LLM_MAX_ATTEMPTS;
+    this.retryBaseDelayMs = options.retryBaseDelayMs ?? SEMANTIC_RETRY_BASE_DELAY_MS;
+    this.sleep = options.sleep ?? wait;
     this.now = options.now ?? (() => new Date());
+  }
+
+  public getAttemptCount(): number {
+    return this.lastAttemptCount;
   }
 
   public resolve(input: SemanticResolutionInput): Promise<SemanticResolutionCandidate[]> {
@@ -78,6 +113,48 @@ export class GeminiSemanticResolver implements SemanticResolver {
   }
 
   private async resolveOnce(input: SemanticResolutionInput): Promise<SemanticResolutionCandidate[]> {
+    const operationStartedAt = Date.now();
+    this.lastAttemptCount = 0;
+
+    for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
+      this.lastAttemptCount = attempt;
+      const remainingMs = this.timeoutMs - (Date.now() - operationStartedAt);
+      if (remainingMs <= 0) {
+        throw new SemanticResolverError(
+          'timeout', 'Gemini semantic resolution exhausted its overall timeout', undefined, attempt - 1,
+        );
+      }
+
+      try {
+        return await this.generateOnce(input, Math.min(this.attemptTimeoutMs, remainingMs), attempt);
+      } catch (error) {
+        const classified = classifyProviderError(error);
+        const finalError = new SemanticResolverError(
+          classified.code, classified.message, classified.status, attempt,
+        );
+        if (!isRetryableProviderError(classified) || attempt === this.maxAttempts) throw finalError;
+
+        const backoffMs = this.retryBaseDelayMs * (2 ** (attempt - 1));
+        const afterAttemptRemainingMs = this.timeoutMs - (Date.now() - operationStartedAt);
+        if (afterAttemptRemainingMs <= backoffMs) {
+          throw new SemanticResolverError(
+            'timeout', 'Gemini semantic resolution exhausted its overall timeout', classified.status, attempt,
+          );
+        }
+        await this.sleep(backoffMs);
+      }
+    }
+
+    throw new SemanticResolverError(
+      'provider_error', 'Gemini semantic resolution failed', undefined, this.lastAttemptCount,
+    );
+  }
+
+  private async generateOnce(
+    input: SemanticResolutionInput,
+    attemptTimeoutMs: number,
+    attempt: number,
+  ): Promise<SemanticResolutionCandidate[]> {
     const controller = new AbortController();
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -91,7 +168,9 @@ export class GeminiSemanticResolver implements SemanticResolver {
           temperature: SEMANTIC_TEMPERATURE,
           maxOutputTokens: SEMANTIC_MAX_OUTPUT_TOKENS,
           abortSignal: controller.signal,
-          httpOptions: { timeout: this.timeoutMs },
+          // Gemini rejects manually configured deadlines below 10 seconds.
+          // Promise.race and abortSignal still enforce a shorter remaining overall budget locally.
+          httpOptions: { timeout: Math.max(SEMANTIC_LLM_ATTEMPT_TIMEOUT_MS, attemptTimeoutMs) },
         },
       });
       const response = await Promise.race([
@@ -99,8 +178,10 @@ export class GeminiSemanticResolver implements SemanticResolver {
         new Promise<never>((_, reject) => {
           timeout = setTimeout(() => {
             controller.abort();
-            reject(new SemanticResolverError('timeout', 'Gemini semantic resolution timed out'));
-          }, this.timeoutMs);
+            reject(new SemanticResolverError(
+              'timeout', 'Gemini semantic resolution timed out', undefined, attempt,
+            ));
+          }, attemptTimeoutMs);
         }),
       ]);
       const text = response.text?.trim();

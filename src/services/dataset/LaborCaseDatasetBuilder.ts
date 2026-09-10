@@ -87,10 +87,11 @@ export class LaborCaseDatasetBuilder {
    */
   public static buildSingleRecord(
     rawDoc: RawDocument,
-    reviewRecord?: ParserReviewRecord | null
+    reviewRecord?: ParserReviewRecord | null,
+    parsedResult?: LaborInfoParsedResult,
   ): AnalysisCaseRecord {
     // 1. 结构化解析
-    const parsed: LaborInfoParsedResult = LaborInfoParserAdapter.parseDetailed(rawDoc);
+    const parsed: LaborInfoParsedResult = parsedResult ?? LaborInfoParserAdapter.parseDetailed(rawDoc);
 
     // 2. 质量完整度评估
     const evalReport = ParserEvaluator.evaluate(parsed, rawDoc.rawText);
@@ -214,6 +215,10 @@ export class LaborCaseDatasetBuilder {
       evidence,
       claims,
       unresolvedReferences: parsed.unresolvedReferences || [],
+      semanticRelations: parsed.semanticRelations,
+      humanReviewCandidates: parsed.humanReviewCandidates,
+      semanticResolutionStatus: parsed.semanticResolutionStatus,
+      semanticResolutionErrorCode: parsed.semanticResolutionErrorCode,
       courtReasoning,
       keyLegalPoints,
 

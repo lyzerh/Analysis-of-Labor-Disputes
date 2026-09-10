@@ -6,3 +6,4 @@ export * from './SemanticResolutionSchema';
 export * from './SemanticPrompt';
 export * from './MockSemanticResolver';
 export * from './SemanticResolverError';
+export * from './SemanticEnrichmentService';

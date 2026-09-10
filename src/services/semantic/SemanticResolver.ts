@@ -11,6 +11,7 @@ import { SemanticResolutionValidator } from './SemanticResolutionValidator';
 
 export interface SemanticResolver {
   resolve(input: SemanticResolutionInput): Promise<SemanticResolutionCandidate[]>;
+  getAttemptCount?(): number;
 }
 
 export const shouldTriggerSemanticResolution = (
@@ -56,6 +57,9 @@ const errorCodeOf = (error: unknown): SemanticResolverErrorCode => {
   return code ?? 'provider_error';
 };
 
+const attemptCountOf = (error: unknown): number | undefined =>
+  (error as { attemptCount?: number })?.attemptCount;
+
 export const resolveAndValidateSemanticReferences = async (
   resolver: SemanticResolver,
   input: SemanticResolutionInput,
@@ -78,6 +82,7 @@ export const resolveAndValidateSemanticReferences = async (
       unresolvedFragments: input.unresolvedFragments,
       status: 'fallback_unresolved',
       errorCode: errorCodeOf(error),
+      attemptCount: attemptCountOf(error),
     };
   }
 
@@ -107,5 +112,12 @@ export const resolveAndValidateSemanticReferences = async (
       );
   });
 
-  return { accepted, humanReview, rejected, unresolvedFragments, status: 'completed' };
+  return {
+    accepted,
+    humanReview,
+    rejected,
+    unresolvedFragments,
+    status: 'completed',
+    attemptCount: resolver.getAttemptCount?.(),
+  };
 };

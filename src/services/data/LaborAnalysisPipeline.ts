@@ -12,6 +12,8 @@ import { ReviewStorageService } from './ReviewStorageService';
 import { LaborCaseDatasetBuilder } from '../dataset/LaborCaseDatasetBuilder';
 import { DataService } from './dataService';
 import { db } from '../../db';
+import { SemanticEnrichmentService } from '../semantic/SemanticEnrichmentService';
+import type { SemanticResolver } from '../semantic/SemanticResolver';
 
 export interface PipelineProcessStats {
   totalRaw: number;
@@ -144,11 +146,52 @@ export class LaborAnalysisPipeline {
     }
   }
 
+  /** Explicit async entry point for one-case optional semantic enrichment. */
+  public static async processRawDocumentWithSemantic(
+    rawDoc: RawDocument,
+    options: {
+      enableSemanticResolution?: boolean;
+      semanticResolver?: SemanticResolver;
+    } = {},
+    reviewRecord?: ParserReviewRecord | null,
+  ): Promise<{
+    record: AnalysisCaseRecord | null;
+    parsedResult?: LaborInfoParsedResult;
+    evalReport?: ParserEvaluationReport;
+    error?: string;
+  }> {
+    if (!options.enableSemanticResolution) {
+      return this.processRawDocument(rawDoc, reviewRecord);
+    }
+    if (rawDoc.source !== 'laborinfo') {
+      return { record: null, error: `非工劳网文书 (source: ${rawDoc.source})，跳过处理` };
+    }
+    const text = (rawDoc.rawText || '').trim();
+    if (!text) return { record: null, error: '裁判文书正文内容为空，无法进行结构化解析' };
+
+    try {
+      const deterministicParsed = LaborInfoParserAdapter.parseDetailed(rawDoc);
+      const parsedResult = await SemanticEnrichmentService.enrich(deterministicParsed, {
+        semanticResolver: options.semanticResolver,
+      });
+      const evalReport = ParserEvaluator.evaluate(parsedResult, text);
+      const review = reviewRecord !== undefined
+        ? reviewRecord
+        : ReviewStorageService.getReview(rawDoc.id);
+      const record = LaborCaseDatasetBuilder.buildSingleRecord(rawDoc, review, parsedResult);
+      return { record, parsedResult, evalReport };
+    } catch (err: any) {
+      return { record: null, error: err.message || '结构化解析、语义增强或质量评估异常' };
+    }
+  }
+
   /**
    * 执行全量流水线转换
    */
   public static async runPipeline(options?: {
     forceReparse?: boolean;
+    enableSemanticResolution?: boolean;
+    semanticResolver?: SemanticResolver;
     onProgress?: (current: number, total: number, latestTitle: string) => void;
   }): Promise<PipelineResult> {
     const rawDocs = await DataService.getLaborInfoRawDocuments(0); // 获取全部 laborinfo 文书
@@ -198,7 +241,12 @@ export class LaborAnalysisPipeline {
       seenSourceIds.add(sid);
 
       const review = reviews[doc.id] || null;
-      const processRes = this.processRawDocument(doc, review);
+      const processRes = options?.enableSemanticResolution
+        ? await this.processRawDocumentWithSemantic(doc, {
+          enableSemanticResolution: true,
+          semanticResolver: options.semanticResolver,
+        }, review)
+        : this.processRawDocument(doc, review);
 
       if (processRes.record) {
         stats.parsedSuccess++;

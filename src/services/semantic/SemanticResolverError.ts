@@ -5,6 +5,7 @@ export class SemanticResolverError extends Error {
     public readonly code: SemanticResolverErrorCode,
     message: string,
     public readonly status?: number,
+    public readonly attemptCount?: number,
   ) {
     super(message);
     this.name = 'SemanticResolverError';

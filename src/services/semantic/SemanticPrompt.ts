@@ -1,8 +1,11 @@
 import type { SemanticResolutionInput } from './types';
 
 export const SEMANTIC_PROMPT_VERSION = 'semantic-reference-v1';
-export const DEFAULT_SEMANTIC_MODEL = 'gemini-2.5-flash';
-export const SEMANTIC_LLM_TIMEOUT_MS = 20_000;
+export const DEFAULT_SEMANTIC_MODEL = 'gemini-3.6-flash';
+export const SEMANTIC_LLM_TIMEOUT_MS = 30_000;
+export const SEMANTIC_LLM_ATTEMPT_TIMEOUT_MS = 10_000;
+export const SEMANTIC_LLM_MAX_ATTEMPTS = 3;
+export const SEMANTIC_RETRY_BASE_DELAY_MS = 500;
 export const SEMANTIC_MAX_OUTPUT_TOKENS = 1_024;
 export const SEMANTIC_TEMPERATURE = 0;
 

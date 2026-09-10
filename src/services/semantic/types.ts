@@ -138,4 +138,15 @@ export interface ValidatedSemanticResolutionResult {
   unresolvedFragments: SemanticUnresolvedFragment[];
   status: 'not_needed' | 'completed' | 'fallback_unresolved';
   errorCode?: SemanticResolverErrorCode;
+  attemptCount?: number;
 }
+
+export type SemanticResolutionStatus =
+  | 'not_needed'
+  | 'pending'
+  | 'partially_resolved'
+  | 'resolved'
+  | 'needs_review'
+  | 'provider_unavailable';
+
+export type AppliedSemanticRelation = ReviewableSemanticResolutionCandidate;

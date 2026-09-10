@@ -1,7 +1,13 @@
 import dotenv from 'dotenv';
+import { GoogleGenAI } from '@google/genai';
 import { describe, expect, it } from 'vitest';
-import { GeminiSemanticResolver } from '../../src/services/semantic/GeminiSemanticResolver';
+import {
+  GeminiSemanticResolver,
+  type GeminiGenerateClient,
+} from '../../src/services/semantic/GeminiSemanticResolver';
 import { resolveAndValidateSemanticReferences } from '../../src/services/semantic/SemanticResolver';
+import { minimizeSemanticResolutionInput } from '../../src/services/semantic/SemanticPrompt';
+import { DEFAULT_SEMANTIC_MODEL } from '../../src/services/semantic/SemanticPrompt';
 import type { SemanticResolutionInput } from '../../src/services/semantic/types';
 
 dotenv.config({ quiet: true });
@@ -22,12 +28,116 @@ describe.skipIf(!hasCredential)('Gemini semantic resolver integration', () => {
         resolutionMethod: 'unresolved', needsSemanticResolution: true,
       }],
     };
+    let upstreamError: {
+      name?: string;
+      status?: number;
+      code?: number | string;
+      category?: string;
+      safeMessage?: string;
+    } | undefined;
+    const googleClient = new GoogleGenAI({ apiKey: apiKey as string });
+    const model = process.env.GEMINI_SEMANTIC_MODEL ?? DEFAULT_SEMANTIC_MODEL;
+    const diagnosticClient: GeminiGenerateClient = {
+      models: {
+        generateContent: async (request) => {
+          try {
+            return await googleClient.models.generateContent(request);
+          } catch (error) {
+            const candidate = error as {
+              name?: string;
+              status?: number;
+              code?: number | string;
+              message?: string;
+            };
+            const message = `${candidate.name || ''} ${candidate.message || ''}`.toLowerCase();
+            const safeMessage = candidate.message
+              ?.replaceAll(apiKey as string, '[REDACTED]')
+              .replace(/([?&]key=)[^&\s]+/gi, '$1[REDACTED]')
+              .replace(/authorization\s*[:=]\s*[^,\s}]+/gi, 'authorization=[REDACTED]');
+            upstreamError = {
+              name: candidate.name,
+              status: candidate.status,
+              code: candidate.code,
+              category: message.includes('schema') ? 'schema'
+                : message.includes('model') ? 'model'
+                  : message.includes('permission') || message.includes('api key') ? 'authentication_or_permission'
+                    : message.includes('quota') || candidate.status === 429 ? 'quota_or_rate_limit'
+                      : message.includes('network') || message.includes('fetch') ? 'network'
+                        : message.includes('timeout')
+                          || message.includes('abort')
+                          || message.includes('deadline') ? 'timeout'
+                          : 'other',
+              safeMessage,
+            };
+            throw error;
+          }
+        },
+      },
+    };
     const resolver = new GeminiSemanticResolver({
       apiKey: apiKey as string,
-      modelName: process.env.GEMINI_SEMANTIC_MODEL,
+      modelName: model,
+      client: diagnosticClient,
     });
     const result = await resolveAndValidateSemanticReferences(resolver, input);
-    expect(result.accepted.map((item) => item.candidate)).toEqual(expect.arrayContaining([
+    const minimizedInput = minimizeSemanticResolutionInput(input);
+    const safeCandidates = [
+      ...result.accepted.map((item) => ({
+        fragmentId: item.candidate.fragmentId,
+        referencedClaimIds: item.candidate.referencedClaimIds,
+        courtTreatment: item.candidate.courtTreatment,
+        confidence: item.candidate.confidence,
+        reasoningType: item.candidate.reasoningType,
+        resolutionMethod: item.candidate.resolutionMethod,
+        validatorDecision: item.validatorDecision,
+        validatorRejectionReasons: item.validationReasons,
+      })),
+      ...result.humanReview.map((item) => ({
+        fragmentId: item.candidate.fragmentId,
+        referencedClaimIds: item.candidate.referencedClaimIds,
+        courtTreatment: item.candidate.courtTreatment,
+        confidence: item.candidate.confidence,
+        reasoningType: item.candidate.reasoningType,
+        resolutionMethod: item.candidate.resolutionMethod,
+        validatorDecision: item.validatorDecision,
+        validatorRejectionReasons: item.validationReasons,
+      })),
+      ...result.rejected.map((item) => ({
+        fragmentId: item.candidate?.fragmentId,
+        referencedClaimIds: item.candidate?.referencedClaimIds,
+        courtTreatment: item.candidate?.courtTreatment,
+        confidence: item.candidate?.confidence,
+        reasoningType: item.candidate?.reasoningType,
+        resolutionMethod: item.candidate?.resolutionMethod,
+        validatorDecision: 'rejected' as const,
+        validatorRejectionReasons: item.reasons,
+      })),
+    ];
+
+    console.info('Gemini semantic integration diagnostics', {
+      resolverStatus: result.status,
+      errorCode: result.errorCode,
+      model,
+      attemptCount: result.attemptCount ?? resolver.getAttemptCount(),
+      acceptedCount: result.accepted.length,
+      humanReviewCount: result.humanReview.length,
+      rejectedCount: result.rejected.length,
+      unresolvedCount: result.unresolvedFragments.length,
+      upstreamError,
+      candidates: safeCandidates,
+      sentContext: {
+        surroundingTextPresent: minimizedInput.unresolvedFragments[0]?.surroundingText === sourceText,
+        fragmentSourceTextPresent: minimizedInput.unresolvedFragments[0]?.sourceText === sourceText,
+        claimSourceTextsPresent: minimizedInput.claims.map((claim) => Boolean(claim.sourceText)),
+      },
+      providerResponseShape: result.status === 'completed' && safeCandidates.length === 0
+        ? { candidates: [] }
+        : undefined,
+    });
+
+    const providerContractCandidates = [...result.accepted, ...result.humanReview]
+      .map((item) => item.candidate);
+    expect(providerContractCandidates).toEqual(expect.arrayContaining([
       expect.objectContaining({
         fragmentId: 'fragment_1',
         referencedClaimIds: ['claim_1'],

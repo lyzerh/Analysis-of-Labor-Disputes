@@ -55,6 +55,18 @@ const sameIds = (left: string[], right: string[]): boolean =>
   left.length === right.length
   && [...left].sort().every((id, index) => id === [...right].sort()[index]);
 
+const treatmentMatchesAction = (
+  action: SemanticResolutionInput['judgmentItems'] extends Array<infer T> | undefined
+    ? T extends { action: infer A } ? A : never
+    : never,
+  treatment: CourtTreatment,
+): boolean => {
+  if (action === 'reject') return treatment === 'rejected';
+  if (action === 'support') return treatment === 'accepted';
+  if (action === 'pay') return treatment === 'accepted' || treatment === 'partially_accepted';
+  return true;
+};
+
 export class SemanticResolutionValidator {
   public static validate(
     input: SemanticResolutionInput,
@@ -103,6 +115,14 @@ export class SemanticResolutionValidator {
     }
     if (!COURT_TREATMENTS.has(candidate.courtTreatment)) reasons.push('invalid_court_treatment');
     if (!REASONING_TYPES.has(candidate.reasoningType)) reasons.push('invalid_reasoning_type');
+
+    const deterministicJudgment = input.judgmentItems?.find((item) =>
+      item.sourceText === candidate.sourceText && item.action !== 'unclear'
+    );
+    if (deterministicJudgment
+      && !treatmentMatchesAction(deterministicJudgment.action, candidate.courtTreatment)) {
+      reasons.push('court_treatment_conflicts_with_deterministic_action');
+    }
 
     if (candidate.claimantPartyId) {
       const referencedClaims = (candidate.referencedClaimIds || [])
