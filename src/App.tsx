@@ -16,6 +16,7 @@ import { DatasetBuilderTest } from './components/DatasetBuilderTest';
 import { LaborAnalysisCaseLibrary } from './components/LaborAnalysisCaseLibrary';
 import { LaborAnalyticsTest } from './components/LaborAnalyticsTest';
 import { DefenseStrategyAnalysis } from './components/DefenseStrategyAnalysis';
+import { ResearchWorkspace } from './components/ResearchWorkspace';
 import { DataManagement } from './components/DataManagement';
 import { SettingsView } from './components/SettingsView';
 import { UserGuideView } from './components/UserGuideView';
@@ -32,6 +33,7 @@ export function App() {
   const [totalDocs, setTotalDocs] = useState(0);
   const [qualityAvg, setQualityAvg] = useState(0);
   const [isOpenMobile, setIsOpenMobile] = useState(false);
+  const [selectedAnalysisRunId, setSelectedAnalysisRunId] = useState('');
 
   // Selected case for detail modal
   const [selectedCase, setSelectedCase] = useState<ArbitrationCase | null>(null);
@@ -124,11 +126,25 @@ export function App() {
           )}
 
           {currentTab === 'caseResearch' && (
-            <LaborAnalyticsTest />
+            <LaborAnalyticsTest initialAnalysisRunId={selectedAnalysisRunId} />
           )}
 
           {currentTab === 'defenseReference' && (
-            <DefenseStrategyAnalysis />
+            <DefenseStrategyAnalysis initialAnalysisRunId={selectedAnalysisRunId} />
+          )}
+
+          {currentTab === 'researchWorkspace' && (
+            <ResearchWorkspace
+              onOpenLaborAnalytics={(analysisRunId) => {
+                setSelectedAnalysisRunId(analysisRunId);
+                setCurrentTab('caseResearch');
+              }}
+              onOpenDefenseAnalysis={(analysisRunId) => {
+                setSelectedAnalysisRunId(analysisRunId);
+                setCurrentTab('defenseReference');
+              }}
+              onOpenDataManagement={() => setCurrentTab('dataManagement')}
+            />
           )}
 
           {currentTab === 'dataManagement' && (

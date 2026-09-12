@@ -18,11 +18,13 @@ import {
   FileCheck2,
   FolderKanban,
   CheckCircle2,
+  FlaskConical,
 } from 'lucide-react';
 
 export type NavTab =
   | 'caseLibrary'
   | 'caseAnalysis'
+  | 'researchWorkspace'
   | 'caseResearch'
   | 'defenseReference'
   | 'dataManagement'
@@ -62,6 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'caseLibrary', label: '劳动争议案例库', icon: FolderKanban, badge: null },
         { id: 'caseAnalysis', label: '案例分析', icon: Scale, badge: null },
+        { id: 'researchWorkspace', label: '研究工作区', icon: FlaskConical, badge: null },
         { id: 'caseResearch', label: '案例研究', icon: BarChart3, badge: null },
         { id: 'defenseReference', label: '应诉参考', icon: ShieldAlert, badge: null },
       ],

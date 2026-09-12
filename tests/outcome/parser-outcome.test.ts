@@ -98,6 +98,24 @@ describe('Layer 2: unknown, partial and multi-claim outcomes', () => {
     expect(result.employeeOutcome).toBe('partially_supported');
     expect(result.employerOutcome).toBe('partially_supported');
   });
+
+  it('aggregates applicant outcome from applicant claims only when both parties have requests', () => {
+    const result = LaborInfoParserAdapter.determineOutcomes(
+      '',
+      [
+        claim('确认无需支付经济补偿金', 'employer', 'supported'),
+        claim('加班工资反诉', 'employee', 'not_supported'),
+      ],
+      employerParties,
+      [],
+    );
+
+    expect(result).toEqual({
+      employeeOutcome: 'not_supported',
+      employerOutcome: 'supported',
+      overallResult: 'supported',
+    });
+  });
 });
 
 describe('Layer 2: claim ownership', () => {

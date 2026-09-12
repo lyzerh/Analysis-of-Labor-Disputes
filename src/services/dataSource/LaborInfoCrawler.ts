@@ -9,14 +9,9 @@ import {
   DocumentMetadata,
   RawDocument,
 } from '../../types';
+import { EXCLUDED_LABORINFO_TEST_CASE_IDS } from './LaborInfoEligibility';
 
-export const EXCLUDED_TEST_CASE_IDS = new Set<string>([
-  '276057',
-  '276056',
-  '276055',
-  '271694',
-  '276061',
-]);
+export const EXCLUDED_TEST_CASE_IDS = EXCLUDED_LABORINFO_TEST_CASE_IDS;
 
 export interface CrawlEventCallbacks {
   onProgress?: (task: LaborInfoCrawlTask) => void;
@@ -214,8 +209,8 @@ export class LaborInfoCrawler {
           searchResult = await this.executeWithRetry(
             () =>
               this.adapter.searchCases({
-                province: params.province && params.province.length > 0 ? params.province[0] : undefined,
-                caseLevel: params.caseLevel && params.caseLevel.length > 0 ? params.caseLevel[0] : undefined,
+                province: params.province,
+                caseLevel: params.caseLevel,
                 start_date: params.start_date,
                 end_date: params.end_date,
                 page: task.currentPage,
@@ -248,7 +243,7 @@ export class LaborInfoCrawler {
         // 解析元数据
         const metaTotalPages =
           searchResult.rawResponse?.meta?.total_pages ||
-          (searchResult.total > 0 ? Math.ceil(searchResult.total / (params.per_page || 50)) : 1);
+          (searchResult.total > 0 ? Math.ceil(searchResult.total / searchResult.perPage) : 1);
         task.totalPages = metaTotalPages || 1;
         task.totalCountInApi = searchResult.total || searchResult.rawResponse?.meta?.total_count || 0;
 

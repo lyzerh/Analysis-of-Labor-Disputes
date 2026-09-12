@@ -1285,11 +1285,14 @@ export class LaborInfoParserAdapter {
       };
     }
 
-    // 统计诉求支持状态
-    const supportedClaims = claims.filter((c) => c.supportStatus === 'supported').length;
-    const partialClaims = claims.filter((c) => c.supportStatus === 'partially_supported').length;
-    const rejectedClaims = claims.filter((c) => c.supportStatus === 'not_supported').length;
-    const totalClaims = claims.length;
+    // 案件级 applicantOutcome 只能聚合申请人自己的请求；对方反诉/请求不得混入。
+    const applicantClaims = claims.filter(
+      (claim) => (claim.claimantRole ?? claim.claimant) === parties.applicantRole
+    );
+    const supportedClaims = applicantClaims.filter((c) => c.supportStatus === 'supported').length;
+    const partialClaims = applicantClaims.filter((c) => c.supportStatus === 'partially_supported').length;
+    const rejectedClaims = applicantClaims.filter((c) => c.supportStatus === 'not_supported').length;
+    const totalClaims = applicantClaims.length;
 
     const actions = this.extractJudgmentActions(decisionText);
     const applicantActions = actions.filter((item) =>

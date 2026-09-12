@@ -165,8 +165,9 @@ export class LaborCaseDatasetBuilder {
     // 6. 识别城市与珠三角 (PRD) 属性
     const { city, isPRD } = this.detectCityAndPRD(rawDoc, parsed);
 
-    // 7. 提取年份
-    const year = this.extractYear(parsed.date || rawDoc.publishedAt || '', parsed.caseNumber || '');
+    // 7. 工劳网 pbDt 是裁判日期的权威来源；正文日期只作回退。
+    const authoritativeDate = this.resolveAuthoritativeDate(rawDoc, parsed.date);
+    const year = authoritativeDate ? Number(authoritativeDate.slice(0, 4)) : null;
 
     // 8. 过滤规则判定：
     // 默认只进入分析集：reviewStatus === 'approved' 或 completenessScore >= 80
@@ -201,7 +202,7 @@ export class LaborCaseDatasetBuilder {
       city,
       isPRD,
       court: parsed.court || '劳动人事争议仲裁委员会/人民法院',
-      date: parsed.date || rawDoc.publishedAt || '未载明日期',
+      date: authoritativeDate || '未载明日期',
       year,
       caseLevel: parsed.caseLevel || '劳动仲裁/一审',
 
@@ -344,36 +345,35 @@ export class LaborCaseDatasetBuilder {
     return { city, isPRD };
   }
 
-  /**
-   * 从裁判日期或案号中提取公历年份
-   */
-  private static extractYear(dateStr: string, caseNumber: string): number | null {
-    // 1. 匹配 YYYY-MM-DD 或 YYYY年
-    const dateMatch = dateStr.match(/(20\d{2})[-/年]/);
-    if (dateMatch) {
-      return parseInt(dateMatch[1], 10);
+  private static resolveAuthoritativeDate(rawDoc: RawDocument, parsedDate: string): string | undefined {
+    const metadataDate = this.normalizeDate(rawDoc.publishedAt);
+    const normalizedParsedDate = this.normalizeDate(parsedDate);
+
+    return rawDoc.source.toLowerCase() === 'laborinfo'
+      ? metadataDate ?? normalizedParsedDate
+      : normalizedParsedDate ?? metadataDate;
+  }
+
+  private static normalizeDate(value?: string): string | undefined {
+    if (!value) return undefined;
+
+    const match = value.trim().match(/^(\d{4})(?:-|\/|年)(\d{1,2})(?:-|\/|月)(\d{1,2})(?:日)?(?:[T\s].*)?$/);
+    if (!match) return undefined;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (year < 1900 || year > 2100) return undefined;
+
+    const candidate = new Date(Date.UTC(year, month - 1, day));
+    if (
+      candidate.getUTCFullYear() !== year
+      || candidate.getUTCMonth() !== month - 1
+      || candidate.getUTCDate() !== day
+    ) {
+      return undefined;
     }
 
-    // 2. 匹配案号中的年份，如 (2022)粤03... 或 〔2023〕
-    const caseMatch = caseNumber.match(/[（(〔\[【](20\d{2})[)）〕\]】]/);
-    if (caseMatch) {
-      return parseInt(caseMatch[1], 10);
-    }
-
-    // 3. 匹配中文大写年份，如 二〇二二
-    const cnMap: Record<string, string> = {
-      '〇': '0', '零': '0', '一': '1', '二': '2', '三': '3',
-      '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9',
-    };
-    const cnMatch = dateStr.match(/二[〇零一二三四五六七八九]{3}/);
-    if (cnMatch) {
-      const yearDigits = cnMatch[0].split('').map((ch) => cnMap[ch] || ch).join('');
-      const parsedYear = parseInt(yearDigits, 10);
-      if (parsedYear >= 2000 && parsedYear <= 2035) {
-        return parsedYear;
-      }
-    }
-
-    return null;
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 }

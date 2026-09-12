@@ -36,8 +36,8 @@ import {
   DisputeTypeAnalyticsItem,
   EmployerDefenseAnalyticsItem,
   EvidenceAnalyticsItem,
+  AnalysisRun,
 } from '../types';
-import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import {
   LaborDisputeAnalyticsEngine,
   TARGET_CITIES_CONFIG,
@@ -45,20 +45,29 @@ import {
   KEY_EMPLOYER_DEFENSES,
   KEY_EVIDENCE_TYPES,
 } from '../services/analytics/LaborDisputeAnalyticsEngine';
+import { getOutcomePresentation } from '../services/outcome/OutcomePresentation';
+import {
+  ResearchAnalysisService,
+  type ResearchAnalysisContext,
+  type ResearchAnalyticsMetadata,
+} from '../services/analysis/ResearchAnalysisService';
+import { ResearchAnalysisHeader } from './ResearchAnalysisHeader';
 
-export const LaborAnalyticsTest: React.FC = () => {
+const researchAnalysisService = new ResearchAnalysisService();
+
+interface LaborAnalyticsTestProps {
+  initialAnalysisRunId?: string;
+}
+
+export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialAnalysisRunId = '' }) => {
   const [allRecords, setAllRecords] = useState<AnalysisCaseRecord[]>([]);
-  const [selectedCity, setSelectedCity] = useState<string>('all');
   const [report, setReport] = useState<LaborDisputeReport | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  const availableCities = useMemo(() => {
-    const cities = new Set<string>();
-    (Array.isArray(allRecords) ? allRecords : []).forEach(r => {
-      if (r.city && r.city !== '其他') cities.add(r.city);
-    });
-    return Array.from(cities).sort();
-  }, [allRecords]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([]);
+  const [selectedAnalysisRunId, setSelectedAnalysisRunId] = useState('');
+  const [researchContext, setResearchContext] = useState<ResearchAnalysisContext | null>(null);
+  const [researchMetadata, setResearchMetadata] = useState<ResearchAnalyticsMetadata | null>(null);
+  const [researchError, setResearchError] = useState<string | null>(null);
 
   // 钻取溯源面板状态
   const [drilldownTitle, setDrilldownTitle] = useState<string | null>(null);
@@ -67,34 +76,41 @@ export const LaborAnalyticsTest: React.FC = () => {
   const [selectedCaseDetail, setSelectedCaseDetail] = useState<AnalysisCaseRecord | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // 加载数据并生成分析报告
+  // 只加载 AnalysisRun 清单；禁止自动选择最新记录或回退到全库。
+  useEffect(() => {
+    researchAnalysisService.listAnalysisRuns()
+      .then(setAnalysisRuns)
+      .catch((error) => setResearchError(error instanceof Error ? error.message : '无法加载 AnalysisRun'));
+  }, []);
+
+  useEffect(() => {
+    if (initialAnalysisRunId) setSelectedAnalysisRunId(initialAnalysisRunId);
+  }, [initialAnalysisRunId]);
+
+  // 从用户明确选择的 AnalysisRun 固定输入执行分析。
   const loadData = async () => {
+    if (!selectedAnalysisRunId) {
+      setResearchError('请先选择一个 AnalysisRun。');
+      return;
+    }
     setIsLoading(true);
+    setResearchError(null);
     try {
-      // 1. 通过流水线加载全量 AnalysisCaseRecord 数据集 (包含准入判定)
-      const records = await LaborAnalysisPipeline.getAllAnalysisRecords(false);
-      setAllRecords(records);
+      const execution = await researchAnalysisService.executeResearchAnalysis(
+        selectedAnalysisRunId,
+        (records) => LaborDisputeAnalyticsEngine.generateReport(records),
+      );
+      setResearchContext(execution.context);
+      setAllRecords(execution.context.records);
+      setReport(execution.result?.result ?? null);
+      setResearchMetadata(execution.result?.metadata ?? null);
+      if (!execution.result) setResearchError('质量门禁已阻止本次正式分析，请查看 Quality issues。');
     } catch (err) {
-      console.error('统计分析引擎执行失败:', err);
+      setResearchError(err instanceof Error ? err.message : '统计分析引擎执行失败');
     } finally {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    const filtered = selectedCity === 'all' 
-      ? allRecords 
-      : (Array.isArray(allRecords) ? allRecords : []).filter(r => r.city === selectedCity);
-    
-    if (allRecords.length > 0 || filtered.length === 0) {
-      const generatedReport = LaborDisputeAnalyticsEngine.generateReport(filtered);
-      setReport(generatedReport);
-    }
-  }, [allRecords, selectedCity]);
 
   // 根据 caseId 索引快速获取 AnalysisCaseRecord 实体
   const recordsMap = useMemo(() => {
@@ -147,29 +163,30 @@ export const LaborAnalyticsTest: React.FC = () => {
                 </span>
               </h1>
               <p className="text-sm text-slate-500 mt-0.5">
-                基于已核准的案例数据进行维度统计，支持全指标逐案穿透溯源
+                只分析所选 AnalysisRun 的冻结输入，并显示 corpus/sample 范围、N、质量警告与 provenance
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 self-start md:self-auto">
-            <select 
-              value={selectedCity} 
-              onChange={e => setSelectedCity(e.target.value)}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-indigo-500"
-            >
-              <option value="all">全省及所有城市</option>
-              {availableCities.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <button
-              onClick={loadData}
-              disabled={isLoading}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-colors cursor-pointer shadow-sm"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              重新生成报告
-            </button>
-          </div>
+        </div>
+
+        <div className="mt-4">
+          <ResearchAnalysisHeader
+            runs={analysisRuns}
+            selectedAnalysisRunId={selectedAnalysisRunId}
+            onSelect={(id) => {
+              setSelectedAnalysisRunId(id);
+              setReport(null);
+              setResearchContext(null);
+              setResearchMetadata(null);
+              setResearchError(null);
+            }}
+            onExecute={loadData}
+            isLoading={isLoading}
+            context={researchContext}
+            metadata={researchMetadata}
+            error={researchError}
+          />
         </div>
 
         {/* 统计规范与原则说明条 */}
@@ -178,7 +195,7 @@ export const LaborAnalyticsTest: React.FC = () => {
             <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
               <span className="font-semibold text-slate-900">数据范围：</span>
-              分析仅作用于已生效核准的案件；根据上方城市筛选器动态生成区域报告。
+              分析仅作用于所选 AnalysisRun 的冻结输入；exhaustive 描述 Snapshot 语料，sampled 只描述本次样本。
             </div>
           </div>
 
@@ -203,7 +220,7 @@ export const LaborAnalyticsTest: React.FC = () => {
             <div className="text-2xl font-bold font-mono text-slate-800 mt-1">
               {report.overall.totalCases}
             </div>
-            <div className="text-2xs text-slate-400 mt-0.5">全库原始及导入文书</div>
+            <div className="text-2xs text-slate-400 mt-0.5">所选 AnalysisRun 固定输入</div>
           </div>
 
           <div
@@ -394,8 +411,8 @@ export const LaborAnalyticsTest: React.FC = () => {
                           <button
                             onClick={() =>
                               handleOpenDrilldown(
-                                `${citySummary.city} - 企业抗辩不予支持案件`,
-                                '企业抗辩未被采纳',
+                                `${citySummary.city} - 企业结果不支持案件`,
+                                '企业案件结果为不支持；不据此推断具体抗辩是否获法院采纳',
                                 citySummary.employerOutcome.caseIds.not_supported
                               )
                             }
@@ -455,6 +472,8 @@ export const LaborAnalyticsTest: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {report.disputeTypes.map((dt) => {
                   const isKey = (KEY_DISPUTE_TYPES as readonly string[]).includes(dt.disputeType);
+                  const employerKnownN = dt.employerOutcome.supported + dt.employerOutcome.partially_supported + dt.employerOutcome.not_supported;
+                  const employeeKnownN = dt.employeeOutcome.supported + dt.employeeOutcome.partially_supported + dt.employeeOutcome.not_supported;
 
                   return (
                     <tr key={dt.disputeType} className="hover:bg-slate-50/80 transition-colors">
@@ -495,7 +514,7 @@ export const LaborAnalyticsTest: React.FC = () => {
                           }
                           className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 cursor-pointer"
                         >
-                          {dt.employerWinRate}% ({dt.employerOutcome.supported} 案)
+                          {dt.employerWinRate}% ({dt.employerOutcome.supported}/{employerKnownN})
                         </button>
                       </td>
 
@@ -510,7 +529,7 @@ export const LaborAnalyticsTest: React.FC = () => {
                           }
                           className="hover:underline cursor-pointer"
                         >
-                          {dt.employeeWinRate}% ({dt.employeeOutcome.supported} 案)
+                          {dt.employeeWinRate}% ({dt.employeeOutcome.supported}/{employeeKnownN})
                         </button>
                       </td>
 
@@ -560,10 +579,10 @@ export const LaborAnalyticsTest: React.FC = () => {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-rose-600" />
-            <h2 className="text-sm font-bold text-slate-900">四、企业抗辩事由采纳与支持率排行</h2>
+            <h2 className="text-sm font-bold text-slate-900">四、企业抗辩与案件结果共现排行</h2>
           </div>
           <span className="text-2xs text-slate-400 font-mono">
-            支持率 = 企业胜诉数 / (企业胜诉 + 部分支持 + 企业败诉) (排除 unclear)
+            有利结果共现率 = 企业 supported / (supported + partially + not supported)，排除 unclear
           </span>
         </div>
 
@@ -578,12 +597,13 @@ export const LaborAnalyticsTest: React.FC = () => {
                   <th className="py-2.5 px-3 font-semibold text-center">企业胜诉支持</th>
                   <th className="py-2.5 px-3 font-semibold text-center">部分支持</th>
                   <th className="py-2.5 px-3 font-semibold text-center">企业未获支持</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">采纳支持率</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">有利结果共现率</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {report.employerDefenses.map((def) => {
                   const isKey = (KEY_EMPLOYER_DEFENSES as readonly string[]).includes(def.defenseType);
+                  const knownOutcomeN = def.employerSupportedCount + def.employerPartialCount + def.employerNotSupportedCount;
 
                   return (
                     <tr key={def.defenseType} className="hover:bg-slate-50/80 transition-colors">
@@ -652,7 +672,7 @@ export const LaborAnalyticsTest: React.FC = () => {
                           onClick={() =>
                             handleOpenDrilldown(
                               `抗辩事由: ${def.defenseType} - 企业未获支持案件`,
-                              `抗辩未被采纳`,
+                              `提出该抗辩且企业案件结果为不支持；不表示法院明确否定该抗辩`,
                               def.employerNotSupportedCaseIds
                             )
                           }
@@ -672,7 +692,7 @@ export const LaborAnalyticsTest: React.FC = () => {
                               : 'bg-rose-50 text-rose-800 border border-rose-200'
                           }`}
                         >
-                          {def.supportRate}%
+                          {def.supportRate}% ({def.employerSupportedCount}/{knownOutcomeN})
                         </span>
                       </td>
                     </tr>
@@ -758,7 +778,7 @@ export const LaborAnalyticsTest: React.FC = () => {
 
                   <div className="text-3xs text-slate-500 bg-emerald-50/60 border border-emerald-100 p-2 rounded-lg flex items-center justify-between font-mono">
                     <span>企业支持案出现率:</span>
-                    <strong className="text-emerald-800">{ev.rateInEmployerSupported}%</strong>
+                    <strong className="text-emerald-800">{ev.rateInEmployerSupported}% ({ev.appearanceInEmployerSupportedCount}/{ev.caseCount})</strong>
                   </div>
                 </div>
               );
@@ -806,6 +826,7 @@ export const LaborAnalyticsTest: React.FC = () => {
                 <div className="space-y-3">
                   {drilldownCases.map((c) => {
                     const isSelected = selectedCaseDetail?.caseId === c.caseId;
+                    const employerOutcomePresentation = getOutcomePresentation(c.employerOutcome);
 
                     return (
                       <div
@@ -828,14 +849,8 @@ export const LaborAnalyticsTest: React.FC = () => {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-3xs font-bold font-mono ${
-                              c.employerOutcome === 'supported'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : c.employerOutcome === 'partially_supported'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-rose-100 text-rose-800'
-                            }`}>
-                              企业: {c.employerOutcome === 'supported' ? '获支持' : c.employerOutcome === 'partially_supported' ? '部分支持' : '未支持'}
+                            <span className={`px-2 py-0.5 rounded text-3xs font-bold font-mono ${employerOutcomePresentation.badgeClassName}`}>
+                              企业: {employerOutcomePresentation.label}
                             </span>
                           </div>
                         </div>

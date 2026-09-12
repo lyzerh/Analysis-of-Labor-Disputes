@@ -199,7 +199,10 @@ export class SemanticEnrichmentService {
     let employeeOutcome = parsed.employeeOutcome;
     let employerOutcome = parsed.employerOutcome;
     if (appliedJudgmentCount > 0 && targetClaimIds.size > 0) {
-      applicantOutcome = aggregateClaimOutcomes(claims, parsed.applicantOutcome);
+      const applicantClaims = claims.filter(
+        (claim) => (claim.claimantRole ?? claim.claimant) === parsed.applicantRole
+      );
+      applicantOutcome = aggregateClaimOutcomes(applicantClaims, parsed.applicantOutcome);
       ({ employeeOutcome, employerOutcome } = resolvePartyOutcomes(parsed.applicantRole, applicantOutcome));
     }
 

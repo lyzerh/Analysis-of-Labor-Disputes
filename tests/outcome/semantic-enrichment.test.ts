@@ -166,6 +166,28 @@ describe('SemanticEnrichmentService pipeline', () => {
     expect(enriched.claims[2].judgmentItems).toEqual([]);
   });
 
+  it('does not let an opponent claim change the applicant case outcome', async () => {
+    const original = fixture();
+    original.applicantOutcome = 'supported';
+    original.employeeOutcome = 'supported';
+    original.employerOutcome = 'not_supported';
+    original.overallResult = 'supported';
+    original.claims = [
+      { ...original.claims[0], supportStatus: 'supported' },
+      { ...original.claims[1], claimant: 'employer', claimantRole: 'employer' },
+    ];
+    const resolver = new MockSemanticResolver({
+      candidates: [candidate('semantic_fragment_1', ['claim_2'])],
+    });
+
+    const enriched = await SemanticEnrichmentService.enrich(original, { semanticResolver: resolver });
+
+    expect(enriched.claims[1].supportStatus).toBe('not_supported');
+    expect(enriched.applicantOutcome).toBe('supported');
+    expect(enriched.employeeOutcome).toBe('supported');
+    expect(enriched.employerOutcome).toBe('not_supported');
+  });
+
   it('applies valid fragments independently and leaves human-review fragments unresolved', async () => {
     const supportText = '故该项经济补偿金请求本院予以支持';
     const reviewText = '对于上述争议，本院结合全案情况予以处理';

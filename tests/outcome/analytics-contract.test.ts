@@ -49,4 +49,31 @@ describe('Layer 3: Analytics outcome contracts', () => {
     expect(overtime?.employerOutcome.supported).toBe(1);
     expect(overtime?.employerOutcome.not_supported).toBe(0);
   });
+
+  it('exposes every matrix outcome bucket so the displayed denominator is auditable', () => {
+    const defense = [{ defenseType: '严重违纪', matchedText: '企业提出严重违纪抗辩', confidence: 1 }];
+    const records = [
+      analysisRecord('matrix-supported', 'supported', {
+        employerDefenses: defense,
+        claims: [{ claimName: '违法解除', claimant: 'employee', supportStatus: 'not_supported' }],
+      }),
+      analysisRecord('matrix-not-supported', 'not_supported', {
+        employerDefenses: defense,
+        claims: [{ claimName: '违法解除', claimant: 'employee', supportStatus: 'supported' }],
+      }),
+      analysisRecord('matrix-unclear', 'unclear', {
+        employerDefenses: defense,
+        claims: [{ claimName: '违法解除', claimant: 'employee', supportStatus: 'unclear' }],
+      }),
+    ];
+    const cell = DefenseStrategyAnalyzer.analyze(records).matrix.cells['加班工资']?.['严重违纪'];
+    expect(cell).toMatchObject({
+      employerSupportedCount: 1,
+      employerPartiallySupportedCount: 0,
+      employerNotSupportedCount: 1,
+      employerUnclearCount: 1,
+      knownOutcomeDenominator: 2,
+      employerSupportRate: 50,
+    });
+  });
 });

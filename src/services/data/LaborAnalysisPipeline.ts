@@ -301,6 +301,46 @@ export class LaborAnalysisPipeline {
   }
 
   /**
+   * 按冻结的 LaborInfo candidate/source IDs 定向构建正式研究输入。
+   * 只解析请求 ID 对应的原始文书；不扩大为全库 AnalysisCaseRecord，也不补齐缺失 ID。
+   */
+  public static async getAnalysisRecordsBySourceIds(
+    inputCaseIds: string[],
+    options: {
+      enableSemanticResolution?: boolean;
+      semanticResolver?: SemanticResolver;
+    } = {},
+  ): Promise<Map<string, AnalysisCaseRecord>> {
+    const requestedIds = new Set(inputCaseIds);
+    if (requestedIds.size === 0) return new Map();
+
+    const matchingDocs = await db.rawDocuments
+      .filter((doc) => doc.source === 'laborinfo' && (
+        requestedIds.has(String(doc.sourceId || '')) || requestedIds.has(doc.id)
+      ))
+      .toArray();
+    const docsByInputId = new Map<string, RawDocument>();
+    for (const doc of matchingDocs) {
+      const sourceId = String(doc.sourceId || '');
+      if (requestedIds.has(sourceId) && !docsByInputId.has(sourceId)) docsByInputId.set(sourceId, doc);
+      if (requestedIds.has(doc.id) && !docsByInputId.has(doc.id)) docsByInputId.set(doc.id, doc);
+    }
+
+    const reviews = ReviewStorageService.getAllReviews();
+    const records = new Map<string, AnalysisCaseRecord>();
+    for (const inputId of inputCaseIds) {
+      const doc = docsByInputId.get(inputId);
+      if (!doc) continue;
+      const review = reviews[doc.id] || null;
+      const processed = options.enableSemanticResolution
+        ? await this.processRawDocumentWithSemantic(doc, options, review)
+        : this.processRawDocument(doc, review);
+      if (processed.record) records.set(inputId, processed.record);
+    }
+    return records;
+  }
+
+  /**
    * 获取失败文书列表
    */
   public static getFailedItems(): PipelineFailedItem[] {

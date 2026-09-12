@@ -585,6 +585,10 @@ export class DataService {
     await db.documentTasks.clear();
     await db.syncTasks.clear();
     await db.syncLogs.clear();
+    await db.candidatePoolEntries.clear();
+    await db.candidatePoolSnapshots.clear();
+    await db.samplingRuns.clear();
+    await db.analysisRuns.clear();
   }
 
   /**

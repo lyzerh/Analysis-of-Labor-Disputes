@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie';
-import { RawDocument, ArbitrationCase, SyncTask, SyncLog, AppSettings, DocumentTask, LaborInfoCrawlTask } from '../types';
+import { RawDocument, ArbitrationCase, SyncTask, SyncLog, AppSettings, DocumentTask, LaborInfoCrawlTask, CandidatePoolSnapshotHeader, CandidatePoolEntry, SamplingRun, AnalysisRun } from '../types';
 
 export class ShenzhenArbitrationDatabase extends Dexie {
   rawDocuments!: Table<RawDocument, string>;
@@ -8,6 +8,10 @@ export class ShenzhenArbitrationDatabase extends Dexie {
   syncLogs!: Table<SyncLog, number>;
   documentTasks!: Table<DocumentTask, string>;
   crawlTasks!: Table<LaborInfoCrawlTask, string>;
+  candidatePoolSnapshots!: Table<CandidatePoolSnapshotHeader, string>;
+  candidatePoolEntries!: Table<CandidatePoolEntry, string>;
+  samplingRuns!: Table<SamplingRun, string>;
+  analysisRuns!: Table<AnalysisRun, string>;
   settings!: Table<{ key: string; value: any }, string>;
 
   constructor() {
@@ -50,6 +54,37 @@ export class ShenzhenArbitrationDatabase extends Dexie {
       .upgrade(async () => {
         console.log(
           'ShenzhenArbitrationDB upgraded to version 4 (added crawlTasks table for LaborInfo crawler tasks)'
+        );
+      });
+
+    this.version(5)
+      .stores({
+        candidatePoolSnapshots: 'id, source, status, createdAt, candidateHash, snapshotFingerprint',
+        candidatePoolEntries: 'id, snapshotId, caseId, pbDt, year, caseLevel, city, [snapshotId+caseId]',
+      })
+      .upgrade(async () => {
+        console.log(
+          'ShenzhenArbitrationDB upgraded to version 5 (added Candidate Pool Snapshot tables)'
+        );
+      });
+
+    this.version(6)
+      .stores({
+        samplingRuns: 'id, snapshotId, createdAt, method, algorithmVersion, sampleHash',
+      })
+      .upgrade(async () => {
+        console.log(
+          'ShenzhenArbitrationDB upgraded to version 6 (added reproducible SamplingRun table)'
+        );
+      });
+
+    this.version(7)
+      .stores({
+        analysisRuns: 'id, snapshotId, samplingRunId, mode, status, createdAt, provenanceHash',
+      })
+      .upgrade(async () => {
+        console.log(
+          'ShenzhenArbitrationDB upgraded to version 7 (added reproducible AnalysisRun table)'
         );
       });
   }

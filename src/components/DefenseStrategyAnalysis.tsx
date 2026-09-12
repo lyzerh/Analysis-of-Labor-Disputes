@@ -32,14 +32,32 @@ import {
   EvidenceCombinationItem,
   EvidenceAnalyticsItem,
   DisputeDefenseMatrixCell,
+  AnalysisRun,
 } from '../types';
-import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { DefenseStrategyAnalyzer } from '../services/analytics/DefenseStrategyAnalyzer';
+import { getOutcomePresentation } from '../services/outcome/OutcomePresentation';
+import {
+  ResearchAnalysisService,
+  type ResearchAnalysisContext,
+  type ResearchAnalyticsMetadata,
+} from '../services/analysis/ResearchAnalysisService';
+import { ResearchAnalysisHeader } from './ResearchAnalysisHeader';
 
-export const DefenseStrategyAnalysis: React.FC = () => {
+const researchAnalysisService = new ResearchAnalysisService();
+
+interface DefenseStrategyAnalysisProps {
+  initialAnalysisRunId?: string;
+}
+
+export const DefenseStrategyAnalysis: React.FC<DefenseStrategyAnalysisProps> = ({ initialAnalysisRunId = '' }) => {
   const [allRecords, setAllRecords] = useState<AnalysisCaseRecord[]>([]);
   const [report, setReport] = useState<DefenseAnalysisReport | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([]);
+  const [selectedAnalysisRunId, setSelectedAnalysisRunId] = useState('');
+  const [researchContext, setResearchContext] = useState<ResearchAnalysisContext | null>(null);
+  const [researchMetadata, setResearchMetadata] = useState<ResearchAnalyticsMetadata | null>(null);
+  const [researchError, setResearchError] = useState<string | null>(null);
 
   // 选中的失败抗辩归因选项
   const [selectedDefenseKey, setSelectedDefenseKey] = useState<string>('严重违纪');
@@ -51,31 +69,46 @@ export const DefenseStrategyAnalysis: React.FC = () => {
   const [selectedCaseDetail, setSelectedCaseDetail] = useState<AnalysisCaseRecord | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // 加载数据并生成策略分析报告
+  // 只加载 AnalysisRun 清单；不自动选择，也不回退到本地全库。
+  useEffect(() => {
+    researchAnalysisService.listAnalysisRuns()
+      .then(setAnalysisRuns)
+      .catch((error) => setResearchError(error instanceof Error ? error.message : '无法加载 AnalysisRun'));
+  }, []);
+
+  useEffect(() => {
+    if (initialAnalysisRunId) setSelectedAnalysisRunId(initialAnalysisRunId);
+  }, [initialAnalysisRunId]);
+
+  // 从用户明确选择的 AnalysisRun 固定输入执行关联分析。
   const loadAndAnalyze = async () => {
+    if (!selectedAnalysisRunId) {
+      setResearchError('请先选择一个 AnalysisRun。');
+      return;
+    }
     setIsLoading(true);
+    setResearchError(null);
     try {
-      // 1. 通过流水线加载全量 AnalysisCaseRecord 数据集 (包含准入判定)
-      const records = await LaborAnalysisPipeline.getAllAnalysisRecords(false);
-      setAllRecords(records);
-
-      // 2. 策略分析引擎计算 (严格过滤 isIncludedInAnalysisSet === true)
-      const generatedReport = DefenseStrategyAnalyzer.analyze(records);
+      const execution = await researchAnalysisService.executeResearchAnalysis(
+        selectedAnalysisRunId,
+        (records) => DefenseStrategyAnalyzer.analyze(records),
+      );
+      setResearchContext(execution.context);
+      setAllRecords(execution.context.records);
+      const generatedReport = execution.result?.result ?? null;
       setReport(generatedReport);
+      setResearchMetadata(execution.result?.metadata ?? null);
+      if (!execution.result) setResearchError('质量门禁已阻止本次正式分析，请查看 Quality issues。');
 
-      if (generatedReport.failedDefenses.length > 0) {
+      if (generatedReport && generatedReport.failedDefenses.length > 0) {
         setSelectedDefenseKey(generatedReport.failedDefenses[0].defense);
       }
     } catch (err) {
-      console.error('抗辩策略关联分析引擎执行失败:', err);
+      setResearchError(err instanceof Error ? err.message : '抗辩策略关联分析引擎执行失败');
     } finally {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    loadAndAnalyze();
-  }, []);
 
   // 快速映射 caseId -> AnalysisCaseRecord
   const recordsMap = useMemo(() => {
@@ -134,19 +167,29 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                 </span>
               </h1>
               <p className="text-sm text-slate-500 mt-0.5">
-                基于已核准的案例数据，进行抗辩胜败分布、败诉归因、有效证据组合及争议交叉矩阵分析
+                基于所选 AnalysisRun 的固定输入，分析抗辩、证据与案件结果的共现关系，不推断法院采纳或因果效果
               </p>
             </div>
           </div>
+        </div>
 
-          <button
-            onClick={loadAndAnalyze}
-            disabled={isLoading}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-colors cursor-pointer self-start md:self-auto shadow-sm"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            重新计算策略分析
-          </button>
+        <div className="mt-4">
+          <ResearchAnalysisHeader
+            runs={analysisRuns}
+            selectedAnalysisRunId={selectedAnalysisRunId}
+            onSelect={(id) => {
+              setSelectedAnalysisRunId(id);
+              setReport(null);
+              setResearchContext(null);
+              setResearchMetadata(null);
+              setResearchError(null);
+            }}
+            onExecute={loadAndAnalyze}
+            isLoading={isLoading}
+            context={researchContext}
+            metadata={researchMetadata}
+            error={researchError}
+          />
         </div>
 
         {/* 原则声明 */}
@@ -155,15 +198,15 @@ export const DefenseStrategyAnalysis: React.FC = () => {
             <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
               <span className="font-semibold text-slate-900">严格零推断与零污染：</span>
-              分析基于纯结构化统计，严禁输出“导致胜诉”等因果断言，仅表述为“在企业获支持案件中出现频率”。
+              分析基于纯结构化统计，只表述抗辩与案件结果的共现频率，不把案件结果解释成法院采纳某项抗辩。
             </div>
           </div>
 
           <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-950">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold">失败案件归因定义：</span>
-              统计 <code>employerOutcome !== 'supported'</code>（未完全支持）案件中的高频缺失证据与裁判否定关键词，提供客观事实对照。
+              <span className="font-semibold">不利结果案件对照：</span>
+              统计企业结果为“部分支持”或“不支持”案件中的高频缺失证据与裁判否定关键词，只作客观共现对照。
             </div>
           </div>
         </div>
@@ -203,7 +246,7 @@ export const DefenseStrategyAnalysis: React.FC = () => {
             <div className="text-2xl font-bold font-mono text-emerald-700 mt-1">
               {report.employerSupportedCaseCount}
             </div>
-            <div className="text-2xs text-emerald-600 mt-0.5">占分析集比例 {((report.employerSupportedCaseCount / (report.analyzedCaseCount || 1)) * 100).toFixed(1)}%</div>
+            <div className="text-2xs text-emerald-600 mt-0.5">占分析集比例 {((report.employerSupportedCaseCount / (report.analyzedCaseCount || 1)) * 100).toFixed(1)}% ({report.employerSupportedCaseCount}/{report.analyzedCaseCount})</div>
           </div>
 
           <div
@@ -211,7 +254,9 @@ export const DefenseStrategyAnalysis: React.FC = () => {
               handleOpenDrilldown(
                 '企业未完全支持案件',
                 '裁判结果为部分支持或全部驳回的案件',
-                allRecords.filter((r) => r.isIncludedInAnalysisSet && r.employerOutcome !== 'supported').map((r) => r.caseId)
+                allRecords.filter((r) => r.isIncludedInAnalysisSet && (
+                  r.employerOutcome === 'partially_supported' || r.employerOutcome === 'not_supported'
+                )).map((r) => r.caseId)
               )
             }
             className="bg-rose-50/60 border border-rose-200 rounded-2xl p-4 shadow-sm hover:shadow transition-all cursor-pointer group"
@@ -242,15 +287,15 @@ export const DefenseStrategyAnalysis: React.FC = () => {
         </div>
       )}
 
-      {/* 一、企业抗辩综合排行与胜败分布 */}
+      {/* 一、企业抗辩与案件结果共现分布 */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-rose-600" />
-            <h2 className="text-sm font-bold text-slate-900">一、企业抗辩事由胜败分布与支持率排行</h2>
+            <h2 className="text-sm font-bold text-slate-900">一、企业抗辩事由与案件结果共现排行</h2>
           </div>
           <span className="text-2xs text-slate-400 font-mono">
-            支持率 = 完全支持 / (完全支持 + 部分支持 + 全部驳回) (分母排除 unclear)
+            有利结果共现率 = supported / (supported + partially + not supported)，排除 unclear
           </span>
         </div>
 
@@ -261,10 +306,10 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                 <tr className="border-b border-slate-200 text-2xs text-slate-500 uppercase bg-slate-50">
                   <th className="py-2.5 px-3 font-semibold">抗辩事由 (Defense)</th>
                   <th className="py-2.5 px-3 font-semibold text-center">案件量</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">获完全支持</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">部分支持</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">全部驳回</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">企业支持率</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">企业结果 supported</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">企业结果 partially</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">企业结果 not supported</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">有利结果共现率</th>
                   <th className="py-2.5 px-3 font-semibold text-right">溯源</th>
                 </tr>
               </thead>
@@ -296,8 +341,8 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                       <button
                         onClick={() =>
                           handleOpenDrilldown(
-                            `抗辩: ${item.defenseName} - 企业获支持案件`,
-                            `提出 [${item.defenseName}] 且完全支持`,
+                            `抗辩: ${item.defenseName} - 企业结果 supported 案件`,
+                            `提出 [${item.defenseName}] 且企业案件结果为 supported`,
                             item.supportedCaseIds
                           )
                         }
@@ -311,8 +356,8 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                       <button
                         onClick={() =>
                           handleOpenDrilldown(
-                            `抗辩: ${item.defenseName} - 部分支持案件`,
-                            `提出 [${item.defenseName}] 且部分支持`,
+                            `抗辩: ${item.defenseName} - 企业结果 partially supported 案件`,
+                            `提出 [${item.defenseName}] 且企业案件结果为 partially supported`,
                             item.partiallySupportedCaseIds
                           )
                         }
@@ -326,8 +371,8 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                       <button
                         onClick={() =>
                           handleOpenDrilldown(
-                            `抗辩: ${item.defenseName} - 全部驳回案件`,
-                            `提出 [${item.defenseName}] 且未获采纳`,
+                            `抗辩: ${item.defenseName} - 企业结果 not supported 案件`,
+                            `提出 [${item.defenseName}] 且企业案件结果为 not supported；不表示法院明确否定该抗辩`,
                             item.notSupportedCaseIds
                           )
                         }
@@ -347,7 +392,7 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                             : 'bg-rose-50 text-rose-800 border border-rose-200'
                         }`}
                       >
-                        {item.employerSupportRate}%
+                        {item.employerSupportRate}% ({item.supportedCount}/{item.supportedCount + item.partiallySupportedCount + item.notSupportedCount})
                       </span>
                     </td>
 
@@ -376,15 +421,15 @@ export const DefenseStrategyAnalysis: React.FC = () => {
         )}
       </div>
 
-      {/* 二、失败案件专项归因分析 (针对 employerOutcome !== 'supported') */}
+      {/* 二、企业结果不利案件共现对照（仅部分支持与不支持，排除 unclear） */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <FileX className="w-4 h-4 text-amber-600" />
-            <h2 className="text-sm font-bold text-slate-900">二、企业未完全支持案件专项归因 (缺失证据与裁判否定理由)</h2>
+            <h2 className="text-sm font-bold text-slate-900">二、企业结果未完全有利案件对照 (缺失证据与裁判否定词)</h2>
           </div>
           <span className="text-2xs text-slate-400 font-mono">
-            分析对象：提出该抗辩但未完全获支持的案件
+            分析对象：提出该抗辩且企业结果为 partially / not supported 的案件
           </span>
         </div>
 
@@ -416,24 +461,24 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-900 text-sm">
-                      【{currentFailedDefense.defense}】未完全支持案件归因
+                      【{currentFailedDefense.defense}】企业结果未完全有利案件对照
                     </span>
                     <span className="text-2xs text-slate-500">
-                      共涉及 {currentFailedDefense.failedCaseCount} 篇失败或部分支持案件
+                      共涉及 {currentFailedDefense.failedCaseCount} 篇企业结果不支持或部分支持案件
                     </span>
                   </div>
 
                   <button
                     onClick={() =>
                       handleOpenDrilldown(
-                        `【${currentFailedDefense.defense}】未完全支持案件`,
-                        `提出 [${currentFailedDefense.defense}] 但裁判未完全支持的案件清单`,
+                        `【${currentFailedDefense.defense}】企业结果未完全有利案件`,
+                        `提出 [${currentFailedDefense.defense}] 且企业结果为 partially / not supported 的案件清单`,
                         currentFailedDefense.failedCaseIds
                       )
                     }
                     className="px-2.5 py-1 bg-white hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-amber-700 rounded-lg text-2xs font-semibold transition-colors cursor-pointer"
                   >
-                    查看全部 {currentFailedDefense.failedCaseCount} 篇失败案件 ↗
+                    查看全部 {currentFailedDefense.failedCaseCount} 篇对照案件 ↗
                   </button>
                 </div>
 
@@ -452,7 +497,7 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                             onClick={() =>
                               handleOpenDrilldown(
                                 `【${currentFailedDefense.defense}】缺失 [${ev.evidenceName}] 案件`,
-                                `在提出 [${currentFailedDefense.defense}] 但失败的案件中，未提供 [${ev.evidenceName}]`,
+                                `在提出 [${currentFailedDefense.defense}] 且企业结果未完全有利的案件中，未识别到 [${ev.evidenceName}]`,
                                 ev.caseIds
                               )
                             }
@@ -461,7 +506,7 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                             <span className="font-medium text-slate-800">{ev.evidenceName}</span>
                             <div className="flex items-center gap-1.5 font-mono">
                               <span className="text-slate-500">{ev.missingCount} 案未提交</span>
-                              <span className="font-bold text-rose-600">({ev.missingRate}%)</span>
+                              <span className="font-bold text-rose-600">({ev.missingRate}% = {ev.missingCount}/{currentFailedDefense.failedCaseCount})</span>
                             </div>
                           </div>
                         ))}
@@ -485,7 +530,7 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                             onClick={() =>
                               handleOpenDrilldown(
                                 `裁判理由包含 [${kw.keyword}] 案件`,
-                                `在提出 [${currentFailedDefense.defense}] 但失败的案件中，裁判文书出现 [${kw.keyword}]`,
+                                `在提出 [${currentFailedDefense.defense}] 且企业结果未完全有利的案件中，裁判文书出现 [${kw.keyword}]`,
                                 kw.caseIds
                               )
                             }
@@ -516,8 +561,8 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                             key={dt.disputeType}
                             onClick={() =>
                               handleOpenDrilldown(
-                                `争议: ${dt.disputeType} × 抗辩: ${currentFailedDefense.defense} 失败案件`,
-                                `在 ${dt.disputeType} 争议中提出该抗辩但未完全获支持`,
+                                `争议: ${dt.disputeType} × 抗辩: ${currentFailedDefense.defense} 对照案件`,
+                                `在 ${dt.disputeType} 争议中提出该抗辩且企业结果未完全有利`,
                                 dt.caseIds
                               )
                             }
@@ -595,7 +640,7 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                           ))}
                         </div>
                         <span className="font-mono font-bold text-emerald-700 text-xs">
-                          {combo.appearanceCount} 案 ({combo.appearanceRate}%)
+                          {combo.appearanceCount} 案 ({combo.appearanceRate}% = {combo.appearanceCount}/{report.employerSupportedCaseCount})
                         </span>
                       </div>
                       <div className="text-3xs text-slate-400">
@@ -638,7 +683,7 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                           支持案出现: {ev.appearanceInEmployerSupportedCount} 案
                         </span>
                         <span className="font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-slate-200">
-                          出现率: {ev.rateInEmployerSupported}%
+                          出现率: {ev.rateInEmployerSupported}% ({ev.appearanceInEmployerSupportedCount}/{report.employerSupportedCaseCount})
                         </span>
                       </div>
                     </div>
@@ -660,7 +705,7 @@ export const DefenseStrategyAnalysis: React.FC = () => {
             <h2 className="text-sm font-bold text-slate-900">四、争议类型 × 企业抗辩二维交叉矩阵</h2>
           </div>
           <span className="text-2xs text-slate-400 font-mono">
-            单元格格式: 案件量 / 企业支持率 (点击单元格钻取案卷)
+            单元格格式: 案件量 / 企业有利结果共现率 (点击单元格钻取案卷)
           </span>
         </div>
 
@@ -719,7 +764,8 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                         >
                           <div className="font-mono font-bold text-xs">{cell.caseCount} 案</div>
                           <div className="font-mono text-3xs opacity-80 mt-0.5">
-                            支持率: {rate}%
+                            共现率: {rate}% ({cell.employerSupportedCount}/{cell.knownOutcomeDenominator})
+                            {cell.employerUnclearCount > 0 ? `，排除 unclear ${cell.employerUnclearCount}` : ''}
                           </div>
                         </td>
                       );
@@ -771,6 +817,7 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                 <div className="space-y-3">
                   {drilldownCases.map((c) => {
                     const isSelected = selectedCaseDetail?.caseId === c.caseId;
+                    const employerOutcomePresentation = getOutcomePresentation(c.employerOutcome);
 
                     return (
                       <div
@@ -793,14 +840,8 @@ export const DefenseStrategyAnalysis: React.FC = () => {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-3xs font-bold font-mono ${
-                              c.employerOutcome === 'supported'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : c.employerOutcome === 'partially_supported'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-rose-100 text-rose-800'
-                            }`}>
-                              企业: {c.employerOutcome === 'supported' ? '获支持' : c.employerOutcome === 'partially_supported' ? '部分支持' : '未支持'}
+                            <span className={`px-2 py-0.5 rounded text-3xs font-bold font-mono ${employerOutcomePresentation.badgeClassName}`}>
+                              企业: {employerOutcomePresentation.label}
                             </span>
                           </div>
                         </div>

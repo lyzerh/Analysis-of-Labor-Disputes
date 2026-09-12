@@ -3,6 +3,7 @@ import { Search, MapPin, Calendar, FileText, Briefcase, Database, X, Eye, Extern
 import { AnalysisCaseRecord, RawDocument } from '../types';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { DataService } from '../services/data/dataService';
+import { getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 
 export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => void, onNavigateToReview?: () => void, onNavigateToAnalytics?: () => void, onNavigateToDefense?: () => void }> = () => {
   const [loading, setLoading] = useState(true);
@@ -104,6 +105,10 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
       setSelectedRawDoc(null);
     }
   };
+
+  const selectedOutcomePresentations = selectedRecord
+    ? getPartyOutcomePresentations(selectedRecord)
+    : null;
 
   return (
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -312,14 +317,14 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                   </div>
 
                   {/* 裁判结果 */}
-                  <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
+                  {selectedOutcomePresentations && <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
                     <h4 className="text-sm font-bold text-purple-900 mb-3 flex items-center gap-2">
                       <Scale className="w-4 h-4 text-purple-600" /> 裁判结果
                     </h4>
                     <div className="text-xs space-y-2 text-slate-700">
-                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">胜诉方：</span>
-                        <span className="font-bold">{selectedRecord.overallResult === 'employee_win' ? '劳动者全部胜诉' : selectedRecord.overallResult === 'employer_win' ? '用人单位全部胜诉' : selectedRecord.overallResult === 'partial' ? '部分支持劳动者诉求' : '不明确'}</span>
-                      </div>
+                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">劳动者结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{selectedOutcomePresentations.employee.label}</span></div>
+                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">用人单位结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{selectedOutcomePresentations.employer.label}</span></div>
+                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">申请人结果：</span><span className={`font-bold ${selectedOutcomePresentations.applicant.textClassName}`}>{selectedOutcomePresentations.applicant.label}</span></div>
                       <div className="flex"><span className="text-slate-500 w-24 shrink-0">主要争议：</span><span>{Array.isArray(selectedRecord.disputeType) ? selectedRecord.disputeType.join('、') : (selectedRecord.disputeType || '-')}</span></div>
                       {selectedRecord.legalOutcomeSummary && (
                         <div className="flex mt-2 pt-2 border-t border-purple-200/50">
@@ -328,23 +333,24 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                         </div>
                       )}
                     </div>
-                  </div>
+                  </div>}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-3">
                       <h4 className="text-sm font-bold text-slate-800 border-b pb-2">劳动者诉求</h4>
                       {Array.isArray(selectedRecord.claims) && selectedRecord.claims.length > 0 ? (
                         <div className="space-y-2">
-                          {selectedRecord.claims.map((c, i) => (
-                            <div key={i} className="bg-slate-50 p-2 rounded text-xs text-slate-700 border border-slate-200 flex justify-between gap-2">
-                              <span>{c.claimName || (c as any).text || '-'}</span>
-                              {c.supportStatus !== 'unknown' && (
-                                <span className={`shrink-0 px-1.5 py-0.5 rounded text-2xs font-bold ${c.supportStatus === 'supported' ? 'bg-rose-100 text-rose-700' : c.supportStatus === 'rejected' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                  {c.supportStatus === 'supported' ? '支持' : c.supportStatus === 'rejected' ? '驳回' : '部分支持'}
+                          {selectedRecord.claims.map((c, i) => {
+                            const presentation = getOutcomePresentation(c.supportStatus);
+                            return (
+                              <div key={i} className="bg-slate-50 p-2 rounded text-xs text-slate-700 border border-slate-200 flex justify-between gap-2">
+                                <span>{c.claimName || (c as any).text || '-'}</span>
+                                <span className={`shrink-0 px-1.5 py-0.5 rounded text-2xs font-bold ${presentation.badgeClassName}`}>
+                                  {presentation.label}
                                 </span>
-                              )}
-                            </div>
-                          ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : <div className="text-xs text-slate-400">无记录</div>}
                     </div>

@@ -1,5 +1,12 @@
-import { DocumentMetadata, LaborInfoSearchParams, RawDocument } from '../../types';
+import { DocumentMetadata, LaborInfoSearchParams, LaborInfoSearchResult, RawDocument } from '../../types';
 import { ParserUtils } from '../parser/ParserUtils';
+
+export const LABORINFO_PER_PAGE_MAX = 50;
+
+export function normalizeLaborInfoPerPage(value?: number): number {
+  if (!Number.isFinite(value)) return 5;
+  return Math.max(1, Math.min(LABORINFO_PER_PAGE_MAX, Math.floor(value as number)));
+}
 
 /**
  * 工劳网 API 内部返回数据类型定义
@@ -98,22 +105,26 @@ export class LaborInfoAdapter {
    * 1. 检索公开判决文书元数据列表
    * 调用 GET /api/v1/lawcases/search
    */
-  public async searchCases(params: LaborInfoSearchParams = {}): Promise<{
-    items: DocumentMetadata[];
-    total: number;
-    page: number;
-    perPage: number;
-    rawResponse?: any;
-  }> {
+  public async searchCases(params: LaborInfoSearchParams = {}): Promise<LaborInfoSearchResult> {
     const queryParams = new URLSearchParams();
-    if (params.province) queryParams.append('province[]', params.province);
-    if (params.caseLevel) queryParams.append('caseLevel[]', params.caseLevel);
+    const provinces = Array.isArray(params.province)
+      ? params.province
+      : (params.province ? [params.province] : []);
+    for (const province of provinces) {
+      if (province) queryParams.append('province[]', province);
+    }
+    const caseLevels = Array.isArray(params.caseLevel)
+      ? params.caseLevel
+      : (params.caseLevel ? [params.caseLevel] : []);
+    for (const caseLevel of caseLevels) {
+      if (caseLevel) queryParams.append('caseLevel[]', caseLevel);
+    }
     if (params.start_date) queryParams.append('start_date', params.start_date);
     if (params.end_date) queryParams.append('end_date', params.end_date);
     if (params.q) queryParams.append('q', params.q);
 
     const page = params.page || 1;
-    const perPage = params.per_page || 5;
+    const perPage = normalizeLaborInfoPerPage(params.per_page);
     queryParams.append('page', String(page));
     queryParams.append('per_page', String(perPage));
 
@@ -155,15 +166,19 @@ export class LaborInfoAdapter {
       : (typeof data?.total === 'number'
         ? data.total
         : (typeof data?.total_count === 'number' ? data.total_count : rawList.length));
+    const totalPages = typeof data?.meta?.total_pages === 'number'
+      ? data.meta.total_pages
+      : Math.max(1, Math.ceil(total / perPage));
 
     // 正确映射字段
     const items: DocumentMetadata[] = rawList.map((item: LaborInfoLawcaseHit, idx: number) => {
       const sourceId = String(item.id ?? `item_${idx}`);
       const title = String(item.name || item.title || '工劳网未命名文书');
+      const caseNumber = item.no || '';
       const court = item.courtNm || item.court || '';
       const date = item.pbDt || item.date || '';
-      const province = item.province || params.province || '';
-      const caseLevel = item.caseLevel || params.caseLevel || '';
+      const province = item.province || provinces.join('、');
+      const caseLevel = item.caseLevel || caseLevels.join('、');
       const detailUrl = item.site_url || `${this.baseUrl}/api/v1/lawcases/${sourceId}`;
 
       return {
@@ -171,6 +186,8 @@ export class LaborInfoAdapter {
         source: 'laborinfo',
         title,
         url: detailUrl,
+        caseNumber,
+        pbDt: item.pbDt,
         court,
         date,
         province,
@@ -181,6 +198,7 @@ export class LaborInfoAdapter {
     return {
       items,
       total,
+      totalPages,
       page,
       perPage,
       rawResponse: data,

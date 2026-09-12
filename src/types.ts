@@ -415,6 +415,9 @@ export interface DocumentMetadata {
   source: string;
   title: string;
   url: string;
+  caseNumber?: string;
+  /** LaborInfo API pbDt preserved without falling back to another date field. */
+  pbDt?: string;
   court?: string;
   date?: string;
   province?: string;
@@ -425,13 +428,23 @@ export interface DocumentMetadata {
  * 工劳网检索参数
  */
 export interface LaborInfoSearchParams {
-  province?: string;
-  caseLevel?: string;
+  province?: string | string[];
+  /** Adapter boundary accepts legacy scalar callers and normalizes immediately. */
+  caseLevel?: string | string[];
   start_date?: string;
   end_date?: string;
   page?: number;
   per_page?: number;
   q?: string;
+}
+
+export interface LaborInfoSearchResult {
+  items: DocumentMetadata[];
+  total: number;
+  totalPages: number;
+  page: number;
+  perPage: number;
+  rawResponse?: any;
 }
 
 export type PipelineMode = 'raw_only' | 'crawl_and_parse' | 'crawl_parse_build';
@@ -538,6 +551,194 @@ export interface CaseParty {
   name: string;
   laborRole: LaborRole;
   proceduralRoles: ProceduralRole[];
+}
+
+export interface NormalizedCandidateFilters {
+  remoteFilters: {
+    provinces: string[];
+    caseLevels: string[];
+    startDate?: string;
+    endDate?: string;
+    q?: string;
+  };
+  localEligibilityRules: {
+    cities: string[];
+  };
+}
+
+export interface CandidateMetadata {
+  caseId: string;
+  pbDt?: string;
+  year: number | null;
+  caseLevel?: string;
+  court?: string;
+  city?: string;
+}
+
+export type CandidatePoolSnapshotStatus = 'complete' | 'partial' | 'failed' | 'cancelled';
+
+export interface CandidatePoolDistribution {
+  byCity: Record<string, number>;
+  byYear: Record<string, number>;
+  byCaseLevel: Record<string, number>;
+}
+
+export interface CandidatePoolSnapshotHeader {
+  id: string;
+  source: 'laborinfo';
+  filters: NormalizedCandidateFilters;
+  candidateCount: number;
+  createdAt: string;
+  snapshotVersion: 'candidate-pool-v1';
+  filterContractVersion: 'laborinfo-filter-v2';
+  candidateHash: string;
+  snapshotFingerprint: string;
+  status: CandidatePoolSnapshotStatus;
+  expectedPages: number;
+  fetchedPages: number;
+  failedPages: number[];
+  duplicateCount: number;
+  limitedByMaxPages: boolean;
+  exclusions: {
+    excludedKnownTestCases: number;
+    excludedOther: number;
+    excludedUnknown: number;
+  };
+  distribution: CandidatePoolDistribution;
+}
+
+export interface CandidatePoolSnapshot extends CandidatePoolSnapshotHeader {
+  candidates: CandidateMetadata[];
+}
+
+export interface CandidatePoolEntry extends CandidateMetadata {
+  id: string;
+  snapshotId: string;
+}
+
+export type StratificationDimension = 'city' | 'year' | 'caseLevel';
+
+export type AllocationStrategy = 'proportional' | 'balanced';
+
+export interface CandidateStratum {
+  key: string;
+  dimensions: Partial<Record<StratificationDimension, string | number | null>>;
+  candidateIds: string[];
+  candidateCount: number;
+}
+
+export interface SamplingStratumResult {
+  key: string;
+  dimensions: Partial<Record<StratificationDimension, string | number | null>>;
+  candidateCount: number;
+  allocatedSampleSize: number;
+  sampledCaseIds: string[];
+  seed: string;
+  sampleHash: string;
+  samplingFraction: number;
+}
+
+interface SamplingRunBase {
+  id: string;
+  snapshotId: string;
+  snapshotFingerprint: string;
+  candidateHash: string;
+  seed: string;
+  requestedSampleSize: number;
+  actualSampleSize: number;
+  sampledCaseIds: string[];
+  sampleHash: string;
+  createdAt: string;
+}
+
+export interface SeededRandomSamplingRun extends SamplingRunBase {
+  method: 'seeded_random';
+  algorithmVersion: 'seeded-random-v1';
+}
+
+export interface StratifiedSamplingRun extends SamplingRunBase {
+  method: 'stratified_seeded_random';
+  algorithmVersion: 'stratified-seeded-v1';
+  samplingConfigHash: string;
+  stratification: {
+    dimensions: StratificationDimension[];
+    allocationStrategy: AllocationStrategy;
+    strata: SamplingStratumResult[];
+  };
+}
+
+export type SamplingRun = SeededRandomSamplingRun | StratifiedSamplingRun;
+
+export interface SamplingRunSummary {
+  snapshotId: string;
+  method: 'seeded_random' | 'stratified_seeded_random';
+  seed: string;
+  requestedSampleSize: number;
+  actualSampleSize: number;
+  algorithmVersion: 'seeded-random-v1' | 'stratified-seeded-v1';
+  sampleHash: string;
+  createdAt: string;
+  dimensions?: StratificationDimension[];
+  allocationStrategy?: AllocationStrategy;
+  stratumCount?: number;
+  candidateCount?: number;
+  samplingConfigHash?: string;
+}
+
+export type AnalysisMode = 'exhaustive' | 'sampled';
+
+export type AnalysisRunStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface AnalysisEngineVersions {
+  parserVersion: string;
+  rulesetVersion: string;
+}
+
+export interface SemanticAnalysisConfig {
+  enabled: boolean;
+  promptVersion?: string;
+  provider?: string;
+  model?: string;
+}
+
+export interface AnalysisResultSummary {
+  processedCaseCount: number;
+  includedCaseCount: number;
+  excludedCaseCount: number;
+  failedCaseCount: number;
+  unknownOutcomeCount: number;
+}
+
+export interface AnalysisRun {
+  id: string;
+  analysisContractVersion: 'analysis-provenance-v1';
+  mode: AnalysisMode;
+  snapshotId: string;
+  snapshotFingerprint: string;
+  candidateHash: string;
+  samplingRunId?: string;
+  samplingRunSampleHash?: string;
+  samplingRunProvenanceHash?: string;
+  inputCaseIds: string[];
+  inputCaseCount: number;
+  engineVersions: AnalysisEngineVersions;
+  semantic: SemanticAnalysisConfig;
+  status: AnalysisRunStatus;
+  createdAt: string;
+  completedAt?: string;
+  resultSummary?: AnalysisResultSummary;
+  errorCode?: string;
+  errorMessage?: string;
+  provenanceHash: string;
+}
+
+export interface AnalysisRunProvenanceComparison {
+  snapshotChanged: boolean;
+  samplingChanged: boolean;
+  parserChanged: boolean;
+  rulesetChanged: boolean;
+  semanticChanged: boolean;
+  inputCasesChanged: boolean;
 }
 
 export type ClaimProceduralBasis =
@@ -1039,6 +1240,10 @@ export interface DisputeDefenseMatrixCell {
   caseIds: string[];
   employerSupportedCount: number;
   employerSupportedCaseIds: string[];
+  employerPartiallySupportedCount: number;
+  employerNotSupportedCount: number;
+  employerUnclearCount: number;
+  knownOutcomeDenominator: number;
   employerSupportRate: number; // 胜诉率 (排除 unclear)
 }
 

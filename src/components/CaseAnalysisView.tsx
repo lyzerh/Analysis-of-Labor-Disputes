@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { AnalysisCaseRecord } from '../types';
 import { Database, Search, FileText, Scale, Target, ShieldAlert, BookOpen, AlertCircle, X } from 'lucide-react';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
+import { getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 
 interface CaseAnalysisViewProps {
   records?: AnalysisCaseRecord[];
@@ -93,6 +94,10 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
   const selectedCase = useMemo(() => {
     return (Array.isArray(records) ? records : []).find(r => r.caseId === selectedCaseId) || null;
   }, [records, selectedCaseId]);
+
+  const selectedOutcomePresentations = selectedCase
+    ? getPartyOutcomePresentations(selectedCase)
+    : null;
 
 
   const clearSearch = () => {
@@ -225,12 +230,10 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                           <Scale className="w-4 h-4 text-purple-600" />
                           裁判结果与要点
                         </div>
-                        <div className="bg-purple-50/50 p-3 rounded-xl border border-purple-100 text-xs space-y-2">
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">裁判结果：</span>
-                            <span className={`font-bold ${record.employeeOutcome === 'supported' ? 'text-rose-600' : record.employerOutcome === 'supported' ? 'text-emerald-600' : record.overallResult === 'partially_supported' ? 'text-amber-600' : 'text-slate-600'}`}>
-                              {record.employerOutcome === 'supported' ? '用人单位全部胜诉' : record.employeeOutcome === 'supported' ? '劳动者全部胜诉' : record.overallResult === 'partially_supported' ? '部分支持劳动者诉求' : '情况不明'}
-                            </span>
-                          </div>
+                        {selectedOutcomePresentations && <div className="bg-purple-50/50 p-3 rounded-xl border border-purple-100 text-xs space-y-2">
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">劳动者结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{selectedOutcomePresentations.employee.label}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">用人单位结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{selectedOutcomePresentations.employer.label}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">申请人结果：</span><span className={`font-bold ${selectedOutcomePresentations.applicant.textClassName}`}>{selectedOutcomePresentations.applicant.label}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">争议类型：</span><span className="font-medium text-slate-900">{Array.isArray(record.disputeType) ? record.disputeType.join('、') : (record.disputeType || '未知')}</span></div>
                           {Array.isArray(record.keyLegalPoints) && record.keyLegalPoints.length > 0 && (
                             <div className="flex flex-col mt-2">
@@ -238,7 +241,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                               <span className="font-medium text-slate-900 leading-relaxed bg-white p-2 rounded border border-purple-100">{record.keyLegalPoints.join('；')}</span>
                             </div>
                           )}
-                        </div>
+                        </div>}
                       </div>
                     </div>
                     
@@ -251,21 +254,17 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                           </div>
                           {Array.isArray(record.claims) && record.claims.length > 0 ? (
                             <div className="space-y-2">
-                              {record.claims.map((claim: any, idx: number) => (
-                                <div key={idx} className="bg-white border border-slate-200 p-2.5 rounded-lg text-xs flex justify-between items-start gap-2">
-                                  <span className="text-slate-800 leading-relaxed">{claim.claimName}</span>
-                                  {claim.supportStatus !== 'unknown' && (
-                                    <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                      claim.supportStatus === "supported" || claim.status === "supported" ? 'bg-rose-100 text-rose-700' :
-                                      claim.supportStatus === 'rejected' ? 'bg-emerald-100 text-emerald-700' :
-                                      'bg-amber-100 text-amber-700'
-                                    }`}>
-                                      {claim.supportStatus === "supported" || claim.status === "supported" ? '支持' :
-                                       claim.supportStatus === 'rejected' ? '驳回' : '部分支持'}
+                              {record.claims.map((claim, idx) => {
+                                const presentation = getOutcomePresentation(claim.supportStatus);
+                                return (
+                                  <div key={idx} className="bg-white border border-slate-200 p-2.5 rounded-lg text-xs flex justify-between items-start gap-2">
+                                    <span className="text-slate-800 leading-relaxed">{claim.claimName}</span>
+                                    <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${presentation.badgeClassName}`}>
+                                      {presentation.label}
                                     </span>
-                                  )}
-                                </div>
-                              ))}
+                                  </div>
+                                );
+                              })}
                             </div>
                           ) : (
                             <div className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-xl border border-slate-100">未识别</div>

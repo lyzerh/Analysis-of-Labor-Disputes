@@ -551,6 +551,7 @@ export class DefenseStrategyAnalyzer {
         const supportedCases: string[] = [];
         const partialCases: string[] = [];
         const notSupportedCases: string[] = [];
+        const unclearCases: string[] = [];
 
         records.forEach((r) => {
           const hasDispute = r.disputeType?.some((t) => t.includes(dt) || dt.includes(t));
@@ -566,6 +567,8 @@ export class DefenseStrategyAnalyzer {
               partialCases.push(r.caseId);
             } else if (outcome === 'not_supported') {
               notSupportedCases.push(r.caseId);
+            } else {
+              unclearCases.push(r.caseId);
             }
           }
         });
@@ -582,6 +585,10 @@ export class DefenseStrategyAnalyzer {
           caseIds: matchedCases,
           employerSupportedCount: supportedCases.length,
           employerSupportedCaseIds: supportedCases,
+          employerPartiallySupportedCount: partialCases.length,
+          employerNotSupportedCount: notSupportedCases.length,
+          employerUnclearCount: unclearCases.length,
+          knownOutcomeDenominator: validTotal,
           employerSupportRate,
         };
       });
