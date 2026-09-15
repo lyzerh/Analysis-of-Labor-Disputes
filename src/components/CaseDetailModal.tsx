@@ -22,6 +22,7 @@ import {
 import { ArbitrationCase, RawDocument, SimilarCaseResult } from '../types';
 import { DataService } from '../services/data/dataService';
 import { LocalAnalysisService } from '../services/textEngine/LocalAnalysisService';
+import { formatCaseDate, formatCaseNumber } from '../services/presentation/CaseMetadataPresentation';
 import { db } from '../db';
 
 interface CaseDetailModalProps {
@@ -107,7 +108,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
           <div className="overflow-hidden">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-bold text-blue-700 font-mono">
-                {currentCase.caseNumber}
+                {formatCaseNumber(currentCase.caseNumber)}
               </span>
               {getOutcomeBadge(currentCase.decisionOutcome)}
               {currentCase.parseQuality && (
@@ -442,7 +443,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                     <Calendar className="w-3 h-3 text-slate-400" /> 裁决年份与日期
                   </span>
                   <div className="font-semibold text-slate-900 mt-1 font-mono">
-                    {currentCase.publishedDate || `${currentCase.year}年`}
+                    {formatCaseDate(currentCase.publishedDate)}
                   </div>
                 </div>
 

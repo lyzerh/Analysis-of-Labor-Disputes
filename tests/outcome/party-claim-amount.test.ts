@@ -4,6 +4,50 @@ import { LaborInfoParserAdapter } from '../../src/services/parser/LaborInfoParse
 import { rawDocument } from './fixtures/outcome-fixtures';
 
 describe('Party and procedural-role contract', () => {
+  it('recognizes a named employee and employer from a labor-dispute title', () => {
+    const result = LaborInfoParserAdapter.recognizeParties('', '廖某与甲有限公司劳动争议二审民事判决书');
+    expect(result.employeeParty).toBe('廖某');
+    expect(result.employerParty).toBe('甲有限公司');
+  });
+
+  it('does not let nested original-trial labels overwrite the real appellant parties', () => {
+    const text = [
+      '上诉人（原审被告）：广州曰之昇科技有限公司，住所地广州市。',
+      '被上诉人（原审原告）：廖春群，女，住湖南省。',
+      '劳动关系是指用人单位招用劳动者为其成员。',
+    ].join('\n');
+    const result = LaborInfoParserAdapter.recognizeParties(text);
+    expect(result.employeeParty).toBe('廖春群');
+    expect(result.employerParty).toBe('广州曰之昇科技有限公司');
+  });
+
+  it('recognizes employee and employer when consolidated cases list both as appellants', () => {
+    const text = [
+      '上诉人［一案原告、另一案被告］:广州市雅莲酒店管理有限公司，住所地广州市。',
+      '上诉人［一案被告、另一案原告］:张先甫，男，住湖北省。',
+    ].join('\n');
+    const result = LaborInfoParserAdapter.recognizeParties(text);
+    expect(result.employeeParty).toBe('张先甫');
+    expect(result.employerParty).toBe('广州市雅莲酒店管理有限公司');
+  });
+
+  it.each([
+    '劳动者为其成员，依法参加工会活动。',
+    '劳动者系依法享有劳动权利的主体。',
+    '劳动者依法享有取得劳动报酬的权利。',
+    '劳动者应当完成劳动任务。',
+  ])('does not manufacture an employee name from generic legal text: %s', (text) => {
+    const result = LaborInfoParserAdapter.recognizeParties(`原告：甲有限公司。被告：乙有限公司。${text}`);
+    expect(result.employeeParty).toBeNull();
+    expect(result.employeeParty).not.toBe('为其成员');
+  });
+
+  it('never treats an employer company as the employee', () => {
+    const result = LaborInfoParserAdapter.recognizeParties('原告：甲有限公司。被告：乙有限公司。');
+    expect(result.employeeParty).toBeNull();
+    expect(result.employerParty).toBe('甲有限公司');
+  });
+
   it('allows one employer party to be both defendant and counterclaimant', () => {
     const text = '原告：张某。被告：甲有限公司。被告甲有限公司提出反诉，请求确认无需支付经济补偿金。';
     const result = LaborInfoParserAdapter.recognizeParties(text);

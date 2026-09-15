@@ -259,7 +259,7 @@ export class LaborInfoParserAdapter {
     }
 
     // 案号识别
-    let caseNumber = meta.case_number || meta.caseNumber || '';
+    let caseNumber = meta.no || meta.case_number || meta.caseNumber || '';
     if (!caseNumber) {
       const standardCaseNumber = text.match(/[（(〔\[]\s*(20\d\d)\s*[)）〕\]]\s*[\u4e00-\u9fa5]{1,8}\s*[\u4e00-\u9fa5]{1,4}\s*[初终再申异执字第]?\s*\d+\s*号/);
       if (standardCaseNumber) {
@@ -332,8 +332,8 @@ export class LaborInfoParserAdapter {
 
     // 常见文书头部的当事人角色模式
     const partyPatterns = [
-      /(?:原告|上诉人|申请人|原审原告|申诉人)[（(]?[\u4e00-\u9fa5]{0,6}[)）]?[：:\s]+([^，,。\n\r]+)/g,
-      /(?:被告|被上诉人|被申请人|原审被告|被申诉人)[（(]?[\u4e00-\u9fa5]{0,6}[)）]?[：:\s]+([^，,。\n\r]+)/g,
+      /(?:^|[。\n\r])\s*(?:原审原告|上诉人|申请人|申诉人|原告)(?:[（(［\[].{0,60}?[）)］\]])?[：:\s]+([^，,。\n\r]+)/g,
+      /(?:^|[。\n\r])\s*(?:原审被告|被上诉人|被申请人|被申诉人|被告)(?:[（(［\[].{0,60}?[）)］\]])?[：:\s]+([^，,。\n\r]+)/g,
     ];
 
     const party1Matches: string[] = [];
@@ -357,13 +357,35 @@ export class LaborInfoParserAdapter {
       return companyKeywords.some((kw) => name.includes(kw));
     };
 
-    const isPerson = (name: string | null): boolean => {
-      if (!name) return false;
-      if (isCompany(name)) return false;
-      // 个人姓名通常在 2-4 个汉字，或带有自然人特征
+    const isPlausiblePersonName = (name: string | null): boolean => {
+      if (!name || isCompany(name)) return false;
       const clean = name.replace(/[^\u4e00-\u9fa5]/g, '');
-      return clean.length >= 2 && clean.length <= 5;
+      if (clean.length < 2 || clean.length > 5) return false;
+      if (/^(?:劳动者|员工|职工|个人|自然人|为其成员|系.+|依法.+|应当.+|可以.+|不得.+)$/.test(clean)) return false;
+      return true;
     };
+
+    const isPerson = (name: string | null): boolean => {
+      return isPlausiblePersonName(name);
+    };
+
+    // 标题只在能够同时识别出一名自然人与一个组织时补充当事人，避免从叙述正文猜测姓名。
+    if (title && (!firstParty1 || !firstParty2)) {
+      const titleMatch = title.match(/^(.{2,30}?)(?:与|诉)(.{2,40}?)(?:劳动争议|劳务合同纠纷|追索劳动报酬)/);
+      if (titleMatch) {
+        const left = this.cleanPartyName(titleMatch[1]);
+        const right = this.cleanPartyName(titleMatch[2]);
+        if (isPlausiblePersonName(left) && isCompany(right)) {
+          employeeParty = left;
+          employerParty = right;
+          confidence = 0.85;
+        } else if (isCompany(left) && isPlausiblePersonName(right)) {
+          employerParty = left;
+          employeeParty = right;
+          confidence = 0.85;
+        }
+      }
+    }
 
     if (firstParty1 && firstParty2) {
       const p1IsCompany = isCompany(firstParty1);
@@ -383,8 +405,8 @@ export class LaborInfoParserAdapter {
         confidence = 0.95;
       } else if (p1IsCompany && p2IsCompany) {
         // 双公司（如劳务派遣单位与实际用工单位，或劳务分包），寻找员工姓名
-        const workerMatch = text.match(/(?:劳动者|员工|职工|被害人|伤者)[：:\s]*([\u4e00-\u9fa5]{2,4})/);
-        if (workerMatch) {
+        const workerMatch = text.match(/(?:劳动者|员工|职工|被害人|伤者)[：:]\s*([\u4e00-\u9fa5]{2,5})(?=[，,。；;\s])/);
+        if (workerMatch && isPlausiblePersonName(workerMatch[1])) {
           employeeParty = workerMatch[1];
           employerParty = firstParty1;
           applicantRole = 'employer';
@@ -411,10 +433,19 @@ export class LaborInfoParserAdapter {
       confidence = 0.5;
     }
 
+    // 合并审理等文书可能把劳动者与企业都列为上诉人；仅在已具名角色行中补全双方。
+    const namedRoleParties = [...party1Matches, ...party2Matches];
+    if (!employeeParty) {
+      employeeParty = namedRoleParties.find((name) => isPlausiblePersonName(name)) || null;
+    }
+    if (!employerParty) {
+      employerParty = namedRoleParties.find((name) => isCompany(name)) || null;
+    }
+
     // 从正文上下文关联补充
     if (!employeeParty) {
       const workerContextMatch = text.match(/(?:原告|上诉人|申请人|被告|被上诉人)\s*([\u4e00-\u9fa5]{2,4})\s*(?:于|入职|主张|诉称|在[\u4e00-\u9fa5]+工作|系[\u4e00-\u9fa5]+员工)/);
-      if (workerContextMatch && !isCompany(workerContextMatch[1])) {
+      if (workerContextMatch && isPlausiblePersonName(workerContextMatch[1])) {
         employeeParty = workerContextMatch[1];
         confidence = Math.max(confidence, 0.7);
       }

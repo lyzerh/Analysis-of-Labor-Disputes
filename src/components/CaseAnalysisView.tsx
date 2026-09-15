@@ -4,6 +4,7 @@ import { Database, Search, FileText, Scale, Target, ShieldAlert, BookOpen, Alert
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
+import { formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
 
 interface CaseAnalysisViewProps {
   records?: AnalysisCaseRecord[];
@@ -217,12 +218,12 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                           基本情况
                         </div>
                         <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 text-xs space-y-2">
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">案号：</span><span className="font-medium text-slate-900">{record.caseNumber || '未知'}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">裁判日期：</span><span className="font-medium text-slate-900">{record.decisionDate || record.year || '未知'}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">案号：</span><span className="font-medium text-slate-900">{formatCaseNumber(record.caseNumber)}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">裁判日期：</span><span className="font-medium text-slate-900">{formatCaseDate(record.date)}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">裁判机构：</span><span className="font-medium text-slate-900">{record.arbitrationCommittee || record.court || '未知'}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">劳动者：</span><span className="font-medium text-slate-900">{record.employeeParty || '未知'}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">用人单位：</span><span className="font-medium text-slate-900">{record.employerParty || '未知'}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">审理程序：</span><span className="font-medium text-slate-900">{record.caseLevel === 'first' ? '一审/初裁' : record.caseLevel === 'second' ? '二审' : record.caseLevel === 'retrial' ? '再审' : '未知'}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">劳动者：</span><span className="font-medium text-slate-900">{formatPartyName(record.employeeParty)}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">用人单位：</span><span className="font-medium text-slate-900">{formatPartyName(record.employerParty)}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">审理程序：</span><span className="font-medium text-slate-900">{formatCaseLevel(record.caseLevel)}</span></div>
                         </div>
                       </div>
                       

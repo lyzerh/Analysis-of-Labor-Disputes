@@ -46,6 +46,7 @@ import {
   KEY_EVIDENCE_TYPES,
 } from '../services/analytics/LaborDisputeAnalyticsEngine';
 import { getOutcomePresentation } from '../services/outcome/OutcomePresentation';
+import { formatCaseDate, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
 import {
   ResearchAnalysisService,
   type ResearchAnalysisContext,
@@ -859,13 +860,13 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
 
                         <div className="grid grid-cols-2 gap-2 text-2xs text-slate-500">
                           <div className="truncate">审理法院: {c.court}</div>
-                          <div className="truncate">裁判日期: {c.date}</div>
+                          <div className="truncate">裁判日期: {formatCaseDate(c.date)}</div>
                         </div>
 
                         {isSelected && (
                           <div className="pt-2 border-t border-slate-200 space-y-2 text-2xs text-slate-700 bg-slate-50/50 p-2.5 rounded-lg mt-2">
                             <div>
-                              <span className="text-slate-400">当事人:</span> 劳动者 [{c.employeeParty || '未载明'}] vs 用人单位 [{c.employerParty || '未载明'}]
+                              <span className="text-slate-400">当事人:</span> 劳动者 [{formatPartyName(c.employeeParty)}] vs 用人单位 [{formatPartyName(c.employerParty)}]
                             </div>
                             <div>
                               <span className="text-slate-400">诉求条目 ({(Array.isArray(c.claims) ? c.claims.length : 0)}):</span>{' '}

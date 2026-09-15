@@ -59,6 +59,7 @@ export function analysisRecord(
     city: '深圳',
     isPRD: true,
     court: '深圳市某人民法院',
+    caseNumber: '(2024)粤0301民初1号',
     date: '2024-01-01',
     year: 2024,
     caseLevel: '一审',

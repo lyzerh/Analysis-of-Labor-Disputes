@@ -1008,6 +1008,7 @@ export interface AnalysisCaseRecord {
   city: string; // 识别出的城市 (如: 深圳、广州、东莞、佛山、珠海、惠州、中山、江门、肇庆等)
   isPRD: boolean; // 是否属于珠三角九市 (Pearl River Delta)
   court: string;
+  caseNumber: string | null;
   date: string;
   year: number | null;
   caseLevel: string; // 审级 / 机构类型

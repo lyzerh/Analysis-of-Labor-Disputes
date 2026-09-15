@@ -6,6 +6,7 @@ import { DataService } from '../services/data/dataService';
 import { getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
 import { filterAnalysisCaseRecords } from '../services/case/CaseLibraryFilter';
+import { formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
 
 export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => void, onNavigateToReview?: () => void, onNavigateToAnalytics?: () => void, onNavigateToDefense?: () => void }> = () => {
   const [loading, setLoading] = useState(true);
@@ -222,10 +223,10 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                 {(Array.isArray(filteredRecords) ? filteredRecords : []).map(r => (
                   <tr key={r.caseId} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 max-w-[200px] truncate font-medium text-slate-900" title={r.title}>{r.title || '-'}</td>
-                    <td className="px-4 py-3 whitespace-nowrap font-mono text-slate-500">{r.caseNumber || '-'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap font-mono text-slate-500">{formatCaseNumber(r.caseNumber)}</td>
                     <td className="px-4 py-3 max-w-[150px] truncate text-slate-700">{r.court || r.arbitrationCommittee || '-'}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-slate-700">{r.city || '-'}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-slate-700">{r.decisionDate || r.year || '-'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-slate-700">{formatCaseDate(r.date)}</td>
                     <td className="px-4 py-3 max-w-[150px] truncate text-slate-700">
                       {Array.isArray(r.disputeType) ? r.disputeType.join('、') : (r.disputeType || '-')}
                     </td>
@@ -272,13 +273,13 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                       <Briefcase className="w-4 h-4 text-blue-600" /> 基本信息
                     </h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-4 text-xs">
-                      <div><span className="text-slate-500">案号：</span><span className="font-semibold">{selectedRecord.caseNumber || '-'}</span></div>
+                      <div><span className="text-slate-500">案号：</span><span className="font-semibold">{formatCaseNumber(selectedRecord.caseNumber)}</span></div>
                       <div><span className="text-slate-500">法院：</span><span className="font-semibold">{selectedRecord.court || selectedRecord.arbitrationCommittee || '-'}</span></div>
                       <div><span className="text-slate-500">城市：</span><span className="font-semibold">{selectedRecord.city || '-'}</span></div>
-                      <div><span className="text-slate-500">裁判日期：</span><span className="font-semibold">{selectedRecord.decisionDate || selectedRecord.year || '-'}</span></div>
-                      <div><span className="text-slate-500">审级：</span><span className="font-semibold">{selectedRecord.caseLevel === 'first' ? '一审/初裁' : selectedRecord.caseLevel === 'second' ? '二审' : '再审/其他'}</span></div>
-                      <div><span className="text-slate-500">劳动者：</span><span className="font-semibold">{selectedRecord.employeeParty || '-'}</span></div>
-                      <div><span className="text-slate-500">用人单位：</span><span className="font-semibold">{selectedRecord.employerParty || '-'}</span></div>
+                      <div><span className="text-slate-500">裁判日期：</span><span className="font-semibold">{formatCaseDate(selectedRecord.date)}</span></div>
+                      <div><span className="text-slate-500">审级：</span><span className="font-semibold">{formatCaseLevel(selectedRecord.caseLevel)}</span></div>
+                      <div><span className="text-slate-500">劳动者：</span><span className="font-semibold">{formatPartyName(selectedRecord.employeeParty)}</span></div>
+                      <div><span className="text-slate-500">用人单位：</span><span className="font-semibold">{formatPartyName(selectedRecord.employerParty)}</span></div>
                     </div>
                   </div>
 

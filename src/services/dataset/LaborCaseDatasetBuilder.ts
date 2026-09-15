@@ -168,6 +168,10 @@ export class LaborCaseDatasetBuilder {
     // 7. 工劳网 pbDt 是裁判日期的权威来源；正文日期只作回退。
     const authoritativeDate = this.resolveAuthoritativeDate(rawDoc, parsed.date);
     const year = authoritativeDate ? Number(authoritativeDate.slice(0, 4)) : null;
+    const parsedCaseNumber = parsed.caseNumber?.trim();
+    const caseNumber = parsedCaseNumber && parsedCaseNumber !== '未载明案号'
+      ? parsedCaseNumber
+      : null;
 
     // 8. 过滤规则判定：
     // 默认只进入分析集：reviewStatus === 'approved' 或 completenessScore >= 80
@@ -202,6 +206,7 @@ export class LaborCaseDatasetBuilder {
       city,
       isPRD,
       court: parsed.court || '劳动人事争议仲裁委员会/人民法院',
+      caseNumber,
       date: authoritativeDate || '未载明日期',
       year,
       caseLevel: parsed.caseLevel || '劳动仲裁/一审',
