@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type {
   AnalysisRun,
+  AnalysisCaseRecord,
   CandidatePoolSnapshot,
   CandidatePoolSnapshotHeader,
   SamplingRun,
@@ -15,12 +16,14 @@ import {
 import {
   ResearchWorkspaceService,
   type ResearchWorkspaceAnalysisRuns,
+  type ResearchWorkspaceLocalRecords,
   type ResearchWorkspaceSampling,
   type ResearchWorkspaceSnapshots,
 } from '../../src/services/analysis/ResearchWorkspaceService';
 import { calculateCandidateHash, calculateSampleHash } from '../../src/services/sampling/SamplingService';
 import { ResearchCasePreparationService } from '../../src/services/analysis/ResearchCasePreparationService';
 import type { RawDocument } from '../../src/types';
+import { analysisRecord } from './helpers/record-factories';
 
 const filters = {
   remoteFilters: { provinces: ['广东省'], startDate: '2023-11-28', endDate: '2023-11-30', caseLevels: ['一审', '二审'] },
@@ -67,6 +70,7 @@ async function snapshot(
 
 class SnapshotAccess implements ResearchWorkspaceSnapshots {
   buildInputs: CandidateFilterInput[] = [];
+  localBuildInputs: CandidateFilterInput[] = [];
   constructor(private values: CandidatePoolSnapshot[]) {}
   async listSnapshots(): Promise<CandidatePoolSnapshotHeader[]> { return this.values.map(({ candidates: _candidates, ...header }) => header); }
   async getSnapshot(id: string): Promise<CandidatePoolSnapshot | undefined> { return this.values.find((item) => item.id === id); }
@@ -78,6 +82,27 @@ class SnapshotAccess implements ResearchWorkspaceSnapshots {
     created.filters.localEligibilityRules.cities = Array.isArray(input.cities) ? input.cities : [input.cities ?? ''];
     this.values.push(created);
     return created;
+  }
+  async buildLocalSnapshot(records: AnalysisCaseRecord[], input: CandidateFilterInput): Promise<CandidatePoolSnapshot> {
+    this.localBuildInputs.push(structuredClone(input));
+    const created = await snapshot(`snapshot-created-${this.values.length}`, records.map((record) => record.rawDocumentId));
+    created.sourceMode = 'local';
+    this.values.push(created);
+    return created;
+  }
+}
+
+class LocalRecordAccess implements ResearchWorkspaceLocalRecords {
+  async listLocalAnalysisRecords(): Promise<AnalysisCaseRecord[]> {
+    return ['A', 'B', 'C'].map((id) => analysisRecord(id, 'supported', {
+      rawDocumentId: id,
+      title: `案例 ${id}`,
+      city: '广州',
+      year: 2023,
+      date: '2023-11-28',
+      caseLevel: '一审',
+      court: '广州市中级人民法院',
+    }));
   }
 }
 
@@ -158,20 +183,20 @@ async function setup() {
   const snapshots = new SnapshotAccess([a, b, partial]);
   const sampling = new SamplingAccess();
   const analyses = new AnalysisAccess();
-  return { service: new ResearchWorkspaceService(snapshots, sampling, analyses), snapshots, sampling, analyses };
+  return { service: new ResearchWorkspaceService(snapshots, sampling, analyses, undefined, new LocalRecordAccess()), snapshots, sampling, analyses };
 }
 
 describe('Research Workspace service contract', () => {
   it('delegates valid Snapshot form arrays to CandidatePoolSnapshotService', async () => {
     const { service, snapshots } = await setup();
-    const created = await service.createSnapshot({ province: ['广东省', '广西壮族自治区'], caseLevels: ['一审', '二审'], startDate: '2023-11-28', endDate: '2023-11-30', cities: ['广州', '深圳', '东莞'], q: '劳动合同' });
+    const created = await service.createRemoteSnapshot({ province: ['广东省', '广西壮族自治区'], caseLevels: ['一审', '二审'], startDate: '2023-11-28', endDate: '2023-11-30', cities: ['广州', '深圳', '东莞'], q: '劳动合同' });
     expect(created.status).toBe('complete');
     expect(snapshots.buildInputs[0]).toMatchObject({ province: ['广东省', '广西壮族自治区'], caseLevels: ['一审', '二审'], cities: ['广州', '深圳', '东莞'] });
   });
 
   it('blocks an invalid date range before invoking SnapshotService', async () => {
     const { service, snapshots } = await setup();
-    await expect(service.createSnapshot({ province: ['广东省'], caseLevels: ['一审'], startDate: '2023-12-01', endDate: '2023-11-01', cities: [] })).rejects.toThrow(/日期|date/i);
+    await expect(service.createRemoteSnapshot({ province: ['广东省'], caseLevels: ['一审'], startDate: '2023-12-01', endDate: '2023-11-01', cities: [] })).rejects.toThrow(/日期|date/i);
     expect(snapshots.buildInputs).toHaveLength(0);
   });
 
@@ -338,9 +363,21 @@ describe('Research Workspace UI contract', () => {
   it('Snapshot form preserves multi-select concepts and does not expose per_page', () => {
     expect(workspaceSource).toMatch(/一审/);
     expect(workspaceSource).toMatch(/二审/);
-    expect(workspaceSource).toMatch(/广州/);
-    expect(workspaceSource).toMatch(/本地 eligibility/);
+    expect(workspaceSource).toMatch(/REGION_OPTIONS/);
+    expect(workspaceSource).toMatch(/地区范围/);
     expect(workspaceSource).not.toMatch(/per_page|perPage/);
+  });
+
+  it('makes local records the ordinary create path and isolates remote enumeration behind an advanced entry', () => {
+    expect(workspaceSource).toMatch(/基于本地已入库案例创建固定研究范围，不会重新请求远程数据/);
+    expect(workspaceSource).toMatch(/workspaceService\.createSnapshot\(\{ caseLevels:/);
+    expect(workspaceSource).toMatch(/从远程数据源构建总体（高级）/);
+    expect(workspaceSource).toMatch(/workspaceService\.createRemoteSnapshot/);
+  });
+
+  it('disables local creation for an empty corpus without silently falling back to remote', () => {
+    expect(workspaceSource).toMatch(/disabled=\{localRecordCount === 0\}/);
+    expect(workspaceSource).toMatch(/当前本地案例库为空，请先导入或准备案例/);
   });
 
   it('Snapshot creation UI does not invoke fulltext, Parser, Gemini, Sampling, or Analysis creation', () => {

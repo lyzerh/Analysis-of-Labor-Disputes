@@ -217,6 +217,7 @@ The project uses the LaborInfoCN public API as a public labor-dispute data sourc
 - Year-filter interaction bug
 - Case-level filter interaction bug
 - Data-management count semantics need redesign
+- Pending-review cases cannot currently be opened or processed from the case-library UI. The page reports a pending/manual-review count, but only renders records already admitted to the analysis set; users cannot inspect exclusion reasons, correct extracted fields, approve a record, or reject it. The labels are also misleading because "structured" includes both admitted and pending records while the visible list contains admitted records only.
 - The raw-judgment viewer is planned for removal
 - Research terminology is currently too technical for ordinary users
 - The sampling workflow needs UX simplification

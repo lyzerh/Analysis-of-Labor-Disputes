@@ -3,7 +3,7 @@
  * 扫描证据清单、事实认定与质证段落，识别案件中所使用的证据类型
  */
 
-import { EvidenceItem } from '../../types';
+import { EvidenceItem, EvidenceProvider } from '../../types';
 
 export interface EvidenceRuleDef {
   name: string;
@@ -120,14 +120,8 @@ export class EvidenceRecognizer {
           const end = Math.min(text.length, m.index + m[0].length + 25);
           const matchedText = text.slice(start, end).replace(/\n+/g, ' ').trim();
 
-          // 简易推断提交方
-          let provider: string | undefined = undefined;
-          const contextSnippet = text.slice(Math.max(0, m.index - 60), m.index + m[0].length);
-          if (/被申请人(?:提交|出示|提供|举证)/.test(contextSnippet)) {
-            provider = '被申请人(公司)';
-          } else if (/申请人(?:提交|出示|提供|举证)/.test(contextSnippet)) {
-            provider = '申请人(劳动者)';
-          }
+          // 本识别器没有当事人劳动关系身份上下文，不把程序角色机械映射为证据来源。
+          const provider: EvidenceProvider = 'unknown';
 
           items.push({
             name: rule.name,

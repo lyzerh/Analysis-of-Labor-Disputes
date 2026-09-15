@@ -1,4 +1,5 @@
 import type {
+  AnalysisCaseRecord,
   AnalysisRun,
   CandidatePoolSnapshot,
   CandidatePoolSnapshotHeader,
@@ -6,6 +7,7 @@ import type {
   StratificationDimension,
   AllocationStrategy,
 } from '../../types';
+import { LaborAnalysisPipeline } from '../data/LaborAnalysisPipeline';
 import {
   AnalysisRunService,
   type CreateAnalysisRunInput,
@@ -30,6 +32,17 @@ export interface ResearchWorkspaceSnapshots {
   listSnapshots(): Promise<CandidatePoolSnapshotHeader[]>;
   getSnapshot(id: string): Promise<CandidatePoolSnapshot | undefined>;
   buildSnapshot(input: CandidateFilterInput, options?: BuildSnapshotOptions): Promise<CandidatePoolSnapshot>;
+  buildLocalSnapshot(records: AnalysisCaseRecord[], input: CandidateFilterInput): Promise<CandidatePoolSnapshot>;
+}
+
+export interface ResearchWorkspaceLocalRecords {
+  listLocalAnalysisRecords(): Promise<AnalysisCaseRecord[]>;
+}
+
+class PipelineLocalRecords implements ResearchWorkspaceLocalRecords {
+  public listLocalAnalysisRecords(): Promise<AnalysisCaseRecord[]> {
+    return LaborAnalysisPipeline.getAllAnalysisRecords();
+  }
 }
 
 export interface ResearchWorkspaceCasePreparation {
@@ -94,13 +107,26 @@ export class ResearchWorkspaceService {
     private readonly sampling: ResearchWorkspaceSampling = new SamplingService(),
     private readonly analysisRuns: ResearchWorkspaceAnalysisRuns = new AnalysisRunService(),
     private readonly casePreparation: ResearchWorkspaceCasePreparation = new ResearchCasePreparationService(),
+    private readonly localRecords: ResearchWorkspaceLocalRecords = new PipelineLocalRecords(),
   ) {}
 
-  public async createSnapshot(input: CandidateFilterInput, options: BuildSnapshotOptions = {}): Promise<CandidatePoolSnapshot> {
+  public async createSnapshot(input: CandidateFilterInput): Promise<CandidatePoolSnapshot> {
+    const records = await this.localRecords.listLocalAnalysisRecords();
+    if (records.length === 0) {
+      throw new Error('当前本地案例库为空，请先导入或准备案例');
+    }
+    return this.snapshots.buildLocalSnapshot(records, input);
+  }
+
+  public async createRemoteSnapshot(input: CandidateFilterInput, options: BuildSnapshotOptions = {}): Promise<CandidatePoolSnapshot> {
     if (input.startDate && input.endDate && input.startDate > input.endDate) {
       throw new Error('开始日期不能晚于结束日期');
     }
     return this.snapshots.buildSnapshot(input, options);
+  }
+
+  public async getLocalRecordCount(): Promise<number> {
+    return (await this.localRecords.listLocalAnalysisRecords()).length;
   }
 
   public async prepareSnapshotRecords(snapshotId: string): Promise<ResearchCasePreparationSummary> {

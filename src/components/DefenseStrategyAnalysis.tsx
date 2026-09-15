@@ -683,7 +683,7 @@ export const DefenseStrategyAnalysis: React.FC<DefenseStrategyAnalysisProps> = (
                           支持案出现: {ev.appearanceInEmployerSupportedCount} 案
                         </span>
                         <span className="font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-slate-200">
-                          出现率: {ev.rateInEmployerSupported}% ({ev.appearanceInEmployerSupportedCount}/{report.employerSupportedCaseCount})
+                          出现率: {ev.rateInEmployerSupported}% ({ev.appearanceInEmployerSupportedCount}/{ev.employerSupportedDenominator})
                         </span>
                       </div>
                     </div>

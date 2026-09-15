@@ -8,6 +8,7 @@ import {
   DecisionOutcome,
   EmployerDefenseItem,
   EvidenceItem,
+  EvidenceProvider,
   JudgmentAction,
   JudgmentActionItem,
   LaborInfoClaimItem,
@@ -71,7 +72,7 @@ export class LaborInfoParserAdapter {
     const employerDefenses = this.extractEmployerDefenses(text, sections);
 
     // 7. 证据识别
-    const evidence = this.extractEvidence(text, sections);
+    const evidence = this.extractEvidence(text, sections, parties);
 
     // 8. 裁判理由与核心法理要点
     const courtReasoning = sections.reasoning || this.extractCourtReasoningFallback(text);
@@ -1136,7 +1137,8 @@ export class LaborInfoParserAdapter {
    */
   public static extractEvidence(
     text: string,
-    sections: { facts?: string; reasoning?: string }
+    sections: { facts?: string; reasoning?: string },
+    parties?: PartyRecognitionResult,
   ): EvidenceItem[] {
     const evidenceList: EvidenceItem[] = [];
     const sourceText = `${sections.facts || ''}\n${text}`;
@@ -1187,19 +1189,24 @@ export class LaborInfoParserAdapter {
       if (item.keywords.some((kw) => sourceText.includes(kw))) {
          let matchText = item.keywords[0];
          let confidence = 0.5;
-         
-         const evidenceContextRegex = /(?:提交|提供|出示|举证).{0,10}?(?:了|的)?.{0,20}?([^，。；\n]*?(?:证据|证明|材料)[^，。；\n]*)/g;
-         let contextMatches = [...sourceText.matchAll(evidenceContextRegex)];
-         
+         let provider: EvidenceProvider = 'unknown';
+
+         const evidenceContexts = sourceText
+           .split(/[。；\n]/)
+           .map((segment) => segment.trim())
+           .filter((segment) => item.keywords.some((keyword) => segment.includes(keyword)))
+           .filter((segment) => /提交|提供|出示|举证|调取|收集|提取|取得/.test(segment));
+
          let found = false;
-         for (let m of contextMatches) {
-             const sentence = m[0];
-             if (item.keywords.some(kw => sentence.includes(kw))) {
-                 matchText = sentence.trim();
-                 confidence = 0.9;
-                 found = true;
-                 break;
-             }
+         for (const sentence of evidenceContexts) {
+           const resolvedProvider = this.resolveEvidenceProvider(sentence, parties);
+           if (resolvedProvider !== 'unknown') {
+             matchText = sentence;
+             provider = resolvedProvider;
+             confidence = 0.9;
+             found = true;
+             break;
+           }
          }
 
          if (!found) {
@@ -1213,12 +1220,66 @@ export class LaborInfoParserAdapter {
          evidenceList.push({
            name: item.name,
            matchedText: matchText,
+           provider,
            confidence: confidence,
          });
       }
     }
 
     return evidenceList;
+  }
+
+  private static resolveEvidenceProvider(
+    evidenceText: string,
+    recognition?: PartyRecognitionResult,
+  ): EvidenceProvider {
+    const actionMatch = [...evidenceText.matchAll(/提交|提供|出示|举证|调取|收集|提取|取得/g)]
+      .find((match) => {
+        const prefix = evidenceText.slice(Math.max(0, (match.index || 0) - 2), match.index);
+        return !/(?:未|没|没有|未能)$/.test(prefix);
+      });
+    if (!actionMatch || actionMatch.index === undefined) return 'unknown';
+
+    const beforeAction = evidenceText.slice(0, actionMatch.index);
+    const trimmedActorText = beforeAction.trim();
+    if (/(?:第三方|第三人)[^。；\n]*$/.test(trimmedActorText)
+      || /^(?:[^，,:：]{0,12})?(?:银行|社保(?:机构|部门)|税务(?:机关|部门)|鉴定机构)(?:向[^，,:：]{0,12})?$/.test(trimmedActorText)) {
+      return 'third_party';
+    }
+    if (/(?:本院|法院)(?:依法)?$/.test(trimmedActorText)) return 'court';
+
+    const parties = recognition?.parties || [];
+    const namedParty = [...parties]
+      .filter((party) => party.name && beforeAction.includes(party.name))
+      .sort((a, b) => b.name.length - a.name.length)[0];
+    if (namedParty?.laborRole === 'employee' || namedParty?.laborRole === 'employer') {
+      return namedParty.laborRole;
+    }
+    if (namedParty?.laborRole === 'unknown'
+      && !namedParty.proceduralRoles.includes('third_party')
+      && /^[\u4e00-\u9fa5某×*]{2,4}$/.test(namedParty.name)
+      && parties.some((party) => party.laborRole === 'employer')) {
+      return 'employee';
+    }
+
+    const roleMap: Array<[RegExp, CaseParty['proceduralRoles'][number]]> = [
+      [/反诉原告|反诉人/, 'counterclaimant'],
+      [/被上诉人/, 'appellee'],
+      [/上诉人/, 'appellant'],
+      [/被申请人/, 'respondent'],
+      [/申请人/, 'applicant'],
+      [/原告/, 'plaintiff'],
+      [/被告/, 'defendant'],
+      [/第三人/, 'third_party'],
+    ];
+    for (const [pattern, role] of roleMap) {
+      if (!pattern.test(beforeAction)) continue;
+      const party = parties.find((candidate) => candidate.proceduralRoles.includes(role));
+      if (party?.laborRole === 'employee' || party?.laborRole === 'employer') return party.laborRole;
+      if (role === 'third_party') return 'third_party';
+    }
+
+    return 'unknown';
   }
 
   /**

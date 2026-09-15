@@ -8,6 +8,7 @@ import {
   OutcomeStats,
   LegalOutcomeType,
 } from '../../types';
+import { isEmployerProvidedEvidence } from '../evidence/EvidenceProvider';
 
 /**
  * 目标城市白名单配置 (广州、深圳、东莞)
@@ -313,7 +314,7 @@ export class LaborDisputeAnalyticsEngine {
 
     records.forEach((r) => {
       if (Array.isArray(r.evidence)) {
-        r.evidence.forEach((ev) => {
+        r.evidence.filter(isEmployerProvidedEvidence).forEach((ev) => {
           if (ev.name && ev.name.trim()) {
             evidenceSet.add(ev.name.trim());
           }
@@ -322,6 +323,7 @@ export class LaborDisputeAnalyticsEngine {
     });
 
     const items: EvidenceAnalyticsItem[] = [];
+    const employerSupportedDenominator = records.filter((record) => record.employerOutcome === 'supported').length;
 
     evidenceSet.forEach((evKey) => {
       let frequency = 0;
@@ -331,6 +333,7 @@ export class LaborDisputeAnalyticsEngine {
       records.forEach((r) => {
         if (!r.evidence || !Array.isArray(r.evidence)) return;
         const matchingEvs = r.evidence.filter((ev) => {
+          if (!isEmployerProvidedEvidence(ev)) return false;
           return ev.name.includes(evKey) || evKey.includes(ev.name);
         });
 
@@ -346,8 +349,8 @@ export class LaborDisputeAnalyticsEngine {
 
       if (matchedCaseIds.length === 0) return;
 
-      const rateInEmployerSupported = matchedCaseIds.length > 0
-        ? Number(((appearanceInEmployerSupportedCaseIds.length / matchedCaseIds.length) * 100).toFixed(1))
+      const rateInEmployerSupported = employerSupportedDenominator > 0
+        ? Number(((appearanceInEmployerSupportedCaseIds.length / employerSupportedDenominator) * 100).toFixed(1))
         : 0;
 
       items.push({
@@ -357,6 +360,7 @@ export class LaborDisputeAnalyticsEngine {
         caseIds: matchedCaseIds,
         appearanceInEmployerSupportedCount: appearanceInEmployerSupportedCaseIds.length,
         appearanceInEmployerSupportedCaseIds,
+        employerSupportedDenominator,
         rateInEmployerSupported,
       });
     });

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, MapPin, Calendar, FileText, Briefcase, Database, X, Eye, ExternalLink, RefreshCw, XCircle, Scale } from 'lucide-react';
-import { AnalysisCaseRecord, RawDocument } from '../types';
+import { AnalysisCaseRecord } from '../types';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { DataService } from '../services/data/dataService';
 import { getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
+import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
+import { filterAnalysisCaseRecords } from '../services/case/CaseLibraryFilter';
 
 export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => void, onNavigateToReview?: () => void, onNavigateToAnalytics?: () => void, onNavigateToDefense?: () => void }> = () => {
   const [loading, setLoading] = useState(true);
@@ -22,8 +24,6 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
   const [levelFilter, setLevelFilter] = useState('all');
 
   const [selectedRecord, setSelectedRecord] = useState<AnalysisCaseRecord | null>(null);
-  const [selectedRawDoc, setSelectedRawDoc] = useState<RawDocument | null>(null);
-  const [detailTab, setDetailTab] = useState<'profile' | 'rawText'>('profile');
 
   const loadData = async (forceRefresh = false) => {
       setLoading(true);
@@ -77,33 +77,17 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
   }, [records]);
 
   const filteredRecords = useMemo(() => {
-    return (Array.isArray(records) ? records : []).filter(r => {
-      if (cityFilter !== 'all' && r.city !== cityFilter) return false;
-      if (yearFilter !== 'all' && r.year !== yearFilter) return false;
-      if (levelFilter !== 'all' && r.caseLevel !== levelFilter) return false;
-      if (disputeFilter !== 'all' && !r.disputeTypes?.includes(disputeFilter)) return false;
-      
-      if (keyword) {
-        const kw = keyword.toLowerCase();
-        if (!r.caseNumber?.toLowerCase().includes(kw) && 
-            !r.title?.toLowerCase().includes(kw) &&
-            !r.court?.toLowerCase().includes(kw)) {
-          return false;
-        }
-      }
-      return true;
+    return filterAnalysisCaseRecords(Array.isArray(records) ? records : [], {
+      city: cityFilter,
+      year: yearFilter,
+      caseLevel: levelFilter,
+      dispute: disputeFilter,
+      keyword,
     });
   }, [records, keyword, cityFilter, yearFilter, levelFilter, disputeFilter]);
 
-  const handleOpenDetail = async (record: AnalysisCaseRecord) => {
+  const handleOpenDetail = (record: AnalysisCaseRecord) => {
     setSelectedRecord(record);
-    setDetailTab('profile');
-    try {
-      const raw = await DataService.getRawDocumentById(record.caseId);
-      setSelectedRawDoc(raw || null);
-    } catch (e) {
-      setSelectedRawDoc(null);
-    }
   };
 
   const selectedOutcomePresentations = selectedRecord
@@ -278,28 +262,10 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
               </button>
             </div>
 
-            <div className="px-6 py-2 bg-slate-50 border-b border-slate-100 flex gap-4">
-              <button
-                onClick={() => setDetailTab('profile')}
-                className={`text-sm font-semibold pb-2 border-b-2 transition-colors ${
-                  detailTab === 'profile' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                结构化分析结果
-              </button>
-              <button
-                onClick={() => setDetailTab('rawText')}
-                className={`text-sm font-semibold pb-2 border-b-2 transition-colors ${
-                  detailTab === 'rawText' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                原始裁判文书
-              </button>
-            </div>
+            <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 text-sm font-semibold text-blue-700">结构化分析结果</div>
 
             <div className="flex-1 overflow-y-auto p-6">
-              {detailTab === 'profile' && (
-                <div className="space-y-6">
+              <div className="space-y-6">
                   {/* 基本信息 */}
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                     <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
@@ -376,7 +342,7 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                       {Array.isArray(selectedRecord.evidence) && selectedRecord.evidence.length > 0 ? (
                         <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
                           {selectedRecord.evidence.map((e, i) => (
-                            <li key={i}>{e.provider === 'employer' ? '【单位】' : e.provider === 'employee' ? '【员工】' : '【法院】'} {e.name || (e as any).type}：{e.matchedText || (e as any).text}</li>
+                            <li key={i}>【{evidenceProviderLabel(e.provider)}】 {e.name || (e as any).type}：{e.matchedText || (e as any).text}</li>
                           ))}
                         </ul>
                       ) : <div className="text-xs text-slate-400">无记录</div>}
@@ -391,14 +357,7 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                       ) : <div className="text-xs text-slate-400">无记录</div>}
                     </div>
                   </div>
-                </div>
-              )}
-
-              {detailTab === 'rawText' && (
-                <div className="bg-white border border-slate-200 rounded-xl p-4 text-xs text-slate-700 leading-relaxed whitespace-pre-wrap font-sans">
-                  {selectedRawDoc ? selectedRawDoc.rawText : <span className="text-slate-400">无法加载原始文书或原文本为空。</span>}
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { db } from '../../db';
 import type {
+  AnalysisCaseRecord,
   CandidateMetadata,
   CandidatePoolEntry,
   CandidatePoolSnapshot,
@@ -10,12 +11,14 @@ import type {
   LaborInfoSearchResult,
   NormalizedCandidateFilters,
 } from '../../types';
+import { filterAnalysisCaseRecords } from '../case/CaseLibraryFilter';
 import { CityResolver } from '../parser/CityResolver';
 import {
   LaborInfoAdapter,
   normalizeLaborInfoPerPage,
 } from '../dataSource/LaborInfoAdapter';
 import { isExcludedLaborInfoTestCase } from '../dataSource/LaborInfoEligibility';
+import { deriveRegionFilters, matchesRegionSelection } from '../research/RegionSelection';
 
 export const CANDIDATE_POOL_SNAPSHOT_VERSION = 'candidate-pool-v1' as const;
 export const LABORINFO_FILTER_CONTRACT_VERSION = 'laborinfo-filter-v2' as const;
@@ -27,6 +30,7 @@ export interface CandidateFilterInput {
   endDate?: string;
   q?: string;
   cities?: string | string[];
+  regionIds?: string[];
 }
 
 export interface CandidatePoolProgress {
@@ -89,26 +93,29 @@ function compareText(left: string, right: string): number {
 export function normalizeCandidateFilters(input: CandidateFilterInput): NormalizedCandidateFilters {
   const startDate = normalizeDate(input.startDate);
   const endDate = normalizeDate(input.endDate);
+  const regionFilters = input.regionIds === undefined ? null : deriveRegionFilters(input.regionIds);
   return {
     remoteFilters: {
-      provinces: normalizeList(input.province),
+      provinces: regionFilters?.provinces ?? normalizeList(input.province),
       caseLevels: normalizeList(input.caseLevels),
       ...(startDate ? { startDate } : {}),
       ...(endDate ? { endDate } : {}),
       ...(input.q?.trim() ? { q: input.q.trim() } : {}),
     },
     localEligibilityRules: {
-      cities: normalizeList(input.cities, (city) => city.replace(/市$/, '')),
+      cities: regionFilters?.cities ?? normalizeList(input.cities, (city) => city.replace(/市$/, '')),
+      ...(regionFilters ? { regions: regionFilters.regions } : {}),
     },
   };
 }
 
 function normalizeCandidate(metadata: DocumentMetadata): CandidateMetadata {
-  const city = CityResolver.resolveCity({
+  const region = CityResolver.resolveCity({
     province: metadata.province,
     court: metadata.court,
     caseNumber: metadata.caseNumber,
-  }).city ?? undefined;
+  });
+  const city = region.city ?? undefined;
   const validDate = metadata.pbDt?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   let year: number | null = null;
   if (validDate) {
@@ -127,6 +134,7 @@ function normalizeCandidate(metadata: DocumentMetadata): CandidateMetadata {
     ...(metadata.caseLevel ? { caseLevel: metadata.caseLevel } : {}),
     ...(metadata.court ? { court: metadata.court } : {}),
     ...(city ? { city } : {}),
+    ...(region.province ? { province: region.province } : {}),
   };
 }
 
@@ -206,6 +214,59 @@ export class CandidatePoolSnapshotService {
     private readonly store: CandidatePoolSnapshotStore = new DexieCandidatePoolSnapshotStore(),
     private readonly runtime: ServiceRuntime = defaultRuntime,
   ) {}
+
+  public async buildLocalSnapshot(
+    records: AnalysisCaseRecord[],
+    input: CandidateFilterInput,
+  ): Promise<CandidatePoolSnapshot> {
+    const filters = normalizeCandidateFilters(input);
+    const filteredRecords = filterAnalysisCaseRecords(records, {
+      ...(input.regionIds === undefined ? { city: filters.localEligibilityRules.cities } : {}),
+      caseLevel: filters.remoteFilters.caseLevels,
+      keyword: filters.remoteFilters.q,
+      ...(input.regionIds !== undefined ? { regionIds: input.regionIds } : {}),
+    });
+    const candidatesById = new Map<string, CandidateMetadata>();
+
+    for (const record of filteredRecords) {
+      const caseId = record.rawDocumentId?.trim() || record.caseId?.trim();
+      if (!caseId) continue;
+      const legacyCaseNumber = (record as AnalysisCaseRecord & { caseNumber?: string }).caseNumber;
+      const province = CityResolver.resolveCity({ court: record.court, caseNumber: legacyCaseNumber }).province;
+      const candidate: CandidateMetadata = {
+        caseId,
+        ...(record.date ? { pbDt: record.date } : {}),
+        year: record.year ?? null,
+        ...(record.caseLevel ? { caseLevel: record.caseLevel } : {}),
+        ...(record.court ? { court: record.court } : {}),
+        ...(record.city ? { city: record.city } : {}),
+        ...(province ? { province } : {}),
+      };
+      const existing = candidatesById.get(caseId);
+      if (!existing || stableStringify(candidate) < stableStringify(existing)) {
+        candidatesById.set(caseId, candidate);
+      }
+    }
+
+    if (candidatesById.size === 0) {
+      throw new Error(input.regionIds?.length
+        ? '当前本地案例库中没有符合该地区条件的案例。'
+        : '当前本地案例库在所选条件下为空，无法创建研究总体');
+    }
+
+    return this.persistSnapshot({
+      sourceMode: 'local',
+      filters,
+      candidates: [...candidatesById.values()],
+      status: 'complete',
+      expectedPages: 0,
+      fetchedPages: 0,
+      failedPages: [],
+      duplicateCount: Math.max(0, filteredRecords.length - candidatesById.size),
+      limitedByMaxPages: false,
+      exclusions: { excludedKnownTestCases: 0, excludedOther: 0, excludedUnknown: 0 },
+    });
+  }
 
   public async buildSnapshot(
     input: CandidateFilterInput,
@@ -292,6 +353,7 @@ export class CandidatePoolSnapshotService {
     const rawUniqueCount = metadataById.size;
     const normalized = [...metadataById.values()].map(normalizeCandidate);
     const allowedCities = new Set(filters.localEligibilityRules.cities);
+    const selectedRegions = filters.localEligibilityRules.regions;
     let excludedOther = 0;
     let excludedUnknown = 0;
     let excludedKnownTestCases = 0;
@@ -300,6 +362,7 @@ export class CandidatePoolSnapshotService {
         excludedKnownTestCases++;
         return false;
       }
+      if (selectedRegions) return matchesRegionSelection(candidate, selectedRegions);
       if (allowedCities.size === 0) return true;
       if (!candidate.city) {
         excludedUnknown++;
@@ -312,19 +375,6 @@ export class CandidatePoolSnapshotService {
       return true;
     }).sort((left, right) => compareText(left.caseId, right.caseId));
     const actualDuplicateCount = Math.max(0, returnedItemCount - rawUniqueCount);
-    const distribution = { byCity: {}, byYear: {}, byCaseLevel: {} } as CandidatePoolSnapshot['distribution'];
-    for (const candidate of candidates) {
-      increment(distribution.byCity, candidate.city);
-      increment(distribution.byYear, candidate.year);
-      increment(distribution.byCaseLevel, candidate.caseLevel);
-    }
-    const candidateHash = await sha256(candidates.map((candidate) => candidate.caseId).join('\n'));
-    const snapshotFingerprint = await sha256(stableStringify({
-      snapshotVersion: CANDIDATE_POOL_SNAPSHOT_VERSION,
-      filterContractVersion: LABORINFO_FILTER_CONTRACT_VERSION,
-      filters,
-      candidateHash,
-    }));
     const status: CandidatePoolSnapshotStatus = cancelled
       ? 'cancelled'
       : fetchedPages === 0
@@ -332,17 +382,10 @@ export class CandidatePoolSnapshotService {
         : failedPages.length > 0 || limitedByMaxPages
           ? 'partial'
           : 'complete';
-    const snapshot: CandidatePoolSnapshot = {
-      id: this.runtime.createId(),
-      source: 'laborinfo',
+    return this.persistSnapshot({
+      sourceMode: 'remote',
       filters,
-      candidateCount: candidates.length,
       candidates,
-      createdAt: this.runtime.now(),
-      snapshotVersion: CANDIDATE_POOL_SNAPSHOT_VERSION,
-      filterContractVersion: LABORINFO_FILTER_CONTRACT_VERSION,
-      candidateHash,
-      snapshotFingerprint,
       status,
       expectedPages,
       fetchedPages,
@@ -350,6 +393,55 @@ export class CandidatePoolSnapshotService {
       duplicateCount: actualDuplicateCount,
       limitedByMaxPages,
       exclusions: { excludedKnownTestCases, excludedOther, excludedUnknown },
+    });
+  }
+
+  private async persistSnapshot(input: {
+    sourceMode: 'local' | 'remote';
+    filters: NormalizedCandidateFilters;
+    candidates: CandidateMetadata[];
+    status: CandidatePoolSnapshotStatus;
+    expectedPages: number;
+    fetchedPages: number;
+    failedPages: number[];
+    duplicateCount: number;
+    limitedByMaxPages: boolean;
+    exclusions: CandidatePoolSnapshot['exclusions'];
+  }): Promise<CandidatePoolSnapshot> {
+    const candidates = [...input.candidates].sort((left, right) => compareText(left.caseId, right.caseId));
+    const distribution = { byCity: {}, byYear: {}, byCaseLevel: {} } as CandidatePoolSnapshot['distribution'];
+    for (const candidate of candidates) {
+      increment(distribution.byCity, candidate.city);
+      increment(distribution.byYear, candidate.year);
+      increment(distribution.byCaseLevel, candidate.caseLevel);
+    }
+    const candidateHash = await sha256(candidates.map((candidate) => candidate.caseId).join('\n'));
+    const fingerprintInput = {
+      snapshotVersion: CANDIDATE_POOL_SNAPSHOT_VERSION,
+      filterContractVersion: LABORINFO_FILTER_CONTRACT_VERSION,
+      filters: input.filters,
+      candidateHash,
+      ...(input.sourceMode === 'local' ? { sourceMode: 'local' as const } : {}),
+    };
+    const snapshot: CandidatePoolSnapshot = {
+      id: this.runtime.createId(),
+      source: 'laborinfo',
+      sourceMode: input.sourceMode,
+      filters: input.filters,
+      candidateCount: candidates.length,
+      candidates,
+      createdAt: this.runtime.now(),
+      snapshotVersion: CANDIDATE_POOL_SNAPSHOT_VERSION,
+      filterContractVersion: LABORINFO_FILTER_CONTRACT_VERSION,
+      candidateHash,
+      snapshotFingerprint: await sha256(stableStringify(fingerprintInput)),
+      status: input.status,
+      expectedPages: input.expectedPages,
+      fetchedPages: input.fetchedPages,
+      failedPages: [...input.failedPages].sort((left, right) => left - right),
+      duplicateCount: input.duplicateCount,
+      limitedByMaxPages: input.limitedByMaxPages,
+      exclusions: input.exclusions,
       distribution,
     };
     await this.store.save(snapshot);

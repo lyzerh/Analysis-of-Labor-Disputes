@@ -5,7 +5,7 @@ import { DEFAULT_SEMANTIC_MODEL, SEMANTIC_PROMPT_VERSION } from '../semantic/Sem
  * Version of the current LaborInfo party/claim/reference parser contract.
  * Bump manually whenever deterministic parsing semantics change.
  */
-export const LABORINFO_PARSER_VERSION = 'laborinfo-parser-reference-resolution-v1' as const;
+export const LABORINFO_PARSER_VERSION = 'laborinfo-parser-evidence-provider-v2' as const;
 
 /**
  * Version of deterministic claim-level outcome mapping and aggregation rules.

@@ -9,11 +9,8 @@ import {
   Users,
   Award,
   BookOpen,
-  Copy,
-  Check,
   Tag,
   AlertCircle,
-  ExternalLink,
   Code,
   Sparkles,
   Brain,
@@ -38,12 +35,10 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
   onClose,
   onReparse,
 }) => {
-  const [activeTab, setActiveTab] = useState<'structured' | 'raw' | 'profile'>('profile');
+  const [activeTab, setActiveTab] = useState<'structured' | 'profile'>('profile');
   const [currentCase, setCurrentCase] = useState<ArbitrationCase | null>(caseItem);
   const [rawDoc, setRawDoc] = useState<RawDocument | null>(null);
   const [allCases, setAllCases] = useState<ArbitrationCase[]>([]);
-  const [copied, setCopied] = useState(false);
-  const [loadingRaw, setLoadingRaw] = useState(false);
 
   useEffect(() => {
     setCurrentCase(caseItem);
@@ -56,10 +51,8 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
 
   useEffect(() => {
     if (currentCase?.rawDocumentId) {
-      setLoadingRaw(true);
       DataService.getRawDocumentById(currentCase.rawDocumentId)
-        .then((doc) => setRawDoc(doc || null))
-        .finally(() => setLoadingRaw(false));
+        .then((doc) => setRawDoc(doc || null));
     }
   }, [currentCase]);
 
@@ -76,14 +69,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
   }, [currentCase, allCases]);
 
   if (!currentCase) return null;
-
-  const handleCopyRaw = () => {
-    if (rawDoc?.rawText) {
-      navigator.clipboard.writeText(rawDoc.rawText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
 
   const getOutcomeBadge = (outcome: string) => {
     switch (outcome) {
@@ -170,18 +155,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
           >
             <Scale className="w-4 h-4" />
             结构化法务要素
-          </button>
-          <button
-            id="tab-btn-raw"
-            onClick={() => setActiveTab('raw')}
-            className={`py-3 flex items-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
-              activeTab === 'raw'
-                ? 'border-blue-600 text-blue-600 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            原始文书全文 (RawDocument)
           </button>
         </div>
 
@@ -547,55 +520,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: 原始文书全文 */}
-          {activeTab === 'raw' && (
-            <div className="space-y-4">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="space-y-1">
-                  <div>
-                    <span className="text-slate-500">数据源：</span>
-                    <span className="font-semibold text-slate-800">
-                      {rawDoc?.source || currentCase.source}
-                    </span>
-                  </div>
-                  {rawDoc?.sourceUrl && (
-                    <div className="text-2xs text-blue-600 flex items-center gap-1 font-mono truncate max-w-md">
-                      <ExternalLink className="w-3 h-3" />
-                      {rawDoc.sourceUrl}
-                    </div>
-                  )}
-                  {rawDoc?.contentHash && (
-                    <div className="text-2xs text-slate-400 font-mono">
-                      SHA-256: {rawDoc.contentHash}
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  id="btn-copy-raw-text"
-                  onClick={handleCopyRaw}
-                  className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  {copied ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                  {copied ? '已复制原文' : '复制原文文本'}
-                </button>
-              </div>
-
-              {loadingRaw ? (
-                <div className="p-12 text-center text-slate-400 text-xs">正在载入原始文书数据...</div>
-              ) : rawDoc?.rawText ? (
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-800 font-mono leading-relaxed whitespace-pre-wrap max-h-[500px] overflow-y-auto select-text">
-                  {rawDoc.rawText}
-                </div>
-              ) : (
-                <div className="p-8 text-center text-slate-400 text-xs">未找到对应的原始文书对象</div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Modal Footer */}

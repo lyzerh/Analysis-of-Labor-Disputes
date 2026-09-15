@@ -777,8 +777,8 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                   </div>
 
                   <div className="text-3xs text-slate-500 bg-emerald-50/60 border border-emerald-100 p-2 rounded-lg flex items-center justify-between font-mono">
-                    <span>企业支持案出现率:</span>
-                    <strong className="text-emerald-800">{ev.rateInEmployerSupported}% ({ev.appearanceInEmployerSupportedCount}/{ev.caseCount})</strong>
+                    <span>企业获支持案件中的出现率:</span>
+                    <strong className="text-emerald-800">{ev.rateInEmployerSupported}% ({ev.appearanceInEmployerSupportedCount}/{ev.employerSupportedDenominator})</strong>
                   </div>
                 </div>
               );

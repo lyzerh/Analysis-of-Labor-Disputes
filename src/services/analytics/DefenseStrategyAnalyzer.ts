@@ -10,6 +10,7 @@ import {
   MissingEvidenceStat,
   CourtReasoningKeywordStat,
 LegalOutcomeType } from '../../types';
+import { isEmployerProvidedEvidence } from '../evidence/EvidenceProvider';
 
 /**
  * 重点标准抗辩事由清单 (用于标准统计与矩阵对齐)
@@ -252,7 +253,7 @@ export class DefenseStrategyAnalyzer {
         const missingCases: string[] = [];
         failedRecords.forEach((r) => {
           const hasEvidence = r.evidence?.some((e) =>
-            e.name.includes(evName) || evName.includes(e.name)
+            isEmployerProvidedEvidence(e) && (e.name.includes(evName) || evName.includes(e.name))
           );
           if (!hasEvidence) {
             missingCases.push(r.caseId);
@@ -444,7 +445,12 @@ export class DefenseStrategyAnalyzer {
 
     supportedRecords.forEach(r => {
         // Standardize current case evidences
-        const evNames = Array.from(new Set( (r.evidence || []).map(e => normalizeEvidence(e.name)).filter(Boolean) ));
+        const evNames = Array.from(new Set(
+          (r.evidence || [])
+            .filter(isEmployerProvidedEvidence)
+            .map(e => normalizeEvidence(e.name))
+            .filter(Boolean)
+        ));
         evNames.sort();
 
         // 1-item
@@ -483,6 +489,7 @@ export class DefenseStrategyAnalyzer {
           caseIds: val.caseIds,
           appearanceInEmployerSupportedCount: val.caseIds.length,
           appearanceInEmployerSupportedCaseIds: val.caseIds,
+          employerSupportedDenominator: supportedCount,
           rateInEmployerSupported: supportedCount > 0
             ? Number(((val.caseIds.length / supportedCount) * 100).toFixed(1))
             : 0,

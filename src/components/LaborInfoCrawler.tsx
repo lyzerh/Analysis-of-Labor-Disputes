@@ -35,6 +35,7 @@ import {
 import { LaborInfoCrawler } from '../services/dataSource/LaborInfoCrawler';
 import { DataService } from '../services/data/dataService';
 import { LaborAnalysisPipeline, DataPipelineHealthStats } from '../services/data/LaborAnalysisPipeline';
+import { createPipelineHealthPresentation } from '../services/data/PipelineHealthPresentation';
 import { LaborInfoImportHistory } from './LaborInfoImportHistory';
 
 export const LaborInfoCrawlerComponent: React.FC = () => {
@@ -58,6 +59,7 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [selectedPresetMax, setSelectedPresetMax] = useState<number>(100);
   const [pipelineHealth, setPipelineHealth] = useState<DataPipelineHealthStats | null>(null);
+  const pipelineHealthView = pipelineHealth ? createPipelineHealthPresentation(pipelineHealth) : null;
 
   // Crawler 实例引用
   const crawlerRef = useRef<LaborInfoCrawler | null>(null);
@@ -235,7 +237,7 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
       </div>
 
       {/* 数据链路全景概览 (Data Pipeline Health Status) */}
-      {pipelineHealth && (
+      {pipelineHealthView && (
         <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 rounded-2xl p-6 text-white shadow-md">
           <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
             <div className="flex items-center gap-2">
@@ -253,21 +255,21 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
             <div className="p-3.5 bg-white/5 rounded-xl border border-white/10">
               <div className="text-2xs text-slate-400 font-semibold uppercase">原始裁判文书总库</div>
               <div className="text-xl font-bold font-mono text-white mt-1">
-                {pipelineHealth.totalRawDocuments} <span className="text-xs font-normal text-slate-400">篇</span>
+                {pipelineHealthView.rawCount} <span className="text-xs font-normal text-slate-400">篇</span>
               </div>
               <div className="text-2xs text-emerald-400 mt-1 flex items-center gap-1">
                 <Check className="w-3 h-3" />
-                正文完整率 {pipelineHealth.totalRawDocuments > 0 ? '100%' : '0%'}
+                正文完整率 {pipelineHealthView.rawCompletenessRate}%
               </div>
             </div>
 
             <div className="p-3.5 bg-white/5 rounded-xl border border-white/10">
               <div className="text-2xs text-slate-400 font-semibold uppercase">规则提取解析完成</div>
               <div className="text-xl font-bold font-mono text-cyan-300 mt-1">
-                {pipelineHealth.parsedCount} <span className="text-xs font-normal text-slate-400">篇</span>
+                {pipelineHealthView.parsedCount} <span className="text-xs font-normal text-slate-400">篇</span>
               </div>
               <div className="text-2xs text-cyan-400 mt-1">
-                解析成功率 {pipelineHealth.totalRawDocuments > 0 ? Math.round((pipelineHealth.parsedCount / pipelineHealth.totalRawDocuments) * 100) : 0}%
+                解析成功率 {pipelineHealthView.parseSuccessRate}%
               </div>
             </div>
 
@@ -275,17 +277,17 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
               <div className="text-2xs text-emerald-400 font-semibold uppercase">正式可分析案例集</div>
               <div className="text-xl font-bold font-mono text-emerald-300 mt-1 flex items-center gap-1.5">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                {pipelineHealth.admittedCount} <span className="text-xs font-normal text-emerald-400/70">篇</span>
+                {pipelineHealthView.availableCount} <span className="text-xs font-normal text-emerald-400/70">篇</span>
               </div>
               <div className="text-2xs text-emerald-400/80 mt-1">
-                准入率 {pipelineHealth.parsedCount > 0 ? Math.round((pipelineHealth.admittedCount / pipelineHealth.parsedCount) * 100) : 0}% (≥80分或已审核)
+                准入率 {pipelineHealthView.analysisAvailabilityRate}% (≥80分或已审核)
               </div>
             </div>
 
             <div className="p-3.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
               <div className="text-2xs text-amber-400 font-semibold uppercase">待优化 / 待质检池</div>
               <div className="text-xl font-bold font-mono text-amber-300 mt-1">
-                {pipelineHealth.pendingCount} <span className="text-xs font-normal text-amber-400/70">篇</span>
+                {pipelineHealthView.pendingCount} <span className="text-xs font-normal text-amber-400/70">篇</span>
               </div>
               <div className="text-2xs text-amber-400/80 mt-1">
                 严格隔离，不参与生产级统计与抗辩矩阵

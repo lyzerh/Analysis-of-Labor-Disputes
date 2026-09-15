@@ -161,10 +161,12 @@ export interface EmployerDefenseItem {
 /**
  * 证据识别项
  */
+export type EvidenceProvider = 'employee' | 'employer' | 'court' | 'third_party' | 'unknown';
+
 export interface EvidenceItem {
   name: string;
   matchedText: string;
-  provider?: string;
+  provider?: EvidenceProvider;
   confidence: number;
 }
 
@@ -563,7 +565,16 @@ export interface NormalizedCandidateFilters {
   };
   localEligibilityRules: {
     cities: string[];
+    regions?: RegionSelectionRule[];
   };
+}
+
+export interface RegionSelectionRule {
+  id: string;
+  label: string;
+  type: 'city' | 'province' | 'municipality';
+  province: string;
+  city?: string;
 }
 
 export interface CandidateMetadata {
@@ -573,6 +584,7 @@ export interface CandidateMetadata {
   caseLevel?: string;
   court?: string;
   city?: string;
+  province?: string;
 }
 
 export type CandidatePoolSnapshotStatus = 'complete' | 'partial' | 'failed' | 'cancelled';
@@ -586,6 +598,8 @@ export interface CandidatePoolDistribution {
 export interface CandidatePoolSnapshotHeader {
   id: string;
   source: 'laborinfo';
+  /** 缺失时表示 Stage 5 legacy remote Snapshot。 */
+  sourceMode?: 'local' | 'remote';
   filters: NormalizedCandidateFilters;
   candidateCount: number;
   createdAt: string;
@@ -1147,6 +1161,7 @@ export interface EvidenceAnalyticsItem {
   caseIds: string[];
   appearanceInEmployerSupportedCount: number; // 在支持企业结果案件中出现的案件数
   appearanceInEmployerSupportedCaseIds: string[];
+  employerSupportedDenominator: number; // 纳入统计的企业获支持案件总数
   rateInEmployerSupported: number; // 在支持企业结果案件中的关联出现率 (百分比)
 }
 

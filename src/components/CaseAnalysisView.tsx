@@ -3,6 +3,7 @@ import { AnalysisCaseRecord } from '../types';
 import { Database, Search, FileText, Scale, Target, ShieldAlert, BookOpen, AlertCircle, X } from 'lucide-react';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
+import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
 
 interface CaseAnalysisViewProps {
   records?: AnalysisCaseRecord[];
@@ -304,7 +305,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                             <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
                               {record.evidence.map((ev: any, idx: number) => (
                                 <li key={idx}>
-                                  <span className="font-medium text-slate-900">{ev.provider === 'employer' ? '【单位提供】' : ev.provider === 'employee' ? '【员工提供】' : '【法院调取】'}</span>
+                                  <span className="font-medium text-slate-900">【{evidenceProviderLabel(ev.provider)}】</span>
                                   {ev.name || ev.type}：{ev.matchedText || ev.text}
                                 </li>
                               ))}
