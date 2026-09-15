@@ -58,9 +58,10 @@ const researchAnalysisService = new ResearchAnalysisService();
 
 interface LaborAnalyticsTestProps {
   initialAnalysisRunId?: string;
+  onAnalysisRunSelect: (analysisRunId: string) => void;
 }
 
-export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialAnalysisRunId = '' }) => {
+export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialAnalysisRunId = '', onAnalysisRunSelect }) => {
   const [allRecords, setAllRecords] = useState<AnalysisCaseRecord[]>([]);
   const [report, setReport] = useState<LaborDisputeReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -80,9 +81,16 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
   // 只加载 AnalysisRun 清单；禁止自动选择最新记录或回退到全库。
   useEffect(() => {
     researchAnalysisService.listAnalysisRuns()
-      .then(setAnalysisRuns)
+      .then((runs) => {
+        setAnalysisRuns(runs);
+        if (initialAnalysisRunId && !runs.some((run) => run.id === initialAnalysisRunId)) {
+          setSelectedAnalysisRunId('');
+          onAnalysisRunSelect('');
+          setResearchError('先前选择的 AnalysisRun 已不存在，请重新选择。');
+        }
+      })
       .catch((error) => setResearchError(error instanceof Error ? error.message : '无法加载 AnalysisRun'));
-  }, []);
+  }, [initialAnalysisRunId, onAnalysisRunSelect]);
 
   useEffect(() => {
     if (initialAnalysisRunId) setSelectedAnalysisRunId(initialAnalysisRunId);
@@ -177,6 +185,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
             selectedAnalysisRunId={selectedAnalysisRunId}
             onSelect={(id) => {
               setSelectedAnalysisRunId(id);
+              onAnalysisRunSelect(id);
               setReport(null);
               setResearchContext(null);
               setResearchMetadata(null);

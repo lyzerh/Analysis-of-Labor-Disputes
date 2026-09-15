@@ -26,14 +26,20 @@ import { DataService } from './services/data/dataService';
 import { AnalyticsService } from './services/analytics/analyticsService';
 import { db } from './db';
 import { LaborAnalysisPipeline } from './services/data/LaborAnalysisPipeline';
+import {
+  loadResearchNavigationContext,
+  saveResearchNavigationContext,
+} from './services/research/ResearchNavigationContext';
 
 export function App() {
-  const [currentTab, setCurrentTab] = useState<NavTab>('caseLibrary');
+  const [initialNavigationContext] = useState(loadResearchNavigationContext);
+  const [currentTab, setCurrentTab] = useState<NavTab>(initialNavigationContext.page);
   const [caseCount, setCaseCount] = useState(0);
   const [totalDocs, setTotalDocs] = useState(0);
   const [qualityAvg, setQualityAvg] = useState(0);
   const [isOpenMobile, setIsOpenMobile] = useState(false);
-  const [selectedAnalysisRunId, setSelectedAnalysisRunId] = useState('');
+  const [selectedAnalysisRunId, setSelectedAnalysisRunId] = useState(initialNavigationContext.selectedAnalysisRunId);
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState(initialNavigationContext.selectedSnapshotId);
 
   // Selected case for detail modal
   const [selectedCase, setSelectedCase] = useState<ArbitrationCase | null>(null);
@@ -66,6 +72,14 @@ export function App() {
     window.addEventListener('labor-data-updated', handleDataUpdate);
     return () => window.removeEventListener('labor-data-updated', handleDataUpdate);
   }, [refreshSummaryStats]);
+
+  useEffect(() => {
+    saveResearchNavigationContext(undefined, {
+      page: currentTab,
+      selectedSnapshotId,
+      selectedAnalysisRunId,
+    });
+  }, [currentTab, selectedSnapshotId, selectedAnalysisRunId]);
 
   const handleGlobalSearch = (keyword: string) => {
     setDatabaseFilter({ keyword });
@@ -126,15 +140,23 @@ export function App() {
           )}
 
           {currentTab === 'caseResearch' && (
-            <LaborAnalyticsTest initialAnalysisRunId={selectedAnalysisRunId} />
+            <LaborAnalyticsTest
+              initialAnalysisRunId={selectedAnalysisRunId}
+              onAnalysisRunSelect={setSelectedAnalysisRunId}
+            />
           )}
 
           {currentTab === 'defenseReference' && (
-            <DefenseStrategyAnalysis initialAnalysisRunId={selectedAnalysisRunId} />
+            <DefenseStrategyAnalysis
+              initialAnalysisRunId={selectedAnalysisRunId}
+              onAnalysisRunSelect={setSelectedAnalysisRunId}
+            />
           )}
 
           {currentTab === 'researchWorkspace' && (
             <ResearchWorkspace
+              initialSnapshotId={selectedSnapshotId}
+              onSnapshotSelect={setSelectedSnapshotId}
               onOpenLaborAnalytics={(analysisRunId) => {
                 setSelectedAnalysisRunId(analysisRunId);
                 setCurrentTab('caseResearch');

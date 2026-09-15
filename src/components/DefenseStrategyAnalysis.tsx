@@ -48,9 +48,10 @@ const researchAnalysisService = new ResearchAnalysisService();
 
 interface DefenseStrategyAnalysisProps {
   initialAnalysisRunId?: string;
+  onAnalysisRunSelect: (analysisRunId: string) => void;
 }
 
-export const DefenseStrategyAnalysis: React.FC<DefenseStrategyAnalysisProps> = ({ initialAnalysisRunId = '' }) => {
+export const DefenseStrategyAnalysis: React.FC<DefenseStrategyAnalysisProps> = ({ initialAnalysisRunId = '', onAnalysisRunSelect }) => {
   const [allRecords, setAllRecords] = useState<AnalysisCaseRecord[]>([]);
   const [report, setReport] = useState<DefenseAnalysisReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -73,9 +74,16 @@ export const DefenseStrategyAnalysis: React.FC<DefenseStrategyAnalysisProps> = (
   // 只加载 AnalysisRun 清单；不自动选择，也不回退到本地全库。
   useEffect(() => {
     researchAnalysisService.listAnalysisRuns()
-      .then(setAnalysisRuns)
+      .then((runs) => {
+        setAnalysisRuns(runs);
+        if (initialAnalysisRunId && !runs.some((run) => run.id === initialAnalysisRunId)) {
+          setSelectedAnalysisRunId('');
+          onAnalysisRunSelect('');
+          setResearchError('先前选择的 AnalysisRun 已不存在，请重新选择。');
+        }
+      })
       .catch((error) => setResearchError(error instanceof Error ? error.message : '无法加载 AnalysisRun'));
-  }, []);
+  }, [initialAnalysisRunId, onAnalysisRunSelect]);
 
   useEffect(() => {
     if (initialAnalysisRunId) setSelectedAnalysisRunId(initialAnalysisRunId);
@@ -180,6 +188,7 @@ export const DefenseStrategyAnalysis: React.FC<DefenseStrategyAnalysisProps> = (
             selectedAnalysisRunId={selectedAnalysisRunId}
             onSelect={(id) => {
               setSelectedAnalysisRunId(id);
+              onAnalysisRunSelect(id);
               setReport(null);
               setResearchContext(null);
               setResearchMetadata(null);

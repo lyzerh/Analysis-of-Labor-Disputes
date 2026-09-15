@@ -8,6 +8,8 @@ import type { ResearchCasePreparationSummary } from '../services/analysis/Resear
 import { REGION_OPTIONS, regionLabel } from '../services/research/RegionSelection';
 
 interface ResearchWorkspaceProps {
+  initialSnapshotId?: string;
+  onSnapshotSelect: (snapshotId: string) => void;
   onOpenLaborAnalytics: (analysisRunId: string) => void;
   onOpenDefenseAnalysis: (analysisRunId: string) => void;
   onOpenDataManagement: () => void;
@@ -25,12 +27,12 @@ function snapshotLabel(snapshot: WorkspaceSnapshot): string {
   return `${cities} · ${yearLabel} · N=${snapshot.candidateCount}`;
 }
 
-export const ResearchWorkspace: React.FC<ResearchWorkspaceProps> = ({ onOpenLaborAnalytics, onOpenDefenseAnalysis, onOpenDataManagement }) => {
+export const ResearchWorkspace: React.FC<ResearchWorkspaceProps> = ({ initialSnapshotId = '', onSnapshotSelect, onOpenLaborAnalytics, onOpenDefenseAnalysis, onOpenDataManagement }) => {
   const [snapshots, setSnapshots] = useState<WorkspaceSnapshot[]>([]);
   const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([]);
   const [samplingRuns, setSamplingRuns] = useState<SamplingRun[]>([]);
   const [allSamplingRuns, setAllSamplingRuns] = useState<SamplingRun[]>([]);
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState('');
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState(initialSnapshotId);
   const [mode, setMode] = useState<AnalysisMode | ''>('');
   const [samplingChoice, setSamplingChoice] = useState<'existing' | 'new'>('existing');
   const [selectedSamplingRunId, setSelectedSamplingRunId] = useState('');
@@ -85,6 +87,20 @@ export const ResearchWorkspace: React.FC<ResearchWorkspaceProps> = ({ onOpenLabo
 
   useEffect(() => { void loadWorkspace(); }, []);
 
+  useEffect(() => {
+    if (isLoading || !selectedSnapshotId) return;
+    if (!snapshots.some((snapshot) => snapshot.id === selectedSnapshotId)) {
+      setSelectedSnapshotId('');
+      onSnapshotSelect('');
+      setSamplingRuns([]);
+      setError('先前选择的研究总体已不存在，请重新选择。');
+      return;
+    }
+    workspaceService.listSamplingRuns(selectedSnapshotId)
+      .then(setSamplingRuns)
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '无法加载抽样方案'));
+  }, [isLoading, onSnapshotSelect, selectedSnapshotId, snapshots]);
+
   const toggleListValue = (value: string, values: string[], update: (next: string[]) => void) => {
     update(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
   };
@@ -127,6 +143,7 @@ export const ResearchWorkspace: React.FC<ResearchWorkspaceProps> = ({ onOpenLabo
 
   const handleSnapshotChange = async (snapshotId: string) => {
     setSelectedSnapshotId(snapshotId);
+    onSnapshotSelect(snapshotId);
     setSelectedSamplingRunId('');
     setSamplingRuns([]);
     setNotice('');
@@ -198,7 +215,7 @@ export const ResearchWorkspace: React.FC<ResearchWorkspaceProps> = ({ onOpenLabo
     {snapshots.length === 0 && !isLoading ? <section className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center"><Database className="w-9 h-9 text-slate-400 mx-auto" /><h2 className="font-semibold text-slate-800 mt-3">尚无研究总体。</h2><p className="text-sm text-slate-500 mt-1">请使用上方“创建研究总体”从本地已入库案例开始。</p><button onClick={onOpenDataManagement} className="mt-4 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium">查看数据管理</button></section> :
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"><div className="px-5 py-4 border-b border-slate-200 flex items-center gap-2"><Plus className="w-4 h-4 text-blue-600" /><h2 className="font-semibold text-slate-900">创建研究运行</h2></div><div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4"><label className="block text-sm font-medium text-slate-700">1. 选择研究总体<select value={selectedSnapshotId} onChange={(event) => void handleSnapshotChange(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="">请选择研究总体（不会自动选择最新记录）</option>{snapshots.map((snapshot) => <option key={snapshot.id} value={snapshot.id} disabled={!snapshot.isSelectable}>{snapshotLabel(snapshot)}{snapshot.isSelectable ? '' : ` · ${snapshot.status}`}</option>)}</select></label>
-          {selectedSnapshot && <div className={`rounded-lg border p-3 text-xs ${selectedSnapshot.isSelectable ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-800'}`}><div>来源：{selectedSnapshot.sourceMode === 'local' ? '本地案例库' : 'LaborInfo 远程（含旧版 Snapshot）'} · N={selectedSnapshot.candidateCount} · 城市 {Object.keys(selectedSnapshot.distribution.byCity).join('、') || '未知'} · 审级 {Object.keys(selectedSnapshot.distribution.byCaseLevel).join('、') || '未知'}</div><div className="mt-1">日期范围：{selectedSnapshot.filters.remoteFilters.startDate ?? '未限定'} 至 {selectedSnapshot.filters.remoteFilters.endDate ?? '未限定'} · 创建于 {formatDate(selectedSnapshot.createdAt)}</div><div className="mt-1">Candidate hash：{shortHash(selectedSnapshot.candidateHash)}</div>{!selectedSnapshot.isSelectable && <div className="mt-2 font-medium">{selectedSnapshot.unavailableReason}</div>}{selectedSnapshot.sourceMode !== 'local' && selectedSnapshot.isSelectable && <button onClick={() => void handlePrepareRecords(selectedSnapshot.id)} disabled={isPreparing} className="mt-3 px-3 py-2 rounded-md bg-slate-800 text-white text-xs">{isPreparing ? '正在准备…' : '准备研究案例'}</button>}</div>}
+          {selectedSnapshot && <div className={`rounded-lg border p-3 text-xs ${selectedSnapshot.isSelectable ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-800'}`}><div className="font-mono break-all">当前 Snapshot：{selectedSnapshot.id}</div><div className="mt-1">来源：{selectedSnapshot.sourceMode === 'local' ? '本地案例库' : 'LaborInfo 远程（含旧版 Snapshot）'} · N={selectedSnapshot.candidateCount} · 城市 {Object.keys(selectedSnapshot.distribution.byCity).join('、') || '未知'} · 审级 {Object.keys(selectedSnapshot.distribution.byCaseLevel).join('、') || '未知'}</div><div className="mt-1">日期范围：{selectedSnapshot.filters.remoteFilters.startDate ?? '未限定'} 至 {selectedSnapshot.filters.remoteFilters.endDate ?? '未限定'} · 创建于 {formatDate(selectedSnapshot.createdAt)}</div><div className="mt-1">Candidate hash：{shortHash(selectedSnapshot.candidateHash)}</div>{!selectedSnapshot.isSelectable && <div className="mt-2 font-medium">{selectedSnapshot.unavailableReason}</div>}{selectedSnapshot.sourceMode !== 'local' && selectedSnapshot.isSelectable && <button onClick={() => void handlePrepareRecords(selectedSnapshot.id)} disabled={isPreparing} className="mt-3 px-3 py-2 rounded-md bg-slate-800 text-white text-xs">{isPreparing ? '正在准备…' : '准备研究案例'}</button>}</div>}
           <fieldset><legend className="text-sm font-medium text-slate-700">2. 选择研究模式</legend><div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2"><label className={`rounded-lg border p-3 cursor-pointer ${mode === 'exhaustive' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}><input type="radio" name="research-mode" checked={mode === 'exhaustive'} onChange={() => setMode('exhaustive')} className="mr-2" /><span className="text-sm font-semibold">全量语料分析</span><div className="text-xs text-slate-500 mt-1">使用 Snapshot 全部候选，不创建 SamplingRun。</div></label><label className={`rounded-lg border p-3 cursor-pointer ${mode === 'sampled' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}><input type="radio" name="research-mode" checked={mode === 'sampled'} onChange={() => setMode('sampled')} className="mr-2" /><span className="text-sm font-semibold">抽样比较研究</span><div className="text-xs text-slate-500 mt-1">使用已有或新建的可复现 SamplingRun。</div></label></div></fieldset>
           <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={semanticEnabled} onChange={(event) => setSemanticEnabled(event.target.checked)} />Semantic Resolver（默认关闭；开启时冻结当前 prompt/provider/model）</label></div>
         <div className="space-y-4">{mode === 'sampled' ? <><div className="flex gap-4 text-sm"><label><input type="radio" checked={samplingChoice === 'existing'} onChange={() => setSamplingChoice('existing')} className="mr-1.5" />使用已有 SamplingRun</label><label><input type="radio" checked={samplingChoice === 'new'} onChange={() => setSamplingChoice('new')} className="mr-1.5" />创建新的 SamplingRun</label></div>
