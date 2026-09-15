@@ -18,9 +18,11 @@ export class AmountResolver {
   }
 
   public static extractAmountNearAliases(text: string, aliases: string[]): number | undefined {
-    for (const alias of [...aliases].sort((a, b) => b.length - a.length)) {
-      const index = text.indexOf(alias);
-      if (index < 0) continue;
+    const candidates = aliases
+      .map((alias) => ({ alias, index: text.indexOf(alias) }))
+      .filter((candidate) => candidate.index >= 0)
+      .sort((left, right) => left.index - right.index || right.alias.length - left.alias.length);
+    for (const { alias, index } of candidates) {
       const nearbyText = text.slice(index, index + alias.length + 48);
       const amount = this.extractFirstAmount(nearbyText);
       if (amount !== undefined) return amount;

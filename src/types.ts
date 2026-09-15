@@ -544,6 +544,8 @@ export type ProceduralRole =
   | 'appellee'
   | 'applicant'
   | 'respondent'
+  | 'counterclaimPlaintiff'
+  | 'counterclaimDefendant'
   | 'counterclaimant'
   | 'third_party'
   | 'unknown';

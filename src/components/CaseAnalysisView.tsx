@@ -1,10 +1,31 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { AnalysisCaseRecord } from '../types';
+import { AnalysisCaseRecord, CaseParty, ProceduralRole } from '../types';
 import { Database, Search, FileText, Scale, Target, ShieldAlert, BookOpen, AlertCircle, X } from 'lucide-react';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
 import { formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
+
+const proceduralRoleLabels: Record<ProceduralRole, string> = {
+  plaintiff: '原告',
+  defendant: '被告',
+  appellant: '上诉人',
+  appellee: '被上诉人',
+  applicant: '申请人',
+  respondent: '被申请人',
+  counterclaimPlaintiff: '反诉原告',
+  counterclaimDefendant: '反诉被告',
+  counterclaimant: '反诉原告',
+  third_party: '第三人',
+  unknown: '未识别',
+};
+
+const laborRoleLabels: Record<CaseParty['laborRole'], string> = {
+  employee: '劳动者',
+  employer: '用人单位',
+  other: '其他主体',
+  unknown: '未识别',
+};
 
 interface CaseAnalysisViewProps {
   records?: AnalysisCaseRecord[];
@@ -224,6 +245,17 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">劳动者：</span><span className="font-medium text-slate-900">{formatPartyName(record.employeeParty)}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">用人单位：</span><span className="font-medium text-slate-900">{formatPartyName(record.employerParty)}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">审理程序：</span><span className="font-medium text-slate-900">{formatCaseLevel(record.caseLevel)}</span></div>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-2">
+                          <div className="font-bold text-slate-800">程序身份映射</div>
+                          {record.parties?.length ? record.parties.map((party) => (
+                            <div key={party.id} className="flex items-start gap-2">
+                              <span className="text-slate-500 min-w-[4.5rem]">{party.proceduralRoles.length
+                                ? party.proceduralRoles.map((role) => proceduralRoleLabels[role] || '未识别').join(' / ')
+                                : '未识别'}：</span>
+                              <span className="font-medium text-slate-900">{formatPartyName(party.name)}｜{laborRoleLabels[party.laborRole] || '未识别'}</span>
+                            </div>
+                          )) : <div className="text-slate-400">未识别</div>}
                         </div>
                       </div>
                       
