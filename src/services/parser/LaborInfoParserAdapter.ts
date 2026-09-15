@@ -332,8 +332,8 @@ export class LaborInfoParserAdapter {
 
     // 常见文书头部的当事人角色模式
     const partyPatterns = [
-      /(?:^|[。\n\r])\s*(?:原审原告|上诉人|申请人|申诉人|原告)(?:[（(［\[].{0,60}?[）)］\]])?[：:\s]+([^，,。\n\r]+)/g,
-      /(?:^|[。\n\r])\s*(?:原审被告|被上诉人|被申请人|被申诉人|被告)(?:[（(［\[].{0,60}?[）)］\]])?[：:\s]+([^，,。\n\r]+)/g,
+      /(?:^|[。\n\r）)号书])\s*(?:原审原告|上诉人|申请人|申诉人|原告)(?:[（(［\[].{0,60}?[）)］\]])?[：:\s]+([^，,。\n\r]+)/g,
+      /(?:^|[。\n\r）)号书])\s*(?:原审被告|被上诉人|被申请人|被申诉人|被告)(?:[（(［\[].{0,60}?[）)］\]])?[：:\s]+([^，,。\n\r]+)/g,
     ];
 
     const party1Matches: string[] = [];
@@ -711,7 +711,7 @@ export class LaborInfoParserAdapter {
       },
       {
         name: '拖欠/未付劳动报酬',
-        keywords: ['工资差额', '支付工资', '拖欠工资', '克扣工资', '补发工资', '劳动报酬', '业务提成', '停工工资', '封控工资'],
+        keywords: ['工资差额', '支付工资', '拖欠工资', '克扣工资', '补发工资', '劳动报酬', '业务提成', '业务费用', '停工工资', '停业工资', '疫情期间停业工资', '被查封期间工资', '封控工资'],
         decisionKeywords: {
           support: ['支付工资', '支付劳动报酬', '支付工资差额', '补发工资'],
           reject: ['驳回关于工资', '无需支付工资', '不予支持工资差额'],
@@ -767,6 +767,13 @@ export class LaborInfoParserAdapter {
         && /被告|被上诉人/.test(sourceText)
         && localActions.some((item) => item.action === 'pay' || item.action === 'support')
         && localActions.some((item) => item.targetPartyRole === 'plaintiff' || item.targetPartyRole === 'appellee' || item.targetPartyRole === 'defendant')) {
+        claimantMetadata.claimantRole = 'employee';
+        claimantMetadata.claimantPartyId = this.findPartyId(parties, 'employee', ['plaintiff', 'appellee', 'defendant']);
+      }
+      if (parties.applicantRole === 'employer'
+        && claimType === 'unpaid_remuneration'
+        && localActions.some((item) => (item.action === 'pay' || item.action === 'support')
+          && ['plaintiff', 'appellee', 'defendant'].includes(item.targetPartyRole))) {
         claimantMetadata.claimantRole = 'employee';
         claimantMetadata.claimantPartyId = this.findPartyId(parties, 'employee', ['plaintiff', 'appellee', 'defendant']);
       }
@@ -978,12 +985,19 @@ export class LaborInfoParserAdapter {
           targetPartyRole = 'plaintiff';
         }
 
-        if (targetPartyRole === 'unknown' && parties && /支付|补发|补缴/.test(sourceText)) {
+        if (parties && /支付|补发|补缴/.test(sourceText)) {
           const paymentIndex = sourceText.search(/支付|补发|补缴/);
-          const beneficiaryText = paymentIndex >= 0 ? sourceText.slice(paymentIndex) : sourceText;
-          const beneficiary = parties.parties?.find((party) =>
-            (party.laborRole === 'employee' || party.laborRole === 'employer') && beneficiaryText.includes(party.name)
-          );
+          const beneficiaryCandidates = (parties.parties || [])
+            .filter((party) => party.laborRole === 'employee' || party.laborRole === 'employer')
+            .map((party) => {
+              const beforeIndex = paymentIndex >= 0 ? sourceText.lastIndexOf(party.name, paymentIndex) : -1;
+              const afterIndex = paymentIndex >= 0 ? sourceText.indexOf(party.name, paymentIndex) : sourceText.indexOf(party.name);
+              const index = beforeIndex >= 0 ? beforeIndex : afterIndex;
+              return { party, distance: index >= 0 && paymentIndex >= 0 ? Math.abs(paymentIndex - index) : Number.MAX_SAFE_INTEGER };
+            })
+            .filter((candidate) => candidate.distance !== Number.MAX_SAFE_INTEGER)
+            .sort((left, right) => left.distance - right.distance);
+          const beneficiary = beneficiaryCandidates[0]?.party;
           if (beneficiary) {
             targetPartyRole = beneficiary.proceduralRoles.includes('appellee')
               ? 'appellee'
@@ -1000,7 +1014,7 @@ export class LaborInfoParserAdapter {
         // 只有主文片段明确出现请求别名时才绑定 claim；“驳回原告”等通用措辞保持无具体 claim。
         const matchedPattern = claimPatterns.find((pat) =>
           pat.keywords.some((keyword) => sourceText.includes(keyword))
-          || (pat.name === '劳动关系解除确认' && /确认(?:双方)?(?:劳动关系|劳动合同关系)(?:于[^。；，,]*)?(?:已经|已)?解除/.test(sourceText))
+          || (pat.name === '劳动关系解除确认' && /确认[^。；，,]*(?:劳动关系|劳动合同关系)(?:于[^。；，,]*)?(?:已经|已)?解除/.test(sourceText))
         );
 
         const requestedAmount = AmountResolver.extractRequestedAmount(sourceText);
@@ -1071,7 +1085,7 @@ export class LaborInfoParserAdapter {
     claimantPartyId?: string;
     proceduralBasis: ClaimProceduralBasis;
   } {
-    const isCounterclaim = /反诉|(?:被告|被申请人|被上诉人)[^。；]*请求/.test(sourceText);
+    const isCounterclaim = /(?:^|[。；;\n\r])\s*(?:被告|被申请人|被上诉人)[^。；;\n\r]*(?:反诉|请求|主张)/.test(sourceText);
     const isAppealRequest = /上诉人|上诉请求|撤销原判/.test(sourceText);
     const isApplication = /申请人/.test(sourceText) && !isCounterclaim;
     let claimantRole: LaborRole = parties.applicantRole;

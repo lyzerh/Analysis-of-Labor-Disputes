@@ -88,6 +88,37 @@ describe('Batch 4 procedural-role and claim-disposition contract', () => {
     expect(result.employerOutcome).toBe('not_supported');
   });
 
+  it.each([
+    ['李仙浓', '（2021）粤19民终3199号', 52584],
+    ['何明贵', '（2021）粤19民终3310号', 69000],
+  ] as const)('%s recognizes a real LaborInfo heading without a line break before 上诉人', (employee, caseNumber, amount) => {
+    const text = `广东省东莞市中级人民法院民事判决书${caseNumber}上诉人（原审原告）：星星精密科技（东莞）有限公司，被上诉人（原审被告）：${employee}。星星精密科技（东莞）有限公司向原审法院提出诉讼请求：无需向${employee}支付经济补偿金${amount}元。原审法院判决如下：确认星星精密科技（东莞）有限公司与${employee}的劳动合同关系已经解除；限星星精密科技（东莞）有限公司向${employee}支付经济补偿金${amount}元。二审判决如下：驳回上诉，维持原判。`;
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument(`real-heading-${employee}`, text));
+
+    expect(result.applicantRole).toBe('employer');
+    expect(result.claims).toEqual(expect.arrayContaining([
+      expect.objectContaining({ claimName: '劳动关系解除确认', supportStatus: 'supported' }),
+      expect.objectContaining({ claimName: '上诉请求（撤销原判）', claimant: 'employer', supportStatus: 'not_supported' }),
+    ]));
+    expect(result.employeeOutcome).not.toBe('unclear');
+    expect(result.employerOutcome).not.toBe('unclear');
+  });
+
+  it('does not misclassify an employee wage claim as a defendant counterclaim', () => {
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument(
+      'real-wage-14860-heading',
+      '广东省东莞市第二人民法院民事判决书（2020）粤1972民初14860号原告：侯小军，男。被告：东莞市汇成模具科技有限公司。原告因被告拖欠劳动报酬未付，向法院提起诉讼，请求判令：被告向原告支付业务提成费57060元。本院认为被告应向原告支付业务费57060元。判决如下：被告向原告支付业务费用57060元。',
+    ));
+    expect(result.applicantRole).toBe('employee');
+    expect(result.claims).toContainEqual(expect.objectContaining({
+      claimName: '拖欠/未付劳动报酬',
+      claimantRole: 'employee',
+      proceduralBasis: 'original_claim',
+      supportStatus: 'supported',
+    }));
+    expect(result.employeeOutcome).toBe('supported');
+  });
+
   it('resolves 侯小军 14860 payment as an employee claim', () => {
     const result = LaborInfoParserAdapter.parseDetailed(rawDocument('real-（2020）粤1972民初14860号', '原告：侯小军。被告：东莞市汇成模具科技有限公司。原告请求支付业务提成/劳动报酬57060元。判决如下：被告支付原告业务提成/劳动报酬57060元。'));
     expect(result.claims).toContainEqual(expect.objectContaining({ claimName: '拖欠/未付劳动报酬', claimant: 'employee', supportStatus: 'supported', awardedAmount: 57060 }));
@@ -98,7 +129,7 @@ describe('Batch 4 procedural-role and claim-disposition contract', () => {
     const result = LaborInfoParserAdapter.parseDetailed(rawDocument('real-（2023）粤1972民初4065号', '原告：黄玉东。被告：甲有限公司。原告请求确认劳动关系解除、停工工资7798元及未签订书面劳动合同二倍工资差额50000元。判决如下：确认双方劳动关系于2022年4月29日解除；被告支付原告停工工资7798元；被告支付原告未签订书面劳动合同二倍工资差额33040元；驳回原告其他诉讼请求。'));
     expect(result.claims).toEqual(expect.arrayContaining([
       expect.objectContaining({ claimName: '劳动关系解除确认', supportStatus: 'supported' }),
-      expect.objectContaining({ claimName: '拖欠/未付劳动报酬', supportStatus: 'supported', awardedAmount: 7798 }),
+      expect.objectContaining({ claimName: '拖欠/未付劳动报酬', claimantRole: 'employee', supportStatus: 'supported', awardedAmount: 7798 }),
       expect.objectContaining({ claimName: '未签书面劳动合同二倍工资差额', supportStatus: 'partially_supported', requestedAmount: 50000, awardedAmount: 33040 }),
     ]));
     expect(result.employeeOutcome).toBe('partially_supported');
