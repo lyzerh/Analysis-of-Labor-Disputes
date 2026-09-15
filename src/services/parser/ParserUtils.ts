@@ -1,4 +1,5 @@
 import { ParseQuality, DecisionOutcome } from '../../types';
+import { hashString } from '../crypto/HashUtils';
 
 export class ParserUtils {
   /**
@@ -6,23 +7,7 @@ export class ParserUtils {
    */
   public static async calculateContentHash(text: string): Promise<string> {
     const normalized = text.replace(/\s+/g, ' ').trim();
-    if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
-      try {
-        const msgUint8 = new TextEncoder().encode(normalized);
-        const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgUint8);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-      } catch (_) {}
-    }
-
-    // 备用简易 Hash 计算
-    let hash = 0;
-    for (let i = 0; i < normalized.length; i++) {
-      const char = normalized.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash |= 0;
-    }
-    return Math.abs(hash).toString(16).padStart(16, '0');
+    return hashString(normalized);
   }
 
   /**

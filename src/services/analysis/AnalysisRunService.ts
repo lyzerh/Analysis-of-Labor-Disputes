@@ -19,6 +19,7 @@ import {
   calculateSampleHash,
   DexieSamplingRunStore,
 } from '../sampling/SamplingService';
+import { hashString } from '../crypto/HashUtils';
 
 export const ANALYSIS_PROVENANCE_VERSION = 'analysis-provenance-v1' as const;
 
@@ -75,14 +76,6 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value);
 }
 
-async function sha256(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-}
-
 function requiredVersion(value: string | undefined, label: string): string {
   const normalized = value?.trim();
   if (!normalized) throw new Error(`${label} version is required`);
@@ -119,7 +112,7 @@ export async function calculateSamplingRunProvenanceHash(run: SamplingRun): Prom
     algorithmVersion: run.algorithmVersion,
     sampleHash: run.sampleHash,
   };
-  return sha256(stableStringify(run.method === 'stratified_seeded_random'
+  return hashString(stableStringify(run.method === 'stratified_seeded_random'
     ? {
         ...common,
         samplingConfigHash: run.samplingConfigHash,
@@ -138,7 +131,7 @@ export async function calculateProvenanceHash(input: {
   engineVersions: AnalysisEngineVersions;
   semantic: SemanticAnalysisConfig;
 }): Promise<string> {
-  return sha256(stableStringify({
+  return hashString(stableStringify({
     analysisContractVersion: ANALYSIS_PROVENANCE_VERSION,
     ...input,
     samplingRunProvenanceHash: input.samplingRunProvenanceHash ?? null,

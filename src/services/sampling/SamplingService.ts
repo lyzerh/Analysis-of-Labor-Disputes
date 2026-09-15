@@ -14,6 +14,7 @@ import {
   assertSnapshotReadyForSampling,
   DexieCandidatePoolSnapshotStore,
 } from '../dataset/CandidatePoolSnapshotService';
+import { hashString } from '../crypto/HashUtils';
 
 export const SAMPLING_ALGORITHM_VERSION = 'seeded-random-v1' as const;
 export const STRATIFIED_SAMPLING_ALGORITHM_VERSION = 'stratified-seeded-v1' as const;
@@ -50,20 +51,12 @@ const compareText = (left: string, right: string): number => (
   left < right ? -1 : left > right ? 1 : 0
 );
 
-async function calculateSha256(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-}
-
 export async function calculateCandidateHash(caseIds: string[]): Promise<string> {
-  return calculateSha256([...caseIds].sort(compareText).join('\n'));
+  return hashString([...caseIds].sort(compareText).join('\n'));
 }
 
 export async function calculateSampleHash(caseIds: string[]): Promise<string> {
-  return calculateSha256(JSON.stringify(caseIds));
+  return hashString(JSON.stringify(caseIds));
 }
 
 export function normalizeSeed(seed: string | number): string {
@@ -248,7 +241,7 @@ export function allocateBalanced(
 }
 
 async function deriveStratumSeed(globalSeed: string, stratumKey: string): Promise<string> {
-  const digest = await calculateSha256(JSON.stringify({
+  const digest = await hashString(JSON.stringify({
     algorithmVersion: STRATIFIED_SAMPLING_ALGORITHM_VERSION,
     globalSeed,
     stratumKey,
@@ -399,7 +392,7 @@ export class SamplingService {
       };
     }));
     const sampledCaseIds = strata.flatMap((stratum) => stratum.sampledCaseIds);
-    const samplingConfigHash = await calculateSha256(JSON.stringify({
+    const samplingConfigHash = await hashString(JSON.stringify({
       algorithmVersion: STRATIFIED_SAMPLING_ALGORITHM_VERSION,
       dimensions,
       allocationStrategy: input.allocationStrategy,

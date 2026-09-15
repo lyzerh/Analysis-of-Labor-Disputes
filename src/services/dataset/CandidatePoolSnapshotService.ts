@@ -19,6 +19,7 @@ import {
 } from '../dataSource/LaborInfoAdapter';
 import { isExcludedLaborInfoTestCase } from '../dataSource/LaborInfoEligibility';
 import { deriveRegionFilters, matchesRegionSelection } from '../research/RegionSelection';
+import { hashString } from '../crypto/HashUtils';
 
 export const CANDIDATE_POOL_SNAPSHOT_VERSION = 'candidate-pool-v1' as const;
 export const LABORINFO_FILTER_CONTRACT_VERSION = 'laborinfo-filter-v2' as const;
@@ -146,12 +147,6 @@ function stableStringify(value: unknown): string {
     return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`).join(',')}}`;
   }
   return JSON.stringify(value);
-}
-
-async function sha256(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function increment(distribution: Record<string, number>, value?: string | number | null): void {
@@ -415,7 +410,7 @@ export class CandidatePoolSnapshotService {
       increment(distribution.byYear, candidate.year);
       increment(distribution.byCaseLevel, candidate.caseLevel);
     }
-    const candidateHash = await sha256(candidates.map((candidate) => candidate.caseId).join('\n'));
+    const candidateHash = await hashString(candidates.map((candidate) => candidate.caseId).join('\n'));
     const fingerprintInput = {
       snapshotVersion: CANDIDATE_POOL_SNAPSHOT_VERSION,
       filterContractVersion: LABORINFO_FILTER_CONTRACT_VERSION,
@@ -434,7 +429,7 @@ export class CandidatePoolSnapshotService {
       snapshotVersion: CANDIDATE_POOL_SNAPSHOT_VERSION,
       filterContractVersion: LABORINFO_FILTER_CONTRACT_VERSION,
       candidateHash,
-      snapshotFingerprint: await sha256(stableStringify(fingerprintInput)),
+      snapshotFingerprint: await hashString(stableStringify(fingerprintInput)),
       status: input.status,
       expectedPages: input.expectedPages,
       fetchedPages: input.fetchedPages,
