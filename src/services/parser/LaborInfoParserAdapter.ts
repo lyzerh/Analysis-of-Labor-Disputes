@@ -15,6 +15,9 @@ import {
   LaborInfoParsedResult,
   LaborRole,
   LegalOutcomeType,
+  OutcomeResolutionDiagnostic,
+  OutcomeReviewSuggestion,
+  OutcomeUnclearReasonCode,
   PartyRecognitionResult,
   ParseQuality,
   ParseStatus,
@@ -80,6 +83,12 @@ export class LaborInfoParserAdapter {
 
     // 9. 结果四分类判定 (禁止根据标题猜测，必须根据裁决主文与理由深度综合判定)
     const outcomes = this.determineOutcomes(sections.decision || '', claims, parties, employerDefenses);
+    const outcomeDiagnostics = this.buildOutcomeDiagnostics(
+      sections.decision || '',
+      claims,
+      parties,
+      outcomes,
+    );
 
     // 10. 计算涉案裁决赔偿金额
     const compensationAmount = this.extractCompensationAmount(sections.decision || '');
@@ -192,6 +201,7 @@ export class LaborInfoParserAdapter {
       partyConfidence: parties.confidence,
       disputeType,
       claims,
+      outcomeDiagnostics,
       unresolvedReferences,
       employerDefenses,
       evidence,
@@ -1466,6 +1476,141 @@ export class LaborInfoParserAdapter {
     }
 
     return points;
+  }
+
+  public static buildOutcomeDiagnostics(
+    decisionText: string,
+    claims: LaborInfoClaimItem[],
+    parties: PartyRecognitionResult,
+    outcomes: { employeeOutcome: LegalOutcomeType; employerOutcome: LegalOutcomeType; overallResult: LegalOutcomeType },
+  ): OutcomeResolutionDiagnostic[] {
+    const diagnostics: OutcomeResolutionDiagnostic[] = [];
+    const reasonMessages: Record<OutcomeUnclearReasonCode, string> = {
+      missing_party_roles: '未识别原告/被告或上诉人/被上诉人的程序身份',
+      missing_labor_role: '程序主体尚未映射为劳动者或用人单位',
+      missing_claim_owner: '诉求提出方未能对应到具体当事人',
+      missing_disposition_text: '未提取到裁判主文',
+      disposition_not_matched: '未匹配到该诉求对应的裁判动作',
+      payment_beneficiary_unclear: '支付主文未能确定受益方',
+      rejection_owner_unclear: '驳回主文未能确定被驳回方',
+      appeal_inheritance_unclear: '二审维持/驳回上诉，但原审结果未能继承',
+      amount_conflict: '请求金额与裁判金额存在冲突',
+      unsupported_claim_type: '诉求类型超出当前规则覆盖范围',
+      ambiguous_multiple_claims: '多个诉求共用或竞争同一裁判动作，归属不唯一',
+      source_text_missing: '缺少诉求或裁判原文片段',
+      low_confidence: '解析置信度较低，建议人工复核',
+      unknown: '当前规则无法解释该未确定结果',
+    };
+    const reviewSuggestions: Record<OutcomeUnclearReasonCode, OutcomeReviewSuggestion> = {
+      missing_party_roles: 'manual_review',
+      missing_labor_role: 'manual_review',
+      missing_claim_owner: 'manual_review',
+      missing_disposition_text: 'manual_review',
+      disposition_not_matched: 'rule_improvement',
+      payment_beneficiary_unclear: 'manual_review',
+      rejection_owner_unclear: 'manual_review',
+      appeal_inheritance_unclear: 'rule_improvement',
+      amount_conflict: 'manual_review',
+      unsupported_claim_type: 'rule_improvement',
+      ambiguous_multiple_claims: 'rule_improvement',
+      source_text_missing: 'manual_review',
+      low_confidence: 'manual_review',
+      unknown: 'manual_review',
+    };
+    const add = (diagnostic: Omit<OutcomeResolutionDiagnostic, 'needsReview'> & { reasonCode: OutcomeUnclearReasonCode }) => {
+      diagnostics.push({
+        ...diagnostic,
+        reasonMessage: reasonMessages[diagnostic.reasonCode],
+        needsReview: true,
+        suggestedReviewType: reviewSuggestions[diagnostic.reasonCode],
+      });
+    };
+
+    if (parties.applicantRole === 'unknown') {
+      add({
+        target: 'applicant',
+        outcome: outcomes.overallResult,
+        reasonCode: (parties.parties || []).some((party) => party.proceduralRoles.length > 0)
+          ? 'missing_labor_role'
+          : 'missing_party_roles',
+        sourceText: decisionText.slice(0, 300),
+      });
+    }
+
+    for (const claim of claims) {
+      const unresolvedAction = claim.judgmentItems?.some((item) => (
+        (/支付|补发|补缴/.test(item.sourceText) && item.targetPartyRole === 'unknown')
+        || (item.action === 'reject' && item.targetPartyRole === 'unknown')
+      )) ?? false;
+      const lowConfidence = parties.confidence < 0.6
+        || claim.judgmentItems?.some((item) => item.referenceResolution?.confidence !== undefined && (item.referenceResolution.confidence ?? 1) < 0.7);
+      if (claim.supportStatus !== 'unclear' && !lowConfidence && !unresolvedAction) continue;
+
+      const actions = claim.judgmentItems || [];
+      let reasonCode: OutcomeUnclearReasonCode = 'unknown';
+      if (claim.claimantRole === 'unknown' || claim.claimant === 'unknown') {
+        reasonCode = 'missing_claim_owner';
+      } else if (!claim.sourceText && !decisionText) {
+        reasonCode = 'source_text_missing';
+      } else if (claim.claimType === 'general_labor_claim' || claim.claimType === 'unknown' || claim.claimName.includes('综合请求')) {
+        reasonCode = 'unsupported_claim_type';
+      } else if (claim.proceduralBasis === 'appeal_request' && /维持原判|维持原裁决/.test(decisionText)
+        && !actions.some((item) => item.action === 'support' || item.action === 'reject')) {
+        reasonCode = 'appeal_inheritance_unclear';
+      } else if (claim.requestedAmount !== undefined && claim.awardedAmount !== undefined
+        && (claim.requestedAmount < 0 || claim.awardedAmount < 0 || claim.awardedAmount > claim.requestedAmount)) {
+        reasonCode = 'amount_conflict';
+      } else if (actions.some((item) => /支付|补发|补缴/.test(item.sourceText) && item.targetPartyRole === 'unknown')) {
+        reasonCode = 'payment_beneficiary_unclear';
+      } else if (actions.some((item) => item.action === 'reject' && item.targetPartyRole === 'unknown')
+        || (!actions.length && /驳回|不予支持|无需支付/.test(decisionText))) {
+        reasonCode = 'rejection_owner_unclear';
+      } else if (claims.length > 1 && /及|、|与/.test(claim.sourceText || '') && actions.length === 0) {
+        reasonCode = 'ambiguous_multiple_claims';
+      } else if (!decisionText) {
+        reasonCode = 'missing_disposition_text';
+      } else if (!actions.length) {
+        reasonCode = 'disposition_not_matched';
+      } else if (lowConfidence) {
+        reasonCode = 'low_confidence';
+      }
+
+      add({
+        target: 'claim',
+        claimId: claim.id,
+        claimType: claim.claimType,
+        outcome: claim.supportStatus,
+        reasonCode,
+        sourceText: (claim.sourceText || decisionText).slice(0, 500),
+      });
+    }
+
+    const roleOutcomes: Array<['employee' | 'employer' | 'applicant', LegalOutcomeType]> = [
+      ['employee', outcomes.employeeOutcome],
+      ['employer', outcomes.employerOutcome],
+      ['applicant', outcomes.overallResult],
+    ];
+    for (const [target, outcome] of roleOutcomes) {
+      if (outcome !== 'unclear') continue;
+      if (diagnostics.some((item) => item.target === target && !item.claimId)) continue;
+      const reasonCode: OutcomeUnclearReasonCode = parties.applicantRole === 'unknown'
+        ? ((parties.parties || []).some((party) => party.proceduralRoles.length > 0) ? 'missing_labor_role' : 'missing_party_roles')
+        : (!parties.employeeParty || !parties.employerParty || (parties.parties || []).some((party) => party.laborRole === 'unknown')
+          ? 'missing_labor_role'
+          : !decisionText
+            ? 'missing_disposition_text'
+            : claims.length === 0
+              ? 'source_text_missing'
+              : 'disposition_not_matched');
+      add({
+        target,
+        outcome,
+        reasonCode,
+        sourceText: decisionText.slice(0, 300),
+      });
+    }
+
+    return diagnostics;
   }
 
   /**

@@ -1,10 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { AnalysisCaseRecord, CaseParty, ProceduralRole } from '../types';
+import { AnalysisCaseRecord, CaseParty, OutcomeResolutionDiagnostic, ProceduralRole } from '../types';
 import { Database, Search, FileText, Scale, Target, ShieldAlert, BookOpen, AlertCircle, X } from 'lucide-react';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
 import { formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
+import { buildOutcomeReviewQueue } from '../services/outcome/OutcomeReviewQueue';
 
 const proceduralRoleLabels: Record<ProceduralRole, string> = {
   plaintiff: '原告',
@@ -121,6 +122,9 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
   const selectedOutcomePresentations = selectedCase
     ? getPartyOutcomePresentations(selectedCase)
     : null;
+  const reviewQueue = useMemo(() => buildOutcomeReviewQueue(records), [records]);
+  const selectedDiagnostics = selectedCase?.outcomeDiagnostics || [];
+  const outcomeDiagnostic = (target: OutcomeResolutionDiagnostic['target']) => selectedDiagnostics.find((item) => item.target === target);
 
 
   const clearSearch = () => {
@@ -139,6 +143,24 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
   return (
     <div className="flex flex-col h-[calc(100vh-10rem)] border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm min-h-0">
       
+      <div className="mx-4 mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+        <div className="font-bold">待复核项 / Outcome Review Items ({reviewQueue.length})</div>
+        {reviewQueue.length === 0 ? (
+          <div className="mt-1 text-amber-800">当前分析记录没有未确定结果。</div>
+        ) : (
+          <div className="mt-2 space-y-1.5 max-h-32 overflow-y-auto">
+            {reviewQueue.map((item, index) => (
+              <div key={`${item.caseId}-${item.claimId || item.target || 'outcome'}-${index}`} className="flex flex-wrap gap-x-2 gap-y-0.5">
+                <span className="font-medium">{item.title || item.caseNumber || item.caseId}</span>
+                <span>{item.claimType || item.target || 'outcome'}</span>
+                <span>无法确定：{item.reasonMessage || item.reasonCode || '待复核'}</span>
+                {item.suggestedReviewType && <span className="text-amber-700">[{item.suggestedReviewType}]</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* 顶部工具栏 (可选，目前放在左侧列表上方) */}
 
       <div className="flex flex-col lg:flex-row h-full divide-y lg:divide-y-0 lg:divide-x divide-slate-200 min-h-0">
@@ -265,9 +287,9 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                           裁判结果与要点
                         </div>
                         {selectedOutcomePresentations && <div className="bg-purple-50/50 p-3 rounded-xl border border-purple-100 text-xs space-y-2">
-                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">劳动者结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{selectedOutcomePresentations.employee.label}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">用人单位结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{selectedOutcomePresentations.employer.label}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">申请人结果：</span><span className={`font-bold ${selectedOutcomePresentations.applicant.textClassName}`}>{selectedOutcomePresentations.applicant.label}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">劳动者结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{selectedOutcomePresentations.employee.label}{outcomeDiagnostic('employee')?.reasonMessage ? `：${outcomeDiagnostic('employee')?.reasonMessage}` : ''}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">用人单位结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{selectedOutcomePresentations.employer.label}{outcomeDiagnostic('employer')?.reasonMessage ? `：${outcomeDiagnostic('employer')?.reasonMessage}` : ''}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">申请人结果：</span><span className={`font-bold ${selectedOutcomePresentations.applicant.textClassName}`}>{selectedOutcomePresentations.applicant.label}{outcomeDiagnostic('applicant')?.reasonMessage ? `：${outcomeDiagnostic('applicant')?.reasonMessage}` : ''}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">争议类型：</span><span className="font-medium text-slate-900">{Array.isArray(record.disputeType) ? record.disputeType.join('、') : (record.disputeType || '未知')}</span></div>
                           {Array.isArray(record.keyLegalPoints) && record.keyLegalPoints.length > 0 && (
                             <div className="flex flex-col mt-2">
@@ -290,9 +312,10 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                             <div className="space-y-2">
                               {record.claims.map((claim, idx) => {
                                 const presentation = getOutcomePresentation(claim.supportStatus);
+                                const diagnostic = selectedDiagnostics.find((item) => item.claimId === claim.id);
                                 return (
                                   <div key={idx} className="bg-white border border-slate-200 p-2.5 rounded-lg text-xs flex justify-between items-start gap-2">
-                                    <span className="text-slate-800 leading-relaxed">{claim.claimName}</span>
+                                    <span className="text-slate-800 leading-relaxed">{claim.claimName}{diagnostic?.reasonMessage ? <span className="block text-amber-700 mt-1">无法确定：{diagnostic.reasonMessage}</span> : null}</span>
                                     <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${presentation.badgeClassName}`}>
                                       {presentation.label}
                                     </span>

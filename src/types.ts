@@ -826,6 +826,46 @@ export interface PartyRecognitionResult {
  */
 export type LegalOutcomeType = 'supported' | 'partially_supported' | 'not_supported' | 'unclear';
 
+export type OutcomeUnclearReasonCode =
+  | 'missing_party_roles'
+  | 'missing_labor_role'
+  | 'missing_claim_owner'
+  | 'missing_disposition_text'
+  | 'disposition_not_matched'
+  | 'payment_beneficiary_unclear'
+  | 'rejection_owner_unclear'
+  | 'appeal_inheritance_unclear'
+  | 'amount_conflict'
+  | 'unsupported_claim_type'
+  | 'ambiguous_multiple_claims'
+  | 'source_text_missing'
+  | 'low_confidence'
+  | 'unknown';
+
+export type OutcomeReviewSuggestion = 'rule_improvement' | 'llm_semantic_normalization' | 'manual_review';
+
+export interface OutcomeResolutionDiagnostic {
+  target?: 'claim' | 'employee' | 'employer' | 'applicant';
+  claimId?: string;
+  claimType?: string;
+  outcome: LegalOutcomeType;
+  reasonCode?: OutcomeUnclearReasonCode;
+  reasonMessage?: string;
+  sourceText?: string;
+  needsReview: boolean;
+  suggestedReviewType?: OutcomeReviewSuggestion;
+}
+
+export interface OutcomeReviewItem extends OutcomeResolutionDiagnostic {
+  caseId: string;
+  title: string;
+  caseNumber: string | null;
+  employeeParty: string | null;
+  employerParty: string | null;
+  applicantRole: ApplicantRole;
+  parties: CaseParty[];
+}
+
 /**
  * 工劳网文书结构化解析结果 (扩展至 ArbitrationCase)
  */
@@ -851,6 +891,7 @@ export interface LaborInfoParsedResult {
 
   // 诉求列表
   claims: LaborInfoClaimItem[];
+  outcomeDiagnostics?: OutcomeResolutionDiagnostic[];
   unresolvedReferences: ClaimReferenceCandidate[];
   semanticRelations?: AppliedSemanticRelation[];
   humanReviewCandidates?: ReviewableSemanticResolutionCandidate[];
@@ -1034,6 +1075,7 @@ export interface AnalysisCaseRecord {
 
   // 诉求清单 (Claims)
   claims: LaborInfoClaimItem[];
+  outcomeDiagnostics?: OutcomeResolutionDiagnostic[];
   unresolvedReferences: ClaimReferenceCandidate[];
   semanticRelations?: AppliedSemanticRelation[];
   humanReviewCandidates?: ReviewableSemanticResolutionCandidate[];

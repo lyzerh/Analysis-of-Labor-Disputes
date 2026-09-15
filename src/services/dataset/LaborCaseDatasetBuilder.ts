@@ -216,6 +216,7 @@ export class LaborCaseDatasetBuilder {
       employerParty,
       applicantRole,
       parties: parsed.parties || [],
+      outcomeDiagnostics: parsed.outcomeDiagnostics,
 
       employerDefenses,
       evidence,
