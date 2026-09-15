@@ -79,6 +79,59 @@ describe('Party and procedural-role contract', () => {
     expect(thirdParty?.laborRole).toBe('other');
     expect(thirdParty?.proceduralRoles).toEqual(['third_party']);
   });
+
+  it('extracts only real party identities before the fact-finding section', () => {
+    const text = [
+      '上海广万东建筑设计咨询有限公司与吴利国劳动合同纠纷一审民事判决书',
+      '原告：上海广万东建筑设计咨询有限公司',
+      '被告：吴利国',
+      '本院认为，被告：效益工资是根据公司的经济状况。',
+      '被告：年终奖是年终的事情。',
+    ].join('\n');
+    const result = LaborInfoParserAdapter.recognizeParties(text);
+
+    expect(result.parties).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: '上海广万东建筑设计咨询有限公司', laborRole: 'employer', proceduralRoles: ['plaintiff'] }),
+      expect.objectContaining({ name: '吴利国', laborRole: 'employee', proceduralRoles: ['defendant'] }),
+    ]));
+    expect(result.parties).toHaveLength(2);
+  });
+
+  it.each([
+    '被告：效益工资是根据公司的经济状况',
+    '被告：年终奖是年终的事情',
+    '被告：对呀',
+    '被告：反正我认为作为奖金就是一个可浮动的',
+    '被告：……浮动的前提下我这个月工资还能确保跟去年持平吗？',
+    '被告：那就是啊',
+  ])('does not create a party from statement-like role text: %s', (statement) => {
+    const result = LaborInfoParserAdapter.recognizeParties(`原告：上海广万东建筑设计咨询有限公司\n被告：吴利国\n庭审记录\n${statement}`);
+    expect(result.parties?.map((party) => party.name)).toEqual([
+      '上海广万东建筑设计咨询有限公司',
+      '吴利国',
+    ]);
+  });
+
+  it('preserves nested appellate and counterclaim procedural roles', () => {
+    const result = LaborInfoParserAdapter.recognizeParties([
+      '上诉人（原审被告）：甲有限公司。',
+      '被上诉人（原审原告）：张某。',
+      '反诉原告：张某。反诉被告：甲有限公司。',
+    ].join(''));
+
+    expect(result.parties).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: '甲有限公司', proceduralRoles: expect.arrayContaining(['appellant', 'counterclaimDefendant']) }),
+      expect.objectContaining({ name: '张某', proceduralRoles: expect.arrayContaining(['appellee', 'counterclaimPlaintiff']) }),
+    ]));
+  });
+
+  it('keeps evidence provider attribution independent from party-role filtering', () => {
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument(
+      'party-role-evidence-regression',
+      '原告：上海广万东建筑设计咨询有限公司。被告：吴利国。庭审记录：被告：对呀。被告上海广万东建筑设计咨询有限公司提交考勤记录作为证据。',
+    ));
+    expect(result.evidence.find((item) => item.name === '考勤记录/打卡数据')?.provider).toBe('employer');
+  });
 });
 
 describe('Claim ownership and procedural basis', () => {

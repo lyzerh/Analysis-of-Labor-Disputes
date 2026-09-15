@@ -330,22 +330,14 @@ export class LaborInfoParserAdapter {
     let applicantRole: 'employee' | 'employer' | 'unknown' = 'unknown';
     let confidence = 0.5;
 
-    // 常见文书头部的当事人角色模式
-    const partyPatterns = [
-      /(?:^|[。\n\r）)号书])\s*(?:原审原告|上诉人|申请人|申诉人|原告)(?:[（(［\[].{0,60}?[）)］\]])?[：:\s]+([^，,。\n\r]+)/g,
-      /(?:^|[。\n\r）)号书])\s*(?:原审被告|被上诉人|被申请人|被申诉人|被告)(?:[（(［\[].{0,60}?[）)］\]])?[：:\s]+([^，,。\n\r]+)/g,
-    ];
-
-    const party1Matches: string[] = [];
-    const party2Matches: string[] = [];
-
-    let match: RegExpExecArray | null;
-    while ((match = partyPatterns[0].exec(text)) !== null) {
-      party1Matches.push(this.cleanPartyName(match[1]));
-    }
-    while ((match = partyPatterns[1].exec(text)) !== null) {
-      party2Matches.push(this.cleanPartyName(match[1]));
-    }
+    // 只在文书开头的当事人身份区提取程序角色；诉称、辩称、庭审记录等正文不再作为身份来源。
+    const partyCandidates = this.extractPartyIdentityCandidates(text);
+    const party1Matches = partyCandidates
+      .filter(({ label }) => ['原审原告', '上诉人', '申请人', '申诉人', '原告'].includes(label))
+      .map(({ name }) => name);
+    const party2Matches = partyCandidates
+      .filter(({ label }) => ['原审被告', '被上诉人', '被申请人', '被申诉人', '被告'].includes(label))
+      .map(({ name }) => name);
 
     const firstParty1 = party1Matches[0] || null;
     const firstParty2 = party2Matches[0] || null;
@@ -477,6 +469,40 @@ export class LaborInfoParserAdapter {
       .replace(/[,，。、：:].*$/g, '')
       .replace(/\s+/g, '')
       .trim();
+  }
+
+  private static extractPartyIdentityText(text: string): string {
+    const normalized = text.replace(/^\uFEFF/, '');
+    const boundary = normalized.search(/本院认为|经审理查明|诉称|辩称|庭审|质证|审理终结|认为|主张|答辩/);
+    const end = boundary >= 0 ? boundary : Math.min(normalized.length, 12000);
+    return normalized.slice(0, end);
+  }
+
+  private static isPlausiblePartyIdentityName(name: string): boolean {
+    const normalized = this.cleanPartyName(name);
+    if (!normalized || normalized.length > 60) return false;
+    if (/[！!？?]/.test(normalized)) return false;
+    if (/(?:是|认为|根据|就是|吗|啊|对呀|反正|工资是|奖金是|请求|支付|法院|判令|前提|确保|是否|因为|所以)/.test(normalized)) return false;
+    if (/^(?:劳动者|员工|职工|个人|自然人|公司员工|双方|对方|本院|原告|被告|上诉人|被上诉人|答辩|意见|问题|情况|事情|事实|理由)$/.test(normalized)) return false;
+
+    const looksLikeOrganization = /(?:公司|有限责任公司|厂|企业|中心|集团|银行|医院|学校|事务所|研究院|仲裁委员会|人民法院|工会|委员会|局|院|部|店|商行|工作室|经营部|分公司|劳务派遣)/.test(normalized);
+    const looksLikePerson = /^[\u4e00-\u9fa5]{2,6}$/.test(normalized);
+    if (!looksLikeOrganization && !looksLikePerson) return false;
+    if (!looksLikeOrganization && /(?:对呀|对啊|是的|那就是|反正|啊)$/.test(normalized)) return false;
+    return true;
+  }
+
+  private static extractPartyIdentityCandidates(text: string): Array<{ label: string; name: string }> {
+    const identityText = this.extractPartyIdentityText(text);
+    const rolePattern = /(?:^|[。；;\n\r）)号书])\s*(反诉原告|反诉被告|反诉人|原审原告|原审被告|被上诉人|上诉人|被申请人|申请人|被申诉人|申诉人|原告|被告|第三人)(?:[（(［\[].{0,60}?[）)］\]])?[：:\s]+([^，,。；;\n\r]+)/g;
+    const candidates: Array<{ label: string; name: string }> = [];
+    let match: RegExpExecArray | null;
+    while ((match = rolePattern.exec(identityText)) !== null) {
+      const name = this.cleanPartyName(match[2]);
+      if (!this.isPlausiblePartyIdentityName(name)) continue;
+      candidates.push({ label: match[1], name });
+    }
+    return candidates;
   }
 
   /**
@@ -896,13 +922,9 @@ export class LaborInfoParserAdapter {
       第三人: 'third_party',
     };
     const partyMap = new Map<string, CaseParty>();
-    const rolePattern = /(反诉原告|反诉被告|反诉人|被上诉人|上诉人|被申请人|申请人|原告|被告|第三人)(?:[（(][^）)]*[）)])?[：:\s]+([^，,。；;\n\r]+)/g;
-    let roleMatch: RegExpExecArray | null;
+    const partyCandidates = this.extractPartyIdentityCandidates(text);
 
-    while ((roleMatch = rolePattern.exec(text)) !== null) {
-      const label = roleMatch[1];
-      const name = this.cleanPartyName(roleMatch[2]);
-      if (!name) continue;
+    for (const { label, name } of partyCandidates) {
       const proceduralRole = proceduralRoleMap[label] || 'unknown';
       const existing = partyMap.get(name);
       if (existing) {
@@ -926,7 +948,7 @@ export class LaborInfoParserAdapter {
     const defendantParty = [...partyMap.values()].find((party) =>
       party.proceduralRoles.includes('defendant') || party.proceduralRoles.includes('respondent')
     );
-    if (defendantParty && /(?:被告|被申请人)[^。；\n]*(?:提出反诉|反诉请求|提起反诉)/.test(text)) {
+    if (defendantParty && /(?:被告|被申请人)[^。；\n]*(?:提出反诉|反诉请求|提起反诉)/.test(this.extractPartyIdentityText(text))) {
       if (!defendantParty.proceduralRoles.includes('counterclaimPlaintiff')) {
         defendantParty.proceduralRoles.push('counterclaimPlaintiff');
       }
