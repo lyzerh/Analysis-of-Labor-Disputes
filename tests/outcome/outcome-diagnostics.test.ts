@@ -8,6 +8,7 @@ import {
   outcomeReviewSourceSnippet,
   outcomeReviewSuggestionForDisplay,
   outcomeReviewUserStatus,
+  shouldMarkOutcomeReviewItemViewed,
   readOutcomeReviewStatusMap,
   writeOutcomeReviewStatusMap,
 } from '../../src/services/outcome/OutcomeReviewQueue';
@@ -297,6 +298,29 @@ describe('Outcome diagnostics and review queue contract', () => {
     expect(filterOutcomeReviewQueue(queue, 'unseen', '', '', statuses)).toHaveLength(1);
     expect(filterOutcomeReviewQueue(queue, 'llm_candidate', '', '', statuses)).toHaveLength(1);
     expect(filterOutcomeReviewQueue(queue, 'manual_review', '', '', statuses)).toHaveLength(0);
+  });
+
+  it('only acknowledges unseen review items when opening a case', () => {
+    const [item] = buildOutcomeReviewQueue([analysisRecord('review-open-status-case', 'unclear', {
+      outcomeDiagnostics: [{ target: 'employee', outcome: 'unclear', reasonCode: 'missing_claim_owner', needsReview: true }],
+    })]);
+    expect(shouldMarkOutcomeReviewItemViewed(item, {})).toBe(true);
+
+    const statuses = (status: 'viewed' | 'llm_candidate' | 'manual_review' | 'rule_improvement' | 'deferred') => ({
+      [outcomeReviewItemId(item)]: status,
+    });
+    const markWhenOpened = (storedStatuses: Record<string, 'viewed' | 'llm_candidate' | 'manual_review' | 'rule_improvement' | 'deferred'>) => (
+      shouldMarkOutcomeReviewItemViewed(item, storedStatuses)
+        ? { ...storedStatuses, [outcomeReviewItemId(item)]: 'viewed' as const }
+        : storedStatuses
+    );
+    expect(outcomeReviewUserStatus(item, markWhenOpened({}))).toBe('viewed');
+    for (const status of ['viewed', 'llm_candidate', 'manual_review', 'rule_improvement', 'deferred'] as const) {
+      const storedStatuses = statuses(status);
+      expect(shouldMarkOutcomeReviewItemViewed(item, storedStatuses)).toBe(false);
+      expect(outcomeReviewUserStatus(item, markWhenOpened(storedStatuses))).toBe(status);
+      expect(filterOutcomeReviewQueue([item], status, '', '', storedStatuses)).toHaveLength(1);
+    }
   });
 
   it('persists UI-only review statuses and degrades safely when storage is unavailable', () => {

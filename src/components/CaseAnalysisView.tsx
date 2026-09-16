@@ -15,6 +15,7 @@ import {
   outcomeReviewSuggestionHint,
   outcomeReviewStatusLabels,
   outcomeReviewUserStatus,
+  shouldMarkOutcomeReviewItemViewed,
   outcomeReviewItemId,
   readOutcomeReviewStatusMap,
   writeOutcomeReviewStatusMap,
@@ -257,7 +258,9 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
     setKeyword('');
     setSelectedCaseId(item.caseId);
     setSelectedReviewItem(item);
-    updateReviewStatus(item, 'viewed');
+    if (shouldMarkOutcomeReviewItemViewed(item, reviewStatuses)) {
+      updateReviewStatus(item, 'viewed');
+    }
     setActiveSubview('browse');
   };
 

@@ -121,6 +121,14 @@ export function outcomeReviewUserStatus(item: OutcomeReviewItem, statuses: Outco
   return statuses[outcomeReviewItemId(item)] || 'unseen';
 }
 
+/**
+ * Opening a review item may acknowledge an unseen item, but must not overwrite
+ * an explicit review decision that the user has already recorded.
+ */
+export function shouldMarkOutcomeReviewItemViewed(item: OutcomeReviewItem, statuses: OutcomeReviewStatusMap): boolean {
+  return outcomeReviewUserStatus(item, statuses) === 'unseen';
+}
+
 export type OutcomeReviewEvidenceKey = keyof OutcomeDiagnosticEvidence;
 
 export interface OutcomeReviewEvidenceField {

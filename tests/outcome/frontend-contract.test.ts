@@ -155,6 +155,8 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(source).toMatch(/OutcomeEvidenceFields/);
     expect(source).toMatch(/复核原因筛选/);
     expect(source).toMatch(/setSelectedCaseId\(item\.caseId\)/);
+    expect(source).toMatch(/shouldMarkOutcomeReviewItemViewed/);
+    expect(source).toMatch(/if \(shouldMarkOutcomeReviewItemViewed\(item, reviewStatuses\)\)/);
   });
 
   it('keeps the review queue space-efficient and semantically layered', () => {
