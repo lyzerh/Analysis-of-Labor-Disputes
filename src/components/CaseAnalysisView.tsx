@@ -25,6 +25,8 @@ import {
 import { ResearchAnalysisService, type ResearchAnalysisContext } from '../services/analysis/ResearchAnalysisService';
 import { AnalysisContextBar } from './AnalysisContextBar';
 import { createCaseAnalysisScopeNotice, createCaseListScopeLabel, createReviewQueueScopeLabel } from '../services/presentation/CaseAnalysisScopePresentation';
+import { createOutcomeCoverageAudit } from '../services/outcome/OutcomeCoverageAudit';
+import { OutcomeCoverageAuditPanel } from './OutcomeCoverageAuditPanel';
 
 const proceduralRoleLabels: Record<ProceduralRole, string> = {
   plaintiff: '原告',
@@ -219,6 +221,13 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
     () => [...new Set(reviewQueue.map((item) => outcomeReviewSuggestionForDisplay(item)).filter(Boolean))] as string[],
     [reviewQueue],
   );
+  const outcomeCoverageAudit = useMemo(
+    () => createOutcomeCoverageAudit(
+      analysisContext?.analysisRun?.id || '',
+      analysisContext?.analysisRun ? records : [],
+    ),
+    [analysisContext?.analysisRun?.id, records],
+  );
 
   const updateReviewStatus = (item: ReturnType<typeof buildOutcomeReviewQueue>[number], status: OutcomeReviewUserStatus) => {
     setReviewStatuses((current) => {
@@ -323,6 +332,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
             </select>
           </div>
         </div>
+        <OutcomeCoverageAuditPanel audit={outcomeCoverageAudit} />
         {reviewQueue.length === 0 ? (
           <div className="mt-1 text-amber-800">当前分析记录没有未确定结果。</div>
         ) : (

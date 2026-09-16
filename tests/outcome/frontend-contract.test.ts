@@ -251,6 +251,23 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(contextSource).toMatch(/AnalysisRun：\{shortResearchId\(run\.id\)\}/);
     expect(contextSource).toMatch(/统计口径：\{scopeLabel\}/);
   });
+
+  it('renders a compact outcome coverage audit without changing the review queue contract', () => {
+    const caseAnalysisSource = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    const auditPanelSource = readFileSync(new URL('../../src/components/OutcomeCoverageAuditPanel.tsx', import.meta.url), 'utf8');
+    expect(caseAnalysisSource).toMatch(/OutcomeCoverageAuditPanel/);
+    expect(caseAnalysisSource).toMatch(/createOutcomeCoverageAudit/);
+    expect(caseAnalysisSource).toMatch(/analysisContext\?\.analysisRun \? records : \[\]/);
+    expect(auditPanelSource).toMatch(/结果覆盖率审计/);
+    expect(auditPanelSource).toMatch(/总诉求：\{audit\.totalClaims\}/);
+    expect(auditPanelSource).toMatch(/已确定：\{audit\.resolvedClaims\}/);
+    expect(auditPanelSource).toMatch(/待复核率：\{audit\.needsReviewRate\}%/);
+    expect(auditPanelSource).toMatch(/主要原因/);
+    expect(auditPanelSource).toMatch(/待复核诉求类型/);
+    expect(auditPanelSource).toMatch(/处理建议分布/);
+    expect(auditPanelSource).toMatch(/金额风险审计/);
+    expect(auditPanelSource).toMatch(/当前分析集暂无可审计诉求/);
+  });
 });
 
 describe('Case detail frontend contract', () => {
