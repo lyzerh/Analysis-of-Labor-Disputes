@@ -9,6 +9,11 @@ import { createPipelineHealthPresentation } from '../../src/services/data/Pipeli
 import type { DataPipelineHealthStats } from '../../src/services/data/LaborAnalysisPipeline';
 import { analysisRecord } from './helpers/record-factories';
 import { shortResearchId } from '../../src/services/research/AnalysisContextPresentation';
+import {
+  createCaseAnalysisScopeNotice,
+  createCaseListScopeLabel,
+  createReviewQueueScopeLabel,
+} from '../../src/services/presentation/CaseAnalysisScopePresentation';
 
 const records = [
   analysisRecord('gz-2023-first', 'supported', { city: '广州', year: 2023, caseLevel: '一审' }),
@@ -119,6 +124,22 @@ describe('Data Management health presentation contract', () => {
 });
 
 describe('Review queue interaction and analysis context contract', () => {
+  it('labels case counts by local or selected analysis scope', () => {
+    expect(createCaseListScopeLabel({ hasAnalysisRun: true, totalCount: 35, visibleCount: 35, isFiltered: false }))
+      .toBe('当前分析集案例：35 个');
+    expect(createCaseListScopeLabel({ hasAnalysisRun: false, totalCount: 92, visibleCount: 92, isFiltered: false }))
+      .toBe('本地案例浏览：92 个');
+    expect(createCaseListScopeLabel({ hasAnalysisRun: true, totalCount: 35, visibleCount: 4, isFiltered: true }))
+      .toBe('当前分析集案例：35 个｜当前筛选显示：4 个');
+  });
+
+  it('explains the selected analysis scope and separates review item and case counts', () => {
+    expect(createCaseAnalysisScopeNotice(true)).toContain('本次分析集');
+    expect(createCaseAnalysisScopeNotice(true)).toContain('不代表本地案例库总数');
+    expect(createCaseAnalysisScopeNotice(false)).toBe('当前为本地案例浏览，显示本地案例库中的案例。');
+    expect(createReviewQueueScopeLabel(true, 7, 4)).toBe('待复核项：7 项｜涉及案例：4 个｜待复核项来自当前分析集。');
+  });
+
   it('keeps analysis identifiers compact while preserving the full value in a title/debug attribute', () => {
     const id = 'analysis-run-1234567890-abcdef';
     expect(shortResearchId(id)).toBe('analysis…abcdef');
@@ -138,6 +159,7 @@ describe('Review queue interaction and analysis context contract', () => {
 
   it('splits Case Analysis into browse and review subviews with browse as the default', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    const scopeSource = readFileSync(new URL('../../src/services/presentation/CaseAnalysisScopePresentation.ts', import.meta.url), 'utf8');
     expect(source).toMatch(/type CaseAnalysisSubview = 'browse' \| 'review'/);
     expect(source).toMatch(/useState<CaseAnalysisSubview>\('browse'\)/);
     expect(source).toMatch(/案例浏览/);
@@ -146,12 +168,14 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(source).toMatch(/activeSubview === 'browse'/);
     expect(source).toMatch(/activeSubview === 'review' && <div aria-label="Outcome Review Items"/);
     expect(source).toMatch(/activeSubview === 'browse' && <div className="flex flex-col lg:flex-row/);
-    expect(source).toMatch(/涉及案例：\{involvedReviewCaseCount\} 个/);
+    expect(source).toMatch(/createReviewQueueScopeLabel/);
+    expect(scopeSource).toMatch(/待复核项来自当前分析集/);
     expect(source).toMatch(/一篇案例可能包含多个待复核诉求/);
     expect(source).toMatch(/setActiveSubview\('browse'\)/);
     expect(source).toMatch(/setSelectedReviewItem\(item\)/);
-    expect(source).toMatch(/当前为案例浏览，可直接查看本地案例。选择一次分析后可查看待复核项。/);
-    expect(source).not.toMatch(/未选择分析运行；当前为案例库视图/);
+    expect(source).toMatch(/createCaseAnalysisScopeNotice/);
+    expect(source).toMatch(/createCaseListScopeLabel/);
+    expect(source).not.toMatch(/共 \$\{filteredRecords\.length\} 个案例/);
   });
 
   it('exposes UI-only review decision hints, status controls, persistence, and safe degradation', () => {
@@ -218,6 +242,14 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(appSource).toMatch(/<CaseAnalysisView initialAnalysisRunId=\{selectedAnalysisRunId\}/);
     expect(appSource).toMatch(/selectedAnalysisRunId=\{selectedAnalysisRunId\}/);
     expect(workspaceSource).toMatch(/不会自动选择最新记录/);
+  });
+
+  it('keeps the context bar user-facing while retaining compact debug identifiers', () => {
+    const contextSource = readFileSync(new URL('../../src/components/AnalysisContextBar.tsx', import.meta.url), 'utf8');
+    expect(contextSource).toMatch(/当前分析：\{researchModeLabel\(run\.mode\)\}/);
+    expect(contextSource).toMatch(/范围：本次分析集/);
+    expect(contextSource).toMatch(/AnalysisRun：\{shortResearchId\(run\.id\)\}/);
+    expect(contextSource).toMatch(/统计口径：\{scopeLabel\}/);
   });
 });
 

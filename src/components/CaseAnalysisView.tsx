@@ -24,6 +24,7 @@ import {
 } from '../services/outcome/OutcomeReviewQueue';
 import { ResearchAnalysisService, type ResearchAnalysisContext } from '../services/analysis/ResearchAnalysisService';
 import { AnalysisContextBar } from './AnalysisContextBar';
+import { createCaseAnalysisScopeNotice, createCaseListScopeLabel, createReviewQueueScopeLabel } from '../services/presentation/CaseAnalysisScopePresentation';
 
 const proceduralRoleLabels: Record<ProceduralRole, string> = {
   plaintiff: '原告',
@@ -148,6 +149,14 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         r.employeeParty?.toLowerCase().includes(lower)
     );
   }, [records, keyword]);
+  const hasAnalysisRun = Boolean(analysisContext?.analysisRun);
+  const hasCaseFilter = keyword.trim() !== '';
+  const caseListScopeLabel = createCaseListScopeLabel({
+    hasAnalysisRun,
+    totalCount: records.length,
+    visibleCount: filteredRecords.length,
+    isFiltered: hasCaseFilter,
+  });
 
   // Handle auto-selection when filtered list changes
   useEffect(() => {
@@ -273,9 +282,9 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
             qualityStatus={analysisContext.quality.status}
           />
         )}
-        {!analysisContext?.analysisRun && activeSubview === 'browse' && (
+        {activeSubview === 'browse' && (
           <div className="text-[11px] text-slate-500">
-            当前为案例浏览，可直接查看本地案例。选择一次分析后可查看待复核项。
+            {createCaseAnalysisScopeNotice(hasAnalysisRun)}
           </div>
         )}
       </div>
@@ -283,7 +292,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
       {activeSubview === 'review' && <div aria-label="Outcome Review Items" className="mx-4 mt-3 flex-1 min-h-0 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="font-bold">待复核项：{reviewQueue.length} 项｜涉及案例：{involvedReviewCaseCount} 个</div>
+            <div className="font-bold">{createReviewQueueScopeLabel(hasAnalysisRun, reviewQueue.length, involvedReviewCaseCount)}</div>
             <div className="mt-0.5 text-[11px] text-amber-800/80">一篇案例可能包含多个待复核诉求。</div>
             <div className="mt-0.5 text-[11px] text-amber-800/80">当前仅标记复核状态，不会修改分析结果或统计口径。</div>
             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-amber-800/90">
@@ -403,7 +412,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
             </div>
             
             <div className="text-xs text-slate-500 mt-3 flex justify-between items-center">
-              <span>{keyword.trim() !== '' ? `找到 ${filteredRecords.length} 个匹配案例` : `共 ${filteredRecords.length} 个案例`}</span>
+              <span>{caseListScopeLabel}</span>
               {keyword.trim() !== '' && (
                 <button onClick={clearSearch} className="text-indigo-600 hover:text-indigo-700 font-medium">清除搜索</button>
               )}
