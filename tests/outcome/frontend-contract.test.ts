@@ -8,6 +8,7 @@ import {
 import { createPipelineHealthPresentation } from '../../src/services/data/PipelineHealthPresentation';
 import type { DataPipelineHealthStats } from '../../src/services/data/LaborAnalysisPipeline';
 import { analysisRecord } from './helpers/record-factories';
+import { shortResearchId } from '../../src/services/research/AnalysisContextPresentation';
 
 const records = [
   analysisRecord('gz-2023-first', 'supported', { city: '广州', year: 2023, caseLevel: '一审' }),
@@ -114,6 +115,33 @@ describe('Data Management health presentation contract', () => {
       parseSuccessRate: 80,
       analysisAvailabilityRate: 75,
     });
+  });
+});
+
+describe('Review queue interaction and analysis context contract', () => {
+  it('keeps analysis identifiers compact while preserving the full value in a title/debug attribute', () => {
+    const id = 'analysis-run-1234567890-abcdef';
+    expect(shortResearchId(id)).toBe('analysis…abcdef');
+    const contextSource = readFileSync(new URL('../../src/components/AnalysisContextBar.tsx', import.meta.url), 'utf8');
+    expect(contextSource).toMatch(/title=\{run\.id\}/);
+    expect(contextSource).toMatch(/当前分析/);
+  });
+
+  it('makes review items actionable and exposes reason plus source placeholder', () => {
+    const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    expect(source).toMatch(/onClick=\{\(\) => handleReviewItemClick\(item\)\}/);
+    expect(source).toMatch(/暂无可定位原文片段/);
+    expect(source).toMatch(/复核原因筛选/);
+    expect(source).toMatch(/setSelectedCaseId\(item\.caseId\)/);
+  });
+
+  it('shows the same selected analysis context in workspace and case analysis without auto-latest fallback', () => {
+    const workspaceSource = readFileSync(new URL('../../src/components/ResearchWorkspace.tsx', import.meta.url), 'utf8');
+    const appSource = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
+    expect(workspaceSource).toMatch(/AnalysisContextBar/);
+    expect(appSource).toMatch(/<CaseAnalysisView initialAnalysisRunId=\{selectedAnalysisRunId\}/);
+    expect(appSource).toMatch(/selectedAnalysisRunId=\{selectedAnalysisRunId\}/);
+    expect(workspaceSource).toMatch(/不会自动选择最新记录/);
   });
 });
 

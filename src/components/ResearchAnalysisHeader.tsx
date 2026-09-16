@@ -4,6 +4,9 @@ import type {
   ResearchAnalysisContext,
   ResearchAnalyticsMetadata,
 } from '../services/analysis/ResearchAnalysisService';
+import { buildOutcomeReviewQueue } from '../services/outcome/OutcomeReviewQueue';
+import { AnalysisContextBar } from './AnalysisContextBar';
+import { researchModeLabel, researchStatusLabel, shortResearchId } from '../services/research/AnalysisContextPresentation';
 
 interface ResearchAnalysisHeaderProps {
   runs: AnalysisRun[];
@@ -27,6 +30,9 @@ export const ResearchAnalysisHeader: React.FC<ResearchAnalysisHeaderProps> = ({
   error,
 }) => {
   const quality = context?.quality;
+  const selectedRun = runs.find((run) => run.id === selectedAnalysisRunId) || null;
+  const currentRun = context?.analysisRun || selectedRun;
+  const reviewQueueCount = context ? buildOutcomeReviewQueue(context.records).length : undefined;
   const qualityClass = quality?.status === 'blocked'
     ? 'border-rose-200 bg-rose-50 text-rose-900'
     : quality?.status === 'warning'
@@ -44,7 +50,7 @@ export const ResearchAnalysisHeader: React.FC<ResearchAnalysisHeaderProps> = ({
           <option value="">请选择 AnalysisRun（不会自动选择最新记录）</option>
           {runs.map((run) => (
             <option key={run.id} value={run.id} disabled={run.status === 'failed'}>
-              {run.id} · {run.mode === 'exhaustive' ? '语料总体' : '样本'} · N={run.inputCaseCount} · {run.status}
+              {shortResearchId(run.id)} · {researchModeLabel(run.mode)} · N={run.inputCaseCount} · {researchStatusLabel(run.status)}
             </option>
           ))}
         </select>
@@ -64,29 +70,38 @@ export const ResearchAnalysisHeader: React.FC<ResearchAnalysisHeaderProps> = ({
       )}
       {error && <div className="text-xs rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">{error}</div>}
 
+      <AnalysisContextBar
+        run={currentRun}
+        snapshotId={context?.snapshot.id || currentRun?.snapshotId}
+        scopeLabel={context ? (context.statisticalScope === 'corpus' ? '语料总体' : '本次样本') : undefined}
+        reviewQueueCount={reviewQueueCount}
+        qualityStatus={quality?.status}
+        emptyLabel="未选择分析运行；不会自动选择最新记录"
+      />
+
       {context && (
         <div className={`rounded-xl border p-3 text-xs ${qualityClass}`}>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 font-mono">
-            <div>Mode: {context.analysisRun.mode}</div>
-            <div>Input N: {context.analysisRun.inputCaseCount}</div>
-            <div>Usable N: {quality?.metrics.includedCaseCount ?? 0}</div>
-            <div>Quality: {quality?.status.toUpperCase()}</div>
-            <div className="col-span-2 truncate" title={context.analysisRun.id}>AnalysisRun: {context.analysisRun.id}</div>
-            <div className="col-span-2 truncate" title={context.snapshot.id}>Snapshot: {context.snapshot.id}</div>
-            <div>Available: {quality?.metrics.availableRecordCount ?? 0}</div>
-            <div>Missing: {quality?.metrics.missingRecordCount ?? 0}</div>
-            <div className="col-span-2 truncate" title={context.analysisRun.provenanceHash}>Provenance: {context.analysisRun.provenanceHash}</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div>模式：{researchModeLabel(context.analysisRun.mode)}</div>
+            <div>输入：N={context.analysisRun.inputCaseCount}</div>
+            <div>可用：N={quality?.metrics.includedCaseCount ?? 0}</div>
+            <div>质量：{quality?.status === 'blocked' ? '阻断' : quality?.status === 'warning' ? '警告' : '通过'}</div>
+            <div className="col-span-2 truncate" title={context.analysisRun.id}>AnalysisRun：{shortResearchId(context.analysisRun.id)}</div>
+            <div className="col-span-2 truncate" title={context.snapshot.id}>研究范围：{shortResearchId(context.snapshot.id)}</div>
+            <div>已有记录：{quality?.metrics.availableRecordCount ?? 0}</div>
+            <div>缺失记录：{quality?.metrics.missingRecordCount ?? 0}</div>
+            <div className="col-span-2 truncate" title={context.analysisRun.provenanceHash}>Provenance（调试）：{shortResearchId(context.analysisRun.provenanceHash)}</div>
           </div>
           {metadata && (
             <div className="mt-2 pt-2 border-t border-current/20 space-y-1">
-              <div>{metadata.scopeStatement}；结果范围为 {metadata.statisticalScope}。</div>
+              <div>{metadata.scopeStatement}；结果范围为 {metadata.statisticalScope === 'corpus' ? '语料总体' : '本次样本'}。</div>
               <div>
-                Outcome 比例分母：known N={metadata.denominatorContract.knownOutcomeCount}；
-                排除 unclear N={metadata.denominatorContract.unknownOutcomeExcludedCount}。
+                结果比例分母：已知结果 N={metadata.denominatorContract.knownOutcomeCount}；
+                排除未确定 N={metadata.denominatorContract.unknownOutcomeExcludedCount}。
               </div>
               {metadata.sampling && (
                 <div>
-                  Sampling: {metadata.sampling.method} · seed={metadata.sampling.seed} · sample N={metadata.sampling.actualSampleSize}
+                  抽样：{metadata.sampling.method} · seed={metadata.sampling.seed} · 样本 N={metadata.sampling.actualSampleSize}
                   {metadata.sampling.allocationStrategy ? ` · ${metadata.sampling.allocationStrategy}` : ''}
                   {metadata.sampling.dimensions ? ` · dimensions=${metadata.sampling.dimensions.join(',')}` : ''}
                   {` · hash=${metadata.sampling.sampleHash}`}

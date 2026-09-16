@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { LaborInfoParserAdapter } from '../../src/services/parser/LaborInfoParserAdapter';
-import { buildOutcomeReviewQueue } from '../../src/services/outcome/OutcomeReviewQueue';
+import {
+  buildOutcomeReviewQueue,
+  filterOutcomeReviewQueue,
+  outcomeReviewSourceSnippet,
+} from '../../src/services/outcome/OutcomeReviewQueue';
 import type { LaborInfoClaimItem, PartyRecognitionResult } from '../../src/types';
 import { rawDocument } from './fixtures/outcome-fixtures';
 import { analysisRecord } from './helpers/record-factories';
@@ -158,5 +162,25 @@ describe('Outcome diagnostics and review queue contract', () => {
     expect(buildOutcomeReviewQueue([record])).toEqual([
       expect.objectContaining({ caseId: 'review-queue-case', title: 'review-queue-case（测试）', reasonCode: 'disposition_not_matched' }),
     ]);
+  });
+
+  it('filters the review queue without changing the underlying diagnostics', () => {
+    const record = analysisRecord('review-filter-case', 'unclear', {
+      outcomeDiagnostics: [
+        { target: 'employee', outcome: 'unclear', reasonCode: 'missing_claim_owner', needsReview: true, suggestedReviewType: 'manual_review' },
+        { target: 'employer', outcome: 'unclear', reasonCode: 'source_text_missing', needsReview: true, suggestedReviewType: 'rule_improvement' },
+      ],
+    });
+    const queue = buildOutcomeReviewQueue([record]);
+    expect(filterOutcomeReviewQueue(queue, 'needs_review', 'missing_claim_owner', 'manual_review')).toHaveLength(1);
+    expect(filterOutcomeReviewQueue(queue, 'all', 'source_text_missing', '')).toHaveLength(1);
+    expect(queue).toHaveLength(2);
+  });
+
+  it('provides a stable source snippet placeholder when diagnostics lack source text', () => {
+    const [item] = buildOutcomeReviewQueue([analysisRecord('review-source-case', 'unclear', {
+      outcomeDiagnostics: [{ target: 'employee', outcome: 'unclear', needsReview: true }],
+    })]);
+    expect(outcomeReviewSourceSnippet(item)).toBe('暂无可定位原文片段');
   });
 });

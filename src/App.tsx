@@ -136,7 +136,7 @@ export function App() {
           )}
 
           {currentTab === 'caseAnalysis' && (
-            <CaseAnalysisView />
+            <CaseAnalysisView initialAnalysisRunId={selectedAnalysisRunId} />
           )}
 
           {currentTab === 'caseResearch' && (
@@ -156,6 +156,7 @@ export function App() {
           {currentTab === 'researchWorkspace' && (
             <ResearchWorkspace
               initialSnapshotId={selectedSnapshotId}
+              selectedAnalysisRunId={selectedAnalysisRunId}
               onSnapshotSelect={setSelectedSnapshotId}
               onOpenLaborAnalytics={(analysisRunId) => {
                 setSelectedAnalysisRunId(analysisRunId);

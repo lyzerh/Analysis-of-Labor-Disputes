@@ -6,9 +6,11 @@ import { CURRENT_ANALYSIS_ENGINE_VERSIONS } from '../services/analysis/AnalysisE
 import type { CandidatePoolProgress } from '../services/dataset/CandidatePoolSnapshotService';
 import type { ResearchCasePreparationSummary } from '../services/analysis/ResearchCasePreparationService';
 import { REGION_OPTIONS, regionLabel } from '../services/research/RegionSelection';
+import { AnalysisContextBar } from './AnalysisContextBar';
 
 interface ResearchWorkspaceProps {
   initialSnapshotId?: string;
+  selectedAnalysisRunId?: string;
   onSnapshotSelect: (snapshotId: string) => void;
   onOpenLaborAnalytics: (analysisRunId: string) => void;
   onOpenDefenseAnalysis: (analysisRunId: string) => void;
@@ -27,7 +29,7 @@ function snapshotLabel(snapshot: WorkspaceSnapshot): string {
   return `${cities} · ${yearLabel} · N=${snapshot.candidateCount}`;
 }
 
-export const ResearchWorkspace: React.FC<ResearchWorkspaceProps> = ({ initialSnapshotId = '', onSnapshotSelect, onOpenLaborAnalytics, onOpenDefenseAnalysis, onOpenDataManagement }) => {
+export const ResearchWorkspace: React.FC<ResearchWorkspaceProps> = ({ initialSnapshotId = '', selectedAnalysisRunId = '', onSnapshotSelect, onOpenLaborAnalytics, onOpenDefenseAnalysis, onOpenDataManagement }) => {
   const [snapshots, setSnapshots] = useState<WorkspaceSnapshot[]>([]);
   const [analysisRuns, setAnalysisRuns] = useState<AnalysisRun[]>([]);
   const [samplingRuns, setSamplingRuns] = useState<SamplingRun[]>([]);
@@ -196,10 +198,17 @@ export const ResearchWorkspace: React.FC<ResearchWorkspaceProps> = ({ initialSna
   };
 
   const selectedRun = samplingRuns.find((run) => run.id === selectedSamplingRunId);
+  const selectedAnalysisRun = analysisRuns.find((run) => run.id === selectedAnalysisRunId) || null;
   const createDisabled = isCreating || !selectedSnapshot?.isSelectable || !mode || (mode === 'sampled' && samplingChoice === 'existing' && !selectedSamplingRunId);
 
   return <div className="min-h-full bg-slate-50 p-4 md:p-6 lg:p-8"><div className="max-w-7xl mx-auto space-y-6">
     <header className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><div className="flex items-center gap-2 text-blue-600 text-xs font-bold uppercase tracking-wider"><FlaskConical className="w-4 h-4" /> Research Workspace</div><h1 className="text-2xl font-bold text-slate-900 mt-1">研究工作区</h1><p className="text-sm text-slate-500 mt-1">管理可复现的研究总体、抽样方案与分析运行。</p></div><button onClick={() => void loadWorkspace()} disabled={isLoading} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-medium disabled:opacity-50"><RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> 刷新</button></header>
+    <AnalysisContextBar
+      run={selectedAnalysisRun}
+      snapshotId={selectedSnapshot?.id}
+      scopeLabel={selectedSnapshot ? snapshotLabel(selectedSnapshot) : undefined}
+      emptyLabel={selectedSnapshot ? '已选择研究范围，尚未选择分析运行' : '未选择研究范围或分析运行'}
+    />
     {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}{notice && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"><div className="px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3"><div><h2 className="font-semibold text-slate-900">研究总体</h2><p className="text-xs text-slate-500 mt-1">基于本地已入库案例创建固定研究范围，不会重新请求远程数据。</p><p className="text-xs text-slate-500 mt-1">当前本地案例：N={localRecordCount}</p></div><div className="flex flex-wrap gap-2"><button onClick={() => { setSnapshotSourceMode('local'); setShowSnapshotForm(true); }} disabled={localRecordCount === 0} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:opacity-40">创建研究总体</button><button onClick={() => { setSnapshotSourceMode('remote'); setShowSnapshotForm(true); }} className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium">从远程数据源构建总体（高级）</button></div></div>{localRecordCount === 0 && <div className="mx-5 mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">当前本地案例库为空，请先导入或准备案例。</div>}{showSnapshotForm && <div className="border-t border-slate-200 p-5 space-y-4">
       <div className={`rounded-lg border p-3 text-sm ${snapshotSourceMode === 'local' ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>{snapshotSourceMode === 'local' ? `本地模式：从当前已入库的 ${localRecordCount} 个分析案例筛选并持久化研究范围，不会访问网络。` : '高级远程模式：将重新查询 LaborInfo 并枚举所有符合条件的候选案件，可能耗时较长。'}</div>
