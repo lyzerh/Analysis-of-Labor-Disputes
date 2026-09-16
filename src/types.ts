@@ -872,6 +872,8 @@ export interface OutcomeResolutionDiagnostic {
 }
 
 export interface OutcomeReviewItem extends OutcomeResolutionDiagnostic {
+  /** Stable UI-only key for local review status; never part of research provenance. */
+  reviewItemId?: string;
   caseId: string;
   title: string;
   caseNumber: string | null;

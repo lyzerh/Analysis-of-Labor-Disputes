@@ -11,6 +11,15 @@ import {
   outcomeReviewReasonLabels,
   outcomeReviewEvidenceFields,
   outcomeReviewSuggestionLabels,
+  outcomeReviewSuggestionForDisplay,
+  outcomeReviewSuggestionHint,
+  outcomeReviewStatusLabels,
+  outcomeReviewUserStatus,
+  outcomeReviewItemId,
+  readOutcomeReviewStatusMap,
+  writeOutcomeReviewStatusMap,
+  type OutcomeReviewStatusMap,
+  type OutcomeReviewUserStatus,
   type OutcomeReviewStatusFilter,
 } from '../services/outcome/OutcomeReviewQueue';
 import { ResearchAnalysisService, type ResearchAnalysisContext } from '../services/analysis/ResearchAnalysisService';
@@ -78,6 +87,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
   const [reviewReasonFilter, setReviewReasonFilter] = useState('');
   const [reviewSuggestionFilter, setReviewSuggestionFilter] = useState('');
   const [selectedReviewItem, setSelectedReviewItem] = useState<ReturnType<typeof buildOutcomeReviewQueue>[number] | null>(null);
+  const [reviewStatuses, setReviewStatuses] = useState<OutcomeReviewStatusMap>(() => readOutcomeReviewStatusMap());
 
   // ② 所有 effect
   useEffect(() => {
@@ -175,25 +185,46 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
     () => new Set(reviewQueue.map((item) => item.caseId)).size,
     [reviewQueue],
   );
+  const reviewStatusCounts = useMemo(() => reviewQueue.reduce<Record<OutcomeReviewUserStatus, number>>((counts, item) => {
+    const status = outcomeReviewUserStatus(item, reviewStatuses);
+    counts[status] += 1;
+    return counts;
+  }, {
+    unseen: 0,
+    viewed: 0,
+    llm_candidate: 0,
+    manual_review: 0,
+    rule_improvement: 0,
+    deferred: 0,
+  }), [reviewQueue, reviewStatuses]);
   const selectedDiagnostics = selectedCase?.outcomeDiagnostics || [];
   const outcomeDiagnostic = (target: OutcomeResolutionDiagnostic['target']) => selectedDiagnostics.find((item) => item.target === target);
   const filteredReviewQueue = useMemo(
-    () => filterOutcomeReviewQueue(reviewQueue, reviewStatusFilter, reviewReasonFilter as any, reviewSuggestionFilter as any),
-    [reviewQueue, reviewReasonFilter, reviewStatusFilter, reviewSuggestionFilter],
+    () => filterOutcomeReviewQueue(reviewQueue, reviewStatusFilter, reviewReasonFilter as any, reviewSuggestionFilter as any, reviewStatuses),
+    [reviewQueue, reviewReasonFilter, reviewStatusFilter, reviewSuggestionFilter, reviewStatuses],
   );
   const reviewReasonOptions = useMemo(
     () => [...new Set(reviewQueue.map((item) => item.reasonCode).filter(Boolean))] as string[],
     [reviewQueue],
   );
   const reviewSuggestionOptions = useMemo(
-    () => [...new Set(reviewQueue.map((item) => item.suggestedReviewType).filter(Boolean))] as string[],
+    () => [...new Set(reviewQueue.map((item) => outcomeReviewSuggestionForDisplay(item)).filter(Boolean))] as string[],
     [reviewQueue],
   );
+
+  const updateReviewStatus = (item: ReturnType<typeof buildOutcomeReviewQueue>[number], status: OutcomeReviewUserStatus) => {
+    setReviewStatuses((current) => {
+      const next = { ...current, [outcomeReviewItemId(item)]: status };
+      writeOutcomeReviewStatusMap(next);
+      return next;
+    });
+  };
 
   const handleReviewItemClick = (item: ReturnType<typeof buildOutcomeReviewQueue>[number]) => {
     setKeyword('');
     setSelectedCaseId(item.caseId);
     setSelectedReviewItem(item);
+    updateReviewStatus(item, 'viewed');
     setActiveSubview('browse');
   };
 
@@ -255,11 +286,24 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
           <div>
             <div className="font-bold">待复核项：{reviewQueue.length} 项｜涉及案例：{involvedReviewCaseCount} 个</div>
             <div className="mt-0.5 text-[11px] text-amber-800/80">一篇案例可能包含多个待复核诉求。</div>
+            <div className="mt-0.5 text-[11px] text-amber-800/80">当前仅标记复核状态，不会修改分析结果或统计口径。</div>
+            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-amber-800/90">
+              <span>未查看：{reviewStatusCounts.unseen}</span>
+              <span>LLM候选：{reviewStatusCounts.llm_candidate}</span>
+              <span>人工复核：{reviewStatusCounts.manual_review}</span>
+              <span>规则改进：{reviewStatusCounts.rule_improvement}</span>
+            </div>
           </div>
           <div className="flex flex-wrap gap-1.5 text-[11px]">
             <select aria-label="复核状态筛选" value={reviewStatusFilter} onChange={(event) => setReviewStatusFilter(event.target.value as OutcomeReviewStatusFilter)} className="rounded border border-amber-300 bg-white px-2 py-1">
               <option value="all">全部</option>
               <option value="needs_review">待复核</option>
+              <option value="unseen">未查看</option>
+              <option value="viewed">已查看</option>
+              <option value="llm_candidate">LLM候选</option>
+              <option value="manual_review">人工复核</option>
+              <option value="rule_improvement">规则改进</option>
+              <option value="deferred">暂缓</option>
             </select>
             <select aria-label="复核原因筛选" value={reviewReasonFilter} onChange={(event) => setReviewReasonFilter(event.target.value)} className="rounded border border-amber-300 bg-white px-2 py-1">
               <option value="">所有原因</option>
@@ -276,21 +320,46 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         ) : (
           <div className="mt-2 space-y-1.5 max-h-[calc(100vh-19rem)] overflow-y-auto">
             {filteredReviewQueue.length === 0 ? <div className="text-amber-800">当前筛选条件没有待复核项。</div> : filteredReviewQueue.map((item, index) => (
-              <button
-                type="button"
+              <div
                 key={`${item.caseId}-${item.claimId || item.target || 'outcome'}-${index}`}
-                onClick={() => handleReviewItemClick(item)}
-                className="w-full text-left rounded-lg border border-amber-200/70 bg-white/60 px-2 py-1.5 hover:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="rounded-lg border border-amber-200/70 bg-white/60 px-2 py-1.5 hover:bg-white"
               >
-                <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                  <span className="font-medium">{item.title || item.caseNumber || item.caseId}</span>
-                  <span>{item.claimType || item.target || '结果'}</span>
-                  <span>无法确定：{item.reasonMessage || (item.reasonCode && outcomeReviewReasonLabels[item.reasonCode]) || '待复核'}</span>
-                  {item.reasonCode && <span className="text-amber-700/70">（{item.reasonCode}）</span>}
-                  {item.suggestedReviewType && <span className="text-amber-700">[{outcomeReviewSuggestionLabels[item.suggestedReviewType]}]</span>}
+                <button
+                  type="button"
+                  onClick={() => handleReviewItemClick(item)}
+                  className="w-full text-left rounded focus:outline-none focus:ring-2 focus:ring-amber-400"
+                >
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="font-medium">{item.title || item.caseNumber || item.caseId}</span>
+                    <span>{item.claimType || item.target || '结果'}</span>
+                    <span>当前结果：{getOutcomePresentation(item.outcome).label}</span>
+                    <span>无法确定：{item.reasonMessage || (item.reasonCode && outcomeReviewReasonLabels[item.reasonCode]) || '待复核'}</span>
+                    {item.reasonCode && <span className="text-amber-700/70">（{item.reasonCode}）</span>}
+                    {outcomeReviewSuggestionForDisplay(item) && <span className="text-amber-700">[{outcomeReviewSuggestionLabels[outcomeReviewSuggestionForDisplay(item)!]}]</span>}
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">{outcomeReviewStatusLabels[outcomeReviewUserStatus(item, reviewStatuses)]}</span>
+                  </div>
+                  {outcomeReviewSuggestionHint(item) && <div className="mt-0.5 text-[11px] text-indigo-700">{outcomeReviewSuggestionHint(item)}</div>}
+                  <OutcomeEvidenceFields item={item} compact />
+                </button>
+                <div className="mt-1 flex flex-wrap gap-1" aria-label="复核状态操作">
+                  {([
+                    ['viewed', '已查看'],
+                    ['llm_candidate', '加入 LLM 复核候选'],
+                    ['manual_review', '标记人工复核'],
+                    ['rule_improvement', '标记规则改进'],
+                    ['deferred', '暂缓处理'],
+                  ] as const).map(([status, label]) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => updateReviewStatus(item, status)}
+                      className={`rounded border px-1.5 py-0.5 text-[10px] ${outcomeReviewUserStatus(item, reviewStatuses) === status ? 'border-amber-500 bg-amber-100 text-amber-900' : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-50'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
-                <OutcomeEvidenceFields item={item} compact />
-              </button>
+              </div>
             ))}
           </div>
         )}
@@ -300,6 +369,8 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         <div className="mx-4 mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-950">
           <div className="font-semibold">已定位到当前案例的待复核项</div>
           <div className="mt-1">原因：{selectedReviewItem.reasonMessage || (selectedReviewItem.reasonCode && outcomeReviewReasonLabels[selectedReviewItem.reasonCode]) || '待复核'} {selectedReviewItem.reasonCode && <span className="text-indigo-700/70">（{selectedReviewItem.reasonCode}）</span>}</div>
+          <div className="mt-1">状态：{outcomeReviewStatusLabels[outcomeReviewUserStatus(selectedReviewItem, reviewStatuses)]}</div>
+          {outcomeReviewSuggestionHint(selectedReviewItem) && <div className="mt-1">处理建议：{outcomeReviewSuggestionHint(selectedReviewItem)}</div>}
           <OutcomeEvidenceFields item={selectedReviewItem} />
         </div>
       )}

@@ -154,6 +154,29 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(source).not.toMatch(/未选择分析运行；当前为案例库视图/);
   });
 
+  it('exposes UI-only review decision hints, status controls, persistence, and safe degradation', () => {
+    const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    const queueSource = readFileSync(new URL('../../src/services/outcome/OutcomeReviewQueue.ts', import.meta.url), 'utf8');
+    expect(source).toMatch(/当前仅标记复核状态，不会修改分析结果或统计口径/);
+    expect(source).toMatch(/updateReviewStatus\(item, 'viewed'\)/);
+    expect(source).toMatch(/加入 LLM 复核候选/);
+    expect(source).toMatch(/标记人工复核/);
+    expect(source).toMatch(/标记规则改进/);
+    expect(source).toMatch(/暂缓处理/);
+    expect(source).toMatch(/当前结果：\{getOutcomePresentation\(item\.outcome\)\.label\}/);
+    expect(source).toMatch(/未查看：\{reviewStatusCounts\.unseen\}/);
+    expect(source).toMatch(/LLM候选：\{reviewStatusCounts\.llm_candidate\}/);
+    expect(source).toMatch(/manual_review/);
+    expect(source).toMatch(/rule_improvement/);
+    expect(queueSource).toMatch(/labor-analysis-review-status-v1/);
+    expect(queueSource).toMatch(/readOutcomeReviewStatusMap/);
+    expect(queueSource).toMatch(/catch \{/);
+    expect(queueSource).toMatch(/可加入 LLM 复核候选/);
+    expect(queueSource).toMatch(/建议完善规则库/);
+    expect(queueSource).toMatch(/建议规则库改进/);
+    expect(queueSource).toMatch(/建议人工判断/);
+  });
+
   it('shows the same selected analysis context in workspace and case analysis without auto-latest fallback', () => {
     const workspaceSource = readFileSync(new URL('../../src/components/ResearchWorkspace.tsx', import.meta.url), 'utf8');
     const appSource = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');

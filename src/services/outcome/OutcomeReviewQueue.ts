@@ -6,7 +6,27 @@ import type {
   OutcomeUnclearReasonCode,
 } from '../../types';
 
-export type OutcomeReviewStatusFilter = 'all' | 'needs_review';
+export type OutcomeReviewUserStatus =
+  | 'unseen'
+  | 'viewed'
+  | 'llm_candidate'
+  | 'manual_review'
+  | 'rule_improvement'
+  | 'deferred';
+
+export type OutcomeReviewStatusFilter = 'all' | 'needs_review' | OutcomeReviewUserStatus;
+export type OutcomeReviewStatusMap = Record<string, OutcomeReviewUserStatus>;
+
+export const outcomeReviewStatusStorageKey = 'labor-analysis-review-status-v1';
+
+export const outcomeReviewStatusLabels: Record<OutcomeReviewUserStatus, string> = {
+  unseen: '未查看',
+  viewed: '已查看',
+  llm_candidate: 'LLM候选',
+  manual_review: '人工复核',
+  rule_improvement: '规则改进',
+  deferred: '暂缓',
+};
 
 export const outcomeReviewReasonLabels: Record<OutcomeUnclearReasonCode, string> = {
   missing_party_roles: '缺少程序身份',
@@ -26,10 +46,80 @@ export const outcomeReviewReasonLabels: Record<OutcomeUnclearReasonCode, string>
 };
 
 export const outcomeReviewSuggestionLabels: Record<OutcomeReviewSuggestion, string> = {
-  rule_improvement: '规则改进',
-  llm_semantic_normalization: '语义归一化',
-  manual_review: '人工复核',
+  rule_improvement: '建议规则库改进',
+  llm_semantic_normalization: '适合 LLM 语义复核',
+  manual_review: '建议人工复核',
 };
+
+export const outcomeReviewSuggestionHints: Record<OutcomeReviewSuggestion, string> = {
+  rule_improvement: '建议完善规则库',
+  llm_semantic_normalization: '可加入 LLM 复核候选',
+  manual_review: '建议人工判断',
+};
+
+const inferredSuggestionByReason: Record<OutcomeUnclearReasonCode, OutcomeReviewSuggestion> = {
+  unsupported_claim_type: 'llm_semantic_normalization',
+  disposition_not_matched: 'llm_semantic_normalization',
+  low_confidence: 'llm_semantic_normalization',
+  amount_conflict: 'manual_review',
+  ambiguous_multiple_claims: 'manual_review',
+  missing_party_roles: 'manual_review',
+  missing_labor_role: 'manual_review',
+  missing_claim_owner: 'manual_review',
+  payment_beneficiary_unclear: 'manual_review',
+  rejection_owner_unclear: 'manual_review',
+  appeal_inheritance_unclear: 'manual_review',
+  missing_disposition_text: 'manual_review',
+  source_text_missing: 'manual_review',
+  unknown: 'manual_review',
+};
+
+export function outcomeReviewSuggestionForDisplay(item: Pick<OutcomeReviewItem, 'suggestedReviewType' | 'reasonCode'>): OutcomeReviewSuggestion | undefined {
+  return item.suggestedReviewType || (item.reasonCode ? inferredSuggestionByReason[item.reasonCode] : undefined);
+}
+
+export function outcomeReviewSuggestionHint(item: Pick<OutcomeReviewItem, 'suggestedReviewType' | 'reasonCode'>): string | undefined {
+  const suggestion = outcomeReviewSuggestionForDisplay(item);
+  return suggestion ? outcomeReviewSuggestionHints[suggestion] : undefined;
+}
+
+export function outcomeReviewItemId(item: Pick<OutcomeReviewItem, 'reviewItemId' | 'caseId' | 'claimId' | 'target' | 'claimType' | 'reasonCode'>): string {
+  return item.reviewItemId || [item.caseId, item.claimId || item.target || 'outcome', item.claimType || '', item.reasonCode || 'unknown'].join('::');
+}
+
+function defaultReviewStorage(): Storage | undefined {
+  try {
+    return typeof globalThis !== 'undefined' ? globalThis.localStorage : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function readOutcomeReviewStatusMap(storage: Storage | undefined = defaultReviewStorage()): OutcomeReviewStatusMap {
+  if (!storage) return {};
+  try {
+    const parsed: unknown = JSON.parse(storage.getItem(outcomeReviewStatusStorageKey) || '{}');
+    if (!parsed || typeof parsed !== 'object') return {};
+    return Object.fromEntries(Object.entries(parsed).filter(([, value]) => (
+      typeof value === 'string' && Object.prototype.hasOwnProperty.call(outcomeReviewStatusLabels, value)
+    ))) as OutcomeReviewStatusMap;
+  } catch {
+    return {};
+  }
+}
+
+export function writeOutcomeReviewStatusMap(statuses: OutcomeReviewStatusMap, storage: Storage | undefined = defaultReviewStorage()): void {
+  if (!storage) return;
+  try {
+    storage.setItem(outcomeReviewStatusStorageKey, JSON.stringify(statuses));
+  } catch {
+    // UI-only state must degrade safely when storage is blocked or full.
+  }
+}
+
+export function outcomeReviewUserStatus(item: OutcomeReviewItem, statuses: OutcomeReviewStatusMap): OutcomeReviewUserStatus {
+  return statuses[outcomeReviewItemId(item)] || 'unseen';
+}
 
 export type OutcomeReviewEvidenceKey = keyof OutcomeDiagnosticEvidence;
 
@@ -114,7 +204,7 @@ export function outcomeReviewEvidenceFields(item: OutcomeReviewItem): OutcomeRev
   switch (item.reasonCode) {
     case 'payment_beneficiary_unclear':
     case 'rejection_owner_unclear':
-      return [field('claimText', !!evidence.claimText), field('dispositionText', true), diagnostic]
+      return [field('claimText', true), field('dispositionText', true), diagnostic]
         .filter((entry) => entry.text || entry.placeholder);
     case 'disposition_not_matched':
       {
@@ -156,11 +246,14 @@ export function filterOutcomeReviewQueue(
   status: OutcomeReviewStatusFilter = 'all',
   reasonCode: OutcomeUnclearReasonCode | '' = '',
   suggestedReviewType: OutcomeReviewSuggestion | '' = '',
+  userStatuses: OutcomeReviewStatusMap = {},
 ): OutcomeReviewItem[] {
   return items.filter((item) => (
-    (status === 'all' || item.needsReview)
+    (status === 'all'
+      || (status === 'needs_review' && item.needsReview)
+      || (status !== 'needs_review' && outcomeReviewUserStatus(item, userStatuses) === status))
     && (!reasonCode || item.reasonCode === reasonCode)
-    && (!suggestedReviewType || item.suggestedReviewType === suggestedReviewType)
+    && (!suggestedReviewType || outcomeReviewSuggestionForDisplay(item) === suggestedReviewType)
   ));
 }
 
@@ -171,8 +264,9 @@ export function filterOutcomeReviewQueue(
 export function buildOutcomeReviewQueue(records: AnalysisCaseRecord[]): OutcomeReviewItem[] {
   return records.flatMap((record) => (record.outcomeDiagnostics || [])
     .filter((diagnostic) => diagnostic.needsReview)
-    .map((diagnostic) => ({
+    .map((diagnostic, index) => ({
       ...diagnostic,
+      reviewItemId: `${record.caseId}::${diagnostic.claimId || diagnostic.target || 'outcome'}::${diagnostic.claimType || ''}::${diagnostic.reasonCode || 'unknown'}::${index}`,
       caseId: record.caseId,
       title: record.title,
       caseNumber: record.caseNumber,

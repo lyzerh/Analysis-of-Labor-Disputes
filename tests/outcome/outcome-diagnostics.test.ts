@@ -3,8 +3,13 @@ import { LaborInfoParserAdapter } from '../../src/services/parser/LaborInfoParse
 import {
   buildOutcomeReviewQueue,
   filterOutcomeReviewQueue,
+  outcomeReviewItemId,
   outcomeReviewEvidenceFields,
   outcomeReviewSourceSnippet,
+  outcomeReviewSuggestionForDisplay,
+  outcomeReviewUserStatus,
+  readOutcomeReviewStatusMap,
+  writeOutcomeReviewStatusMap,
 } from '../../src/services/outcome/OutcomeReviewQueue';
 import type { LaborInfoClaimItem, PartyRecognitionResult } from '../../src/types';
 import { rawDocument } from './fixtures/outcome-fixtures';
@@ -98,6 +103,18 @@ describe('Outcome diagnostics and review queue contract', () => {
     })])[0];
     expect(outcomeReviewEvidenceFields(item)).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: '诉求片段', text: '原告请求支付工资。' }),
+      expect.objectContaining({ label: '裁判主文片段', placeholder: '暂无可定位裁判主文片段' }),
+    ]));
+  });
+
+  it('shows a safe claim placeholder when payment evidence has no request text', () => {
+    const item = buildOutcomeReviewQueue([analysisRecord('payment-claim-placeholder', 'unclear', {
+      outcomeDiagnostics: [{
+        target: 'employee', outcome: 'unclear', reasonCode: 'payment_beneficiary_unclear', needsReview: true,
+      }],
+    })])[0];
+    expect(outcomeReviewEvidenceFields(item)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '诉求片段', placeholder: '暂无可定位诉求片段' }),
       expect.objectContaining({ label: '裁判主文片段', placeholder: '暂无可定位裁判主文片段' }),
     ]));
   });
@@ -266,6 +283,44 @@ describe('Outcome diagnostics and review queue contract', () => {
     expect(filterOutcomeReviewQueue(queue, 'needs_review', 'missing_claim_owner', 'manual_review')).toHaveLength(1);
     expect(filterOutcomeReviewQueue(queue, 'all', 'source_text_missing', '')).toHaveLength(1);
     expect(queue).toHaveLength(2);
+  });
+
+  it('defaults UI review state to unseen and filters every local status', () => {
+    const queue = buildOutcomeReviewQueue([analysisRecord('review-status-case', 'unclear', {
+      outcomeDiagnostics: [
+        { target: 'employee', outcome: 'unclear', reasonCode: 'missing_claim_owner', needsReview: true },
+        { target: 'employer', outcome: 'unclear', reasonCode: 'amount_conflict', needsReview: true },
+      ],
+    })]);
+    const statuses = { [outcomeReviewItemId(queue[0])]: 'llm_candidate' as const };
+    expect(outcomeReviewUserStatus(queue[0], {})).toBe('unseen');
+    expect(filterOutcomeReviewQueue(queue, 'unseen', '', '', statuses)).toHaveLength(1);
+    expect(filterOutcomeReviewQueue(queue, 'llm_candidate', '', '', statuses)).toHaveLength(1);
+    expect(filterOutcomeReviewQueue(queue, 'manual_review', '', '', statuses)).toHaveLength(0);
+  });
+
+  it('persists UI-only review statuses and degrades safely when storage is unavailable', () => {
+    let value: string | null = null;
+    const storage = {
+      getItem: () => value,
+      setItem: (_key: string, next: string) => { value = next; },
+    } as unknown as Storage;
+    const statuses = { 'review-status-case::claim_1::overtime_pay::low_confidence::0': 'manual_review' as const };
+    writeOutcomeReviewStatusMap(statuses, storage);
+    expect(readOutcomeReviewStatusMap(storage)).toEqual(statuses);
+
+    const unavailable = {
+      getItem: () => { throw new Error('blocked'); },
+      setItem: () => { throw new Error('blocked'); },
+    } as unknown as Storage;
+    expect(readOutcomeReviewStatusMap(unavailable)).toEqual({});
+    expect(() => writeOutcomeReviewStatusMap(statuses, unavailable)).not.toThrow();
+  });
+
+  it('keeps decision hints display-only and conservative when diagnostics omit a suggestion', () => {
+    expect(outcomeReviewSuggestionForDisplay({ reasonCode: 'unsupported_claim_type' })).toBe('llm_semantic_normalization');
+    expect(outcomeReviewSuggestionForDisplay({ reasonCode: 'amount_conflict' })).toBe('manual_review');
+    expect(outcomeReviewSuggestionForDisplay({ reasonCode: 'missing_party_roles' })).toBe('manual_review');
   });
 
   it('does not mutate analysis provenance while deriving typed review evidence', () => {
