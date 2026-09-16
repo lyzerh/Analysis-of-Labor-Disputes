@@ -61,15 +61,23 @@ const researchAnalysisService = new ResearchAnalysisService();
 const OutcomeEvidenceFields: React.FC<{
   item: ReturnType<typeof buildOutcomeReviewQueue>[number];
   compact?: boolean;
-}> = ({ item, compact = false }) => {
+  expanded?: boolean;
+}> = ({ item, compact = false, expanded = false }) => {
   const fields = outcomeReviewEvidenceFields(item);
   if (fields.length === 0) return null;
+  const coreEvidenceKeys = new Set(['claimText', 'dispositionText', 'diagnosticText']);
+  const visibleFields = compact && !expanded
+    ? [
+      ...fields.filter((field) => coreEvidenceKeys.has(field.key)),
+      ...fields.filter((field) => !coreEvidenceKeys.has(field.key)),
+    ].slice(0, 3)
+    : fields;
   return (
-    <div className={compact ? 'mt-1 grid gap-0.5 text-[10px] text-slate-600 sm:grid-cols-3' : 'mt-1 space-y-1 break-words'}>
-      {fields.map((field) => (
+    <div className={compact ? 'mt-2 grid gap-1 text-[11px] text-slate-700 lg:grid-cols-3' : 'mt-1 space-y-1 break-words'}>
+      {visibleFields.map((field) => (
         <div key={field.key} className={compact ? 'min-w-0 rounded border border-slate-200/80 bg-slate-50/70 px-1 py-0.5' : undefined} title={field.text || field.placeholder}>
           <span className="block font-medium text-slate-700">{field.label}</span>
-          <span className={compact ? 'mt-0.5 block max-h-7 overflow-hidden break-words leading-3 line-clamp-2' : undefined}>{field.text || field.placeholder}</span>
+          <span className={compact ? 'mt-0.5 block max-h-16 overflow-hidden break-words leading-4 line-clamp-4' : undefined}>{field.text || field.placeholder}</span>
         </div>
       ))}
     </div>
@@ -91,6 +99,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
   const [reviewSuggestionFilter, setReviewSuggestionFilter] = useState('');
   const [selectedReviewItem, setSelectedReviewItem] = useState<ReturnType<typeof buildOutcomeReviewQueue>[number] | null>(null);
   const [reviewStatuses, setReviewStatuses] = useState<OutcomeReviewStatusMap>(() => readOutcomeReviewStatusMap());
+  const [expandedReviewItems, setExpandedReviewItems] = useState<Record<string, boolean>>({});
 
   // ② 所有 effect
   useEffect(() => {
@@ -237,6 +246,13 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
     });
   };
 
+  const toggleReviewItemExpanded = (item: ReturnType<typeof buildOutcomeReviewQueue>[number]) => {
+    setExpandedReviewItems((current) => ({
+      ...current,
+      [item.reviewItemId]: !current[item.reviewItemId],
+    }));
+  };
+
   const handleReviewItemClick = (item: ReturnType<typeof buildOutcomeReviewQueue>[number]) => {
     setKeyword('');
     setSelectedCaseId(item.caseId);
@@ -337,32 +353,45 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         ) : (
           <div className="mt-1 min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1">
             {filteredReviewQueue.length === 0 ? <div className="text-amber-800">当前筛选条件没有待复核项。</div> : (
-              <div className="grid gap-2 lg:grid-cols-2" aria-label="待复核卡片列表">
+              <div className="grid gap-3 2xl:grid-cols-2" aria-label="待复核卡片列表">
                 {filteredReviewQueue.map((item, index) => (
-                  <div
-                    key={`${item.caseId}-${item.claimId || item.target || 'outcome'}-${index}`}
-                    className="grid min-w-0 gap-1 rounded-lg border border-amber-200/70 bg-white/70 p-1.5 hover:bg-white md:grid-cols-[minmax(0,1fr)_minmax(9rem,10rem)]"
-                  >
+                  <div key={`${item.caseId}-${item.claimId || item.target || 'outcome'}-${index}`} className="min-w-0 rounded-lg border border-amber-200/70 bg-white/70 p-2.5 hover:bg-white">
+                    {(() => {
+                      const expanded = Boolean(expandedReviewItems[item.reviewItemId]);
+                      const evidenceFields = outcomeReviewEvidenceFields(item);
+                      return (
+                        <>
                     <button
                       type="button"
                       onClick={() => handleReviewItemClick(item)}
-                      className="min-w-0 rounded text-left focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      className="block w-full min-w-0 rounded text-left focus:outline-none focus:ring-2 focus:ring-amber-400"
                     >
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px]">
-                        <span className="min-w-0 max-w-full truncate font-medium text-slate-900" title={item.title || item.caseNumber || item.caseId}>{item.title || item.caseNumber || item.caseId}</span>
-                        <span className="text-slate-700">{item.claimType || item.target || '结果'}</span>
-                        <span className="text-slate-700">当前结果：{getOutcomePresentation(item.outcome).label}</span>
-                        <span className="text-amber-800">{item.reasonMessage || (item.reasonCode && outcomeReviewReasonLabels[item.reasonCode]) || '待复核'}</span>
-                        {item.reasonCode && <span className="text-[10px] text-amber-700/70">（{item.reasonCode}）</span>}
+                      <div className="line-clamp-2 text-sm font-semibold leading-5 text-slate-900" title={item.title || item.caseNumber || item.caseId}>{item.title || item.caseNumber || item.caseId}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-700">
+                        <span>{item.claimType || item.target || '结果'}</span>
+                        <span>｜当前结果：{getOutcomePresentation(item.outcome).label}</span>
+                        <span className="min-w-0 max-w-full line-clamp-2">｜原因：{item.reasonMessage || (item.reasonCode && outcomeReviewReasonLabels[item.reasonCode]) || '待复核'}</span>
                       </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-slate-600">
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-600">
                         {outcomeReviewSuggestionForDisplay(item) && <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700">建议：{outcomeReviewSuggestionLabels[outcomeReviewSuggestionForDisplay(item)!]}</span>}
                         <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">状态：{outcomeReviewStatusLabels[outcomeReviewUserStatus(item, reviewStatuses)]}</span>
-                        {outcomeReviewSuggestionHint(item) && <span className="text-indigo-700">{outcomeReviewSuggestionHint(item)}</span>}
+                        {outcomeReviewSuggestionHint(item) && <span className="max-w-full line-clamp-2 text-indigo-700">{outcomeReviewSuggestionHint(item)}</span>}
                       </div>
-                      <OutcomeEvidenceFields item={item} compact />
                     </button>
-                    <div className="grid content-start grid-cols-2 gap-0.5 border-t border-slate-200 pt-1 md:border-l md:border-t-0 md:pl-1 md:pt-0" aria-label="复核状态操作">
+                    <OutcomeEvidenceFields item={item} compact expanded={expanded} />
+                    <div className="mt-1 text-[11px] text-indigo-700">
+                      <button type="button" aria-expanded={expanded} onClick={() => toggleReviewItemExpanded(item)} className="rounded px-1 py-0.5 hover:bg-indigo-50">
+                        {expanded ? '收起详情' : '展开详情'}
+                      </button>
+                    </div>
+                    {expanded && (
+                      <div className="mt-1 rounded border border-indigo-100 bg-indigo-50/50 px-2 py-1 text-[11px] text-indigo-900">
+                        {item.reasonCode && <div>技术原因：{item.reasonCode}</div>}
+                        {item.reasonMessage && <div className="mt-0.5">完整原因：{item.reasonMessage}</div>}
+                        {evidenceFields.length === 0 && <div>暂无更多诊断证据片段。</div>}
+                      </div>
+                    )}
+                    <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-slate-200 pt-1.5" aria-label="复核状态操作">
                       {([
                         ['viewed', '已查看', '已查看'],
                         ['llm_candidate', '加入 LLM 复核候选', 'LLM候选'],
@@ -382,6 +411,9 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                         </button>
                       ))}
                     </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
