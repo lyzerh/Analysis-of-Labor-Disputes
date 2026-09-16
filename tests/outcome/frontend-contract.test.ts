@@ -174,14 +174,30 @@ describe('Review queue interaction and analysis context contract', () => {
   it('keeps the review queue vertically scrollable without clipping its two-column cards', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     const appSource = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
-    expect(source).toMatch(/aria-label="Outcome Review Items" className="mx-4 mt-3 flex flex-1 min-h-0 flex-col overflow-hidden/);
-    expect(source).toMatch(/className="mt-2 min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1"/);
+    expect(source).toMatch(/className="flex h-full min-h-0 flex-col overflow-hidden/);
+    expect(source).toMatch(/aria-label="Outcome Review Items" className="mx-4 mt-3 flex min-h-0 flex-1 flex-col overflow-hidden/);
+    expect(source).toMatch(/className="mt-1 min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1"/);
     expect(source).toMatch(/aria-label="待复核卡片列表"/);
     expect(source).toMatch(/lg:grid-cols-2/);
+    expect(source).toMatch(/sm:grid-cols-3/);
     expect(source).toMatch(/outcomeReviewEvidenceFields/);
     expect(source).toMatch(/aria-label="复核状态操作"/);
+    expect(source).toMatch(/LLM候选/);
+    expect(source).toMatch(/aria-label={label}/);
     expect(appSource).toMatch(/flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden/);
     expect(appSource).toMatch(/<main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden select-text">/);
+  });
+
+  it('keeps the review header and coverage audit compact while retaining scope warnings', () => {
+    const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    const auditSource = readFileSync(new URL('../../src/components/OutcomeCoverageAuditPanel.tsx', import.meta.url), 'utf8');
+    expect(source).toMatch(/一篇案例可能包含多个待复核诉求/);
+    expect(source).toMatch(/当前仅标记复核状态，不会修改分析结果或统计口径/);
+    expect(source).toMatch(/flex flex-wrap items-center gap-x-3/);
+    expect(auditSource).toMatch(/结果覆盖率审计/);
+    expect(auditSource).toMatch(/总诉求：{audit\.totalClaims}/);
+    expect(auditSource).toMatch(/md:grid-cols-3/);
+    expect(auditSource).toMatch(/text-\[9px\]/);
   });
 
   it('splits Case Analysis into browse and review subviews with browse as the default', () => {
