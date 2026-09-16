@@ -65,11 +65,11 @@ const OutcomeEvidenceFields: React.FC<{
   const fields = outcomeReviewEvidenceFields(item);
   if (fields.length === 0) return null;
   return (
-    <div className={compact ? 'mt-0.5 space-y-0.5 text-[11px] text-slate-600' : 'mt-1 space-y-1 break-words'}>
+    <div className={compact ? 'mt-1 grid gap-1 text-[11px] text-slate-600 sm:grid-cols-2' : 'mt-1 space-y-1 break-words'}>
       {fields.map((field) => (
-        <div key={field.key} className={compact ? 'truncate' : undefined} title={field.text || field.placeholder}>
-          <span className="font-medium text-slate-700">{field.label}：</span>
-          <span>{field.text || field.placeholder}</span>
+        <div key={field.key} className={compact ? 'min-w-0 rounded border border-slate-200/80 bg-slate-50/70 px-1.5 py-1' : undefined} title={field.text || field.placeholder}>
+          <span className="block font-medium text-slate-700">{field.label}</span>
+          <span className={compact ? 'mt-0.5 block max-h-8 overflow-hidden break-words leading-4 line-clamp-2' : undefined}>{field.text || field.placeholder}</span>
         </div>
       ))}
     </div>
@@ -298,9 +298,9 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         )}
       </div>
 
-      {activeSubview === 'review' && <div aria-label="Outcome Review Items" className="mx-4 mt-3 flex-1 min-h-0 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
+      {activeSubview === 'review' && <div aria-label="Outcome Review Items" className="mx-4 mt-3 flex-1 min-h-0 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+        <div className="grid items-start gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,auto)]">
+          <div className="min-w-0">
             <div className="font-bold">{createReviewQueueScopeLabel(hasAnalysisRun, reviewQueue.length, involvedReviewCaseCount)}</div>
             <div className="mt-0.5 text-[11px] text-amber-800/80">一篇案例可能包含多个待复核诉求。</div>
             <div className="mt-0.5 text-[11px] text-amber-800/80">当前仅标记复核状态，不会修改分析结果或统计口径。</div>
@@ -311,7 +311,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
               <span>规则改进：{reviewStatusCounts.rule_improvement}</span>
             </div>
           </div>
-          <div className="flex flex-wrap gap-1.5 text-[11px]">
+          <div aria-label="待复核筛选" className="flex flex-wrap gap-1.5 text-[11px] xl:justify-end">
             <select aria-label="复核状态筛选" value={reviewStatusFilter} onChange={(event) => setReviewStatusFilter(event.target.value as OutcomeReviewStatusFilter)} className="rounded border border-amber-300 bg-white px-2 py-1">
               <option value="all">全部</option>
               <option value="needs_review">待复核</option>
@@ -336,49 +336,55 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         {reviewQueue.length === 0 ? (
           <div className="mt-1 text-amber-800">当前分析记录没有未确定结果。</div>
         ) : (
-          <div className="mt-2 space-y-1.5 max-h-[calc(100vh-19rem)] overflow-y-auto">
-            {filteredReviewQueue.length === 0 ? <div className="text-amber-800">当前筛选条件没有待复核项。</div> : filteredReviewQueue.map((item, index) => (
-              <div
-                key={`${item.caseId}-${item.claimId || item.target || 'outcome'}-${index}`}
-                className="rounded-lg border border-amber-200/70 bg-white/60 px-2 py-1.5 hover:bg-white"
-              >
-                <button
-                  type="button"
-                  onClick={() => handleReviewItemClick(item)}
-                  className="w-full text-left rounded focus:outline-none focus:ring-2 focus:ring-amber-400"
-                >
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="font-medium">{item.title || item.caseNumber || item.caseId}</span>
-                    <span>{item.claimType || item.target || '结果'}</span>
-                    <span>当前结果：{getOutcomePresentation(item.outcome).label}</span>
-                    <span>无法确定：{item.reasonMessage || (item.reasonCode && outcomeReviewReasonLabels[item.reasonCode]) || '待复核'}</span>
-                    {item.reasonCode && <span className="text-amber-700/70">（{item.reasonCode}）</span>}
-                    {outcomeReviewSuggestionForDisplay(item) && <span className="text-amber-700">[{outcomeReviewSuggestionLabels[outcomeReviewSuggestionForDisplay(item)!]}]</span>}
-                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">{outcomeReviewStatusLabels[outcomeReviewUserStatus(item, reviewStatuses)]}</span>
-                  </div>
-                  {outcomeReviewSuggestionHint(item) && <div className="mt-0.5 text-[11px] text-indigo-700">{outcomeReviewSuggestionHint(item)}</div>}
-                  <OutcomeEvidenceFields item={item} compact />
-                </button>
-                <div className="mt-1 flex flex-wrap gap-1" aria-label="复核状态操作">
-                  {([
-                    ['viewed', '已查看'],
-                    ['llm_candidate', '加入 LLM 复核候选'],
-                    ['manual_review', '标记人工复核'],
-                    ['rule_improvement', '标记规则改进'],
-                    ['deferred', '暂缓处理'],
-                  ] as const).map(([status, label]) => (
+          <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
+            {filteredReviewQueue.length === 0 ? <div className="text-amber-800">当前筛选条件没有待复核项。</div> : (
+              <div className="grid gap-2 lg:grid-cols-2" aria-label="待复核卡片列表">
+                {filteredReviewQueue.map((item, index) => (
+                  <div
+                    key={`${item.caseId}-${item.claimId || item.target || 'outcome'}-${index}`}
+                    className="grid min-w-0 gap-2 rounded-lg border border-amber-200/70 bg-white/70 p-2 hover:bg-white md:grid-cols-[minmax(0,1fr)_minmax(9rem,10rem)]"
+                  >
                     <button
-                      key={status}
                       type="button"
-                      onClick={() => updateReviewStatus(item, status)}
-                      className={`rounded border px-1.5 py-0.5 text-[10px] ${outcomeReviewUserStatus(item, reviewStatuses) === status ? 'border-amber-500 bg-amber-100 text-amber-900' : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-50'}`}
+                      onClick={() => handleReviewItemClick(item)}
+                      className="min-w-0 rounded text-left focus:outline-none focus:ring-2 focus:ring-amber-400"
                     >
-                      {label}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="font-medium text-slate-900">{item.title || item.caseNumber || item.caseId}</span>
+                        <span className="text-slate-700">{item.claimType || item.target || '结果'}</span>
+                        <span className="text-slate-700">当前结果：{getOutcomePresentation(item.outcome).label}</span>
+                        <span className="text-amber-800">{item.reasonMessage || (item.reasonCode && outcomeReviewReasonLabels[item.reasonCode]) || '待复核'}</span>
+                        {item.reasonCode && <span className="text-[10px] text-amber-700/70">（{item.reasonCode}）</span>}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-600">
+                        {outcomeReviewSuggestionForDisplay(item) && <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700">建议：{outcomeReviewSuggestionLabels[outcomeReviewSuggestionForDisplay(item)!]}</span>}
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">状态：{outcomeReviewStatusLabels[outcomeReviewUserStatus(item, reviewStatuses)]}</span>
+                        {outcomeReviewSuggestionHint(item) && <span className="text-indigo-700">{outcomeReviewSuggestionHint(item)}</span>}
+                      </div>
+                      <OutcomeEvidenceFields item={item} compact />
                     </button>
-                  ))}
-                </div>
+                    <div className="flex content-start flex-wrap items-start gap-1 border-t border-slate-200 pt-2 md:border-l md:border-t-0 md:pl-2 md:pt-0" aria-label="复核状态操作">
+                      {([
+                        ['viewed', '已查看'],
+                        ['llm_candidate', '加入 LLM 复核候选'],
+                        ['manual_review', '标记人工复核'],
+                        ['rule_improvement', '标记规则改进'],
+                        ['deferred', '暂缓处理'],
+                      ] as const).map(([status, label]) => (
+                        <button
+                          key={status}
+                          type="button"
+                          onClick={() => updateReviewStatus(item, status)}
+                          className={`min-w-0 whitespace-normal rounded border px-1.5 py-0.5 text-[10px] ${outcomeReviewUserStatus(item, reviewStatuses) === status ? 'border-amber-500 bg-amber-100 text-amber-900' : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-50'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>}

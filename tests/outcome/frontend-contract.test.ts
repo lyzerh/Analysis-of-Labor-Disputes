@@ -157,6 +157,20 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(source).toMatch(/setSelectedCaseId\(item\.caseId\)/);
   });
 
+  it('keeps the review queue space-efficient and semantically layered', () => {
+    const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    expect(source).toMatch(/aria-label="待复核筛选"/);
+    expect(source).toMatch(/aria-label="待复核卡片列表"/);
+    expect(source).toMatch(/lg:grid-cols-2/);
+    expect(source).toMatch(/md:grid-cols-\[minmax\(0,1fr\)_minmax\(9rem,10rem\)\]/);
+    expect(source).toMatch(/当前结果：\{getOutcomePresentation\(item\.outcome\)\.label\}/);
+    expect(source).toMatch(/建议：\{outcomeReviewSuggestionLabels/);
+    expect(source).toMatch(/状态：\{outcomeReviewStatusLabels/);
+    expect(source).toMatch(/line-clamp-2/);
+    expect(source).toMatch(/aria-label="复核状态操作"/);
+    expect(source).toMatch(/onClick=\{\(\) => updateReviewStatus\(item, status\)\}/);
+  });
+
   it('splits Case Analysis into browse and review subviews with browse as the default', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     const scopeSource = readFileSync(new URL('../../src/services/presentation/CaseAnalysisScopePresentation.ts', import.meta.url), 'utf8');
