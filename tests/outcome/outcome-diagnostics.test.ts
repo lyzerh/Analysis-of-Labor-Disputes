@@ -3,6 +3,7 @@ import { LaborInfoParserAdapter } from '../../src/services/parser/LaborInfoParse
 import {
   buildOutcomeReviewQueue,
   filterOutcomeReviewQueue,
+  outcomeReviewEvidenceFields,
   outcomeReviewSourceSnippet,
 } from '../../src/services/outcome/OutcomeReviewQueue';
 import type { LaborInfoClaimItem, PartyRecognitionResult } from '../../src/types';
@@ -66,6 +67,96 @@ describe('Outcome diagnostics and review queue contract', () => {
       unclearOutcomes,
     );
     expect(diagnostics).toContainEqual(expect.objectContaining({ reasonCode: 'payment_beneficiary_unclear' }));
+  });
+
+  it('keeps payment request text separate from payment disposition evidence', () => {
+    const [diagnostic] = LaborInfoParserAdapter.buildOutcomeDiagnostics(
+      '支付工资1000元。',
+      [claim({
+        sourceText: '原告请求不支付二倍工资差额34970.12元。',
+        judgmentItems: [{ action: 'pay', targetPartyRole: 'unknown', sourceText: '支付工资1000元。' }],
+      })],
+      parties,
+      unclearOutcomes,
+    ).filter((item) => item.reasonCode === 'payment_beneficiary_unclear');
+    expect(diagnostic.evidence?.claimText).toContain('原告请求不支付');
+    expect(diagnostic.evidence?.dispositionText).toContain('支付工资1000元');
+    expect(diagnostic.evidence?.dispositionText).not.toBe(diagnostic.evidence?.claimText);
+    expect(diagnostic.evidence?.diagnosticText).toContain('支付类争议');
+  });
+
+  it('shows a safe disposition placeholder when payment evidence is unavailable', () => {
+    const item = buildOutcomeReviewQueue([analysisRecord('payment-placeholder', 'unclear', {
+      outcomeDiagnostics: [{
+        target: 'employee',
+        outcome: 'unclear',
+        reasonCode: 'payment_beneficiary_unclear',
+        reasonMessage: '支付主文未能确定受益方',
+        evidence: { claimText: '原告请求支付工资。' },
+        needsReview: true,
+      }],
+    })])[0];
+    expect(outcomeReviewEvidenceFields(item)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '诉求片段', text: '原告请求支付工资。' }),
+      expect.objectContaining({ label: '裁判主文片段', placeholder: '暂无可定位裁判主文片段' }),
+    ]));
+  });
+
+  it('does not promote a legacy generic sourceText to payment disposition evidence', () => {
+    const item = buildOutcomeReviewQueue([analysisRecord('legacy-payment', 'unclear', {
+      outcomeDiagnostics: [{
+        target: 'employee', outcome: 'unclear', reasonCode: 'payment_beneficiary_unclear', needsReview: true,
+        sourceText: '承迹庭林公司向本院提出诉讼请求：不支付二倍工资差额34970.12元。',
+      }],
+    })])[0];
+    const fields = outcomeReviewEvidenceFields(item);
+    expect(fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '诉求片段', text: expect.stringContaining('提出诉讼请求') }),
+      expect.objectContaining({ label: '裁判主文片段', placeholder: '暂无可定位裁判主文片段' }),
+    ]));
+    expect(fields.find((field) => field.label === '裁判主文片段')?.text).toBeUndefined();
+  });
+
+  it('keeps rejection and amount evidence typed', () => {
+    const rejection = buildOutcomeReviewQueue([analysisRecord('rejection-evidence', 'unclear', {
+      outcomeDiagnostics: [{
+        target: 'employee', outcome: 'unclear', reasonCode: 'rejection_owner_unclear', needsReview: true,
+        sourceText: '原告请求加班工资。',
+        evidence: { claimText: '原告请求加班工资。', dispositionText: '驳回原告其他诉讼请求。' },
+      }],
+    })])[0];
+    expect(outcomeReviewEvidenceFields(rejection)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '诉求片段', text: '原告请求加班工资。' }),
+      expect.objectContaining({ label: '裁判主文片段', text: '驳回原告其他诉讼请求。' }),
+    ]));
+
+    const amount = buildOutcomeReviewQueue([analysisRecord('amount-evidence', 'unclear', {
+      outcomeDiagnostics: [{
+        target: 'employee', outcome: 'unclear', reasonCode: 'amount_conflict', needsReview: true,
+        evidence: {
+          claimText: '请求支付工资10000元。',
+          dispositionText: '判决支付工资5000元。',
+          amountText: '请求金额：10000；裁判金额：5000',
+        },
+      }],
+    })])[0];
+    expect(outcomeReviewEvidenceFields(amount)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '诉求片段' }),
+      expect.objectContaining({ label: '裁判主文片段' }),
+      expect.objectContaining({ label: '金额片段', text: '请求金额：10000；裁判金额：5000' }),
+    ]));
+  });
+
+  it('uses a dedicated placeholder when a disposition cannot be matched', () => {
+    const item = buildOutcomeReviewQueue([analysisRecord('unmatched-disposition', 'unclear', {
+      outcomeDiagnostics: [{
+        target: 'employee', outcome: 'unclear', reasonCode: 'disposition_not_matched', needsReview: true,
+        evidence: { claimText: '原告请求支付加班工资。' },
+      }],
+    })])[0];
+    expect(outcomeReviewEvidenceFields(item)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '裁判主文片段', placeholder: '未定位到对应裁判主文' }),
+    ]));
   });
 
   it('classifies an unresolved rejection owner', () => {
@@ -175,6 +266,19 @@ describe('Outcome diagnostics and review queue contract', () => {
     expect(filterOutcomeReviewQueue(queue, 'needs_review', 'missing_claim_owner', 'manual_review')).toHaveLength(1);
     expect(filterOutcomeReviewQueue(queue, 'all', 'source_text_missing', '')).toHaveLength(1);
     expect(queue).toHaveLength(2);
+  });
+
+  it('does not mutate analysis provenance while deriving typed review evidence', () => {
+    const record = analysisRecord('review-provenance-case', 'unclear', {
+      outcomeDiagnostics: [{
+        target: 'employee', outcome: 'unclear', reasonCode: 'payment_beneficiary_unclear', needsReview: true,
+        evidence: { claimText: '原告请求支付工资。' },
+      }],
+    });
+    const before = JSON.stringify(record);
+    const queue = buildOutcomeReviewQueue([record]);
+    outcomeReviewEvidenceFields(queue[0]);
+    expect(JSON.stringify(record)).toBe(before);
   });
 
   it('provides a stable source snippet placeholder when diagnostics lack source text', () => {

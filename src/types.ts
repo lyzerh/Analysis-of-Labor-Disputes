@@ -844,6 +844,19 @@ export type OutcomeUnclearReasonCode =
 
 export type OutcomeReviewSuggestion = 'rule_improvement' | 'llm_semantic_normalization' | 'manual_review';
 
+/**
+ * Evidence snippets for an unresolved outcome diagnostic. Each field keeps its
+ * semantic source so a party request is never presented as a court disposition.
+ */
+export interface OutcomeDiagnosticEvidence {
+  claimText?: string;
+  dispositionText?: string;
+  reasoningText?: string;
+  partyText?: string;
+  amountText?: string;
+  diagnosticText?: string;
+}
+
 export interface OutcomeResolutionDiagnostic {
   target?: 'claim' | 'employee' | 'employer' | 'applicant';
   claimId?: string;
@@ -851,6 +864,8 @@ export interface OutcomeResolutionDiagnostic {
   outcome: LegalOutcomeType;
   reasonCode?: OutcomeUnclearReasonCode;
   reasonMessage?: string;
+  evidence?: OutcomeDiagnosticEvidence;
+  /** @deprecated Use evidence.*; retained for legacy persisted records. */
   sourceText?: string;
   needsReview: boolean;
   suggestedReviewType?: OutcomeReviewSuggestion;

@@ -127,10 +127,11 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(contextSource).toMatch(/当前分析/);
   });
 
-  it('makes review items actionable and exposes reason plus source placeholder', () => {
+  it('makes review items actionable and exposes reason plus typed evidence fields', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     expect(source).toMatch(/onClick=\{\(\) => handleReviewItemClick\(item\)\}/);
-    expect(source).toMatch(/暂无可定位原文片段/);
+    expect(source).toMatch(/outcomeReviewEvidenceFields/);
+    expect(source).toMatch(/OutcomeEvidenceFields/);
     expect(source).toMatch(/复核原因筛选/);
     expect(source).toMatch(/setSelectedCaseId\(item\.caseId\)/);
   });

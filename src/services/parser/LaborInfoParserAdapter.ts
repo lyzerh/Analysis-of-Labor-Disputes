@@ -16,6 +16,7 @@ import {
   LaborRole,
   LegalOutcomeType,
   OutcomeResolutionDiagnostic,
+  OutcomeDiagnosticEvidence,
   OutcomeReviewSuggestion,
   OutcomeUnclearReasonCode,
   PartyRecognitionResult,
@@ -88,6 +89,7 @@ export class LaborInfoParserAdapter {
       claims,
       parties,
       outcomes,
+      sections.reasoning || '',
     );
 
     // 10. 计算涉案裁决赔偿金额
@@ -1483,6 +1485,7 @@ export class LaborInfoParserAdapter {
     claims: LaborInfoClaimItem[],
     parties: PartyRecognitionResult,
     outcomes: { employeeOutcome: LegalOutcomeType; employerOutcome: LegalOutcomeType; overallResult: LegalOutcomeType },
+    reasoningText = '',
   ): OutcomeResolutionDiagnostic[] {
     const diagnostics: OutcomeResolutionDiagnostic[] = [];
     const reasonMessages: Record<OutcomeUnclearReasonCode, string> = {
@@ -1526,6 +1529,57 @@ export class LaborInfoParserAdapter {
       });
     };
 
+    const partyText = (parties.parties || [])
+      .map((party) => `${party.proceduralRoles.join('/') || 'unknown'}：${party.name}`)
+      .join('；') || undefined;
+    const firstDispositionText = (sourceActions: JudgmentActionItem[] = [], predicate?: (text: string) => boolean): string | undefined => {
+      const candidates = [
+        ...sourceActions.map((item) => item.sourceText),
+        decisionText,
+      ].map((text) => text.trim()).filter(Boolean);
+      return candidates.find((text) => !predicate || predicate(text))?.slice(0, 500);
+    };
+    const buildEvidence = (
+      reasonCode: OutcomeUnclearReasonCode,
+      claim?: LaborInfoClaimItem,
+      actions: JudgmentActionItem[] = [],
+    ): OutcomeDiagnosticEvidence => {
+      const claimText = claim?.sourceText?.trim();
+      const paymentText = firstDispositionText(actions, (text) => /支付|给付|赔偿|补偿|工资|二倍工资|经济补偿/.test(text));
+      const rejectionText = firstDispositionText(actions, (text) => /驳回|不予支持|撤销|维持/.test(text));
+      const actionText = actions.map((item) => item.sourceText.trim()).find(Boolean);
+      const dispositionText = reasonCode === 'payment_beneficiary_unclear'
+        ? paymentText
+        : reasonCode === 'rejection_owner_unclear'
+          ? rejectionText
+          : reasonCode === 'appeal_inheritance_unclear'
+            ? firstDispositionText(actions, (text) => /驳回上诉|维持原判|维持原裁决/.test(text))
+            : reasonCode === 'disposition_not_matched'
+              ? (actionText || decisionText.trim() || undefined)
+              : reasonCode === 'amount_conflict'
+                ? (actionText || paymentText || rejectionText)
+                : undefined;
+      const amountParts = [
+        claim?.requestedAmount !== undefined ? `请求金额：${claim.requestedAmount}` : '',
+        claim?.awardedAmount !== undefined ? `裁判金额：${claim.awardedAmount}` : '',
+      ].filter(Boolean);
+      const diagnosticText = reasonCode === 'payment_beneficiary_unclear'
+        ? '当前系统识别到支付类争议，但未能在裁判主文中稳定确认支付受益方。'
+        : reasonCode === 'rejection_owner_unclear'
+          ? '当前系统识别到驳回或不予支持主文，但未能稳定确认被驳回方。'
+          : reasonCode === 'disposition_not_matched'
+            ? '当前系统识别到诉求，但未定位到对应裁判主文动作。'
+            : reasonMessages[reasonCode];
+      return {
+        claimText,
+        dispositionText,
+        reasoningText: reasoningText.trim().slice(0, 500) || undefined,
+        partyText,
+        amountText: amountParts.length > 0 ? amountParts.join('；') : undefined,
+        diagnosticText,
+      };
+    };
+
     if (parties.applicantRole === 'unknown') {
       add({
         target: 'applicant',
@@ -1533,6 +1587,13 @@ export class LaborInfoParserAdapter {
         reasonCode: (parties.parties || []).some((party) => party.proceduralRoles.length > 0)
           ? 'missing_labor_role'
           : 'missing_party_roles',
+        evidence: {
+          partyText,
+          reasoningText: reasoningText.trim().slice(0, 500) || undefined,
+          diagnosticText: reasonMessages[(parties.parties || []).some((party) => party.proceduralRoles.length > 0)
+            ? 'missing_labor_role'
+            : 'missing_party_roles'],
+        },
         sourceText: decisionText.slice(0, 300),
       });
     }
@@ -1581,6 +1642,7 @@ export class LaborInfoParserAdapter {
         claimType: claim.claimType,
         outcome: claim.supportStatus,
         reasonCode,
+        evidence: buildEvidence(reasonCode, claim, actions),
         sourceText: (claim.sourceText || decisionText).slice(0, 500),
       });
     }
@@ -1606,6 +1668,12 @@ export class LaborInfoParserAdapter {
         target,
         outcome,
         reasonCode,
+        evidence: {
+          partyText: (reasonCode === 'missing_party_roles' || reasonCode === 'missing_labor_role') ? partyText : undefined,
+          dispositionText: reasonCode === 'missing_disposition_text' ? undefined : decisionText.slice(0, 500) || undefined,
+          reasoningText: reasoningText.trim().slice(0, 500) || undefined,
+          diagnosticText: reasonMessages[reasonCode],
+        },
         sourceText: decisionText.slice(0, 300),
       });
     }

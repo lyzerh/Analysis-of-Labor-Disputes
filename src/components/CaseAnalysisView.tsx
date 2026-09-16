@@ -9,7 +9,7 @@ import {
   buildOutcomeReviewQueue,
   filterOutcomeReviewQueue,
   outcomeReviewReasonLabels,
-  outcomeReviewSourceSnippet,
+  outcomeReviewEvidenceFields,
   outcomeReviewSuggestionLabels,
   type OutcomeReviewStatusFilter,
 } from '../services/outcome/OutcomeReviewQueue';
@@ -43,6 +43,24 @@ interface CaseAnalysisViewProps {
 }
 
 const researchAnalysisService = new ResearchAnalysisService();
+
+const OutcomeEvidenceFields: React.FC<{
+  item: ReturnType<typeof buildOutcomeReviewQueue>[number];
+  compact?: boolean;
+}> = ({ item, compact = false }) => {
+  const fields = outcomeReviewEvidenceFields(item);
+  if (fields.length === 0) return null;
+  return (
+    <div className={compact ? 'mt-0.5 space-y-0.5 text-[11px] text-slate-600' : 'mt-1 space-y-1 break-words'}>
+      {fields.map((field) => (
+        <div key={field.key} className={compact ? 'truncate' : undefined} title={field.text || field.placeholder}>
+          <span className="font-medium text-slate-700">{field.label}：</span>
+          <span>{field.text || field.placeholder}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: initialRecords, initialAnalysisRunId = '' }) => {
   // ① 所有 state
@@ -234,9 +252,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                   {item.reasonCode && <span className="text-amber-700/70">（{item.reasonCode}）</span>}
                   {item.suggestedReviewType && <span className="text-amber-700">[{outcomeReviewSuggestionLabels[item.suggestedReviewType]}]</span>}
                 </div>
-                <div className="mt-0.5 truncate text-[11px] text-slate-600" title={outcomeReviewSourceSnippet(item)}>
-                  原文片段：{outcomeReviewSourceSnippet(item)}
-                </div>
+                <OutcomeEvidenceFields item={item} compact />
               </button>
             ))}
           </div>
@@ -247,7 +263,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         <div className="mx-4 mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-950">
           <div className="font-semibold">已定位到当前案例的待复核项</div>
           <div className="mt-1">原因：{selectedReviewItem.reasonMessage || (selectedReviewItem.reasonCode && outcomeReviewReasonLabels[selectedReviewItem.reasonCode]) || '待复核'} {selectedReviewItem.reasonCode && <span className="text-indigo-700/70">（{selectedReviewItem.reasonCode}）</span>}</div>
-          <div className="mt-1 break-words">原文片段：{outcomeReviewSourceSnippet(selectedReviewItem)}</div>
+          <OutcomeEvidenceFields item={selectedReviewItem} />
         </div>
       )}
 
@@ -406,7 +422,20 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                                 const isFocused = selectedReviewItem?.claimId === claim.id && selectedReviewItem.caseId === record.caseId;
                                 return (
                                   <div key={idx} className={`bg-white border p-2.5 rounded-lg text-xs flex justify-between items-start gap-2 ${isFocused ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-slate-200'}`}>
-                                    <span className="text-slate-800 leading-relaxed">{claim.claimName}{diagnostic?.reasonMessage ? <span className="block text-amber-700 mt-1">无法确定：{diagnostic.reasonMessage}{diagnostic.reasonCode ? <span className="text-amber-700/70">（{diagnostic.reasonCode}）</span> : null}</span> : null}{diagnostic?.needsReview ? <span className="block text-slate-500 mt-1">原文片段：{diagnostic.sourceText?.trim() || '暂无可定位原文片段'}</span> : null}</span>
+                                    <div className="text-slate-800 leading-relaxed">
+                                      {claim.claimName}
+                                      {diagnostic?.reasonMessage ? <span className="block text-amber-700 mt-1">无法确定：{diagnostic.reasonMessage}{diagnostic.reasonCode ? <span className="text-amber-700/70">（{diagnostic.reasonCode}）</span> : null}</span> : null}
+                                      {diagnostic?.needsReview ? <OutcomeEvidenceFields item={{
+                                        ...diagnostic,
+                                        caseId: record.caseId,
+                                        title: record.title,
+                                        caseNumber: record.caseNumber,
+                                        employeeParty: record.employeeParty,
+                                        employerParty: record.employerParty,
+                                        applicantRole: record.applicantRole,
+                                        parties: record.parties,
+                                      }} /> : null}
+                                    </div>
                                     <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${presentation.badgeClassName}`}>
                                       {presentation.label}
                                     </span>
