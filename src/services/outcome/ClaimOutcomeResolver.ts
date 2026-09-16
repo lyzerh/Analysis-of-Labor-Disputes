@@ -5,6 +5,7 @@ import type {
   LegalOutcomeType,
 } from '../../types';
 import { AmountResolver } from '../parser/AmountResolver';
+import { isMonetaryClaimType } from './AmountSupportRepair';
 
 /** Derives claim truth only from deterministic judgment actions and amounts. */
 export const resolveClaimOutcome = (
@@ -13,14 +14,21 @@ export const resolveClaimOutcome = (
 ): ClaimSupportStatus => {
   const hasSupport = judgmentItems.some((item) => item.action === 'support' || item.action === 'pay');
   const hasReject = judgmentItems.some((item) => item.action === 'reject');
-  const awardedAmount = judgmentItems.find((item) => item.awardedAmount !== undefined)?.awardedAmount
+  const amountBearingActions = judgmentItems.filter((item) => item.awardedAmount !== undefined);
+  const awardedAmount = amountBearingActions[0]?.awardedAmount
     ?? claim.awardedAmount;
-  const amountOutcome = AmountResolver.resolveAmountOutcome(claim.requestedAmount, awardedAmount);
+  const amountPairReliable = isMonetaryClaimType(claim.claimType)
+    && amountBearingActions.length === 1
+    && (!claim.claimType || amountBearingActions[0]?.targetClaimType === claim.claimType)
+    && AmountResolver.countAmounts(amountBearingActions[0]?.sourceText) <= 1;
+  const amountOutcome = amountPairReliable
+    ? AmountResolver.resolveAmountOutcome(claim.requestedAmount, awardedAmount)
+    : undefined;
 
   if (!hasSupport && hasReject) return 'not_supported';
   if (hasSupport && hasReject) return 'partially_supported';
-  if (hasSupport && judgmentItems.some((item) => /全部|全额/.test(item.sourceText))) return 'supported';
   if (amountOutcome !== undefined) return amountOutcome;
+  if (hasSupport && judgmentItems.some((item) => /全部|全额/.test(item.sourceText))) return 'supported';
   if (hasSupport) return 'supported';
   return claim.supportStatus;
 };

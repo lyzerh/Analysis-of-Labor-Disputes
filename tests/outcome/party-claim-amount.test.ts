@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AmountResolver } from '../../src/services/parser/AmountResolver';
 import { LaborInfoParserAdapter } from '../../src/services/parser/LaborInfoParserAdapter';
+import { hasReliableAmountCorrespondence, repairReliableAmountSupport } from '../../src/services/outcome/AmountSupportRepair';
 import { rawDocument } from './fixtures/outcome-fixtures';
 
 describe('Party and procedural-role contract', () => {
@@ -198,6 +199,60 @@ describe('AmountResolver', () => {
     [30000, 0, 'not_supported'],
   ] as const)('resolves requested %s and awarded %s as %s', (requested, awarded, expected) => {
     expect(AmountResolver.resolveAmountOutcome(requested, awarded)).toBe(expected);
+  });
+
+  it('does not derive an amount outcome from missing, zero, or invalid requests', () => {
+    expect(AmountResolver.resolveAmountOutcome(undefined, 100)).toBeUndefined();
+    expect(AmountResolver.resolveAmountOutcome(0, 100)).toBeUndefined();
+    expect(AmountResolver.resolveAmountOutcome(-1, 100)).toBeUndefined();
+  });
+});
+
+describe('Reliable amount repair guardrails', () => {
+  const parties = [
+    { id: 'employee-party', name: '张某', laborRole: 'employee' as const, proceduralRoles: ['plaintiff' as const] },
+    { id: 'employer-party', name: '甲有限公司', laborRole: 'employer' as const, proceduralRoles: ['defendant' as const] },
+  ];
+
+  it('repairs only a single monetary award addressed to the claimant', () => {
+    const claim = {
+      id: 'reliable-amount', claimName: '加班工资', claimType: 'overtime_pay', claimant: 'employee' as const, claimantRole: 'employee' as const, claimantPartyId: 'employee-party',
+      supportStatus: 'supported' as const, requestedAmount: 3494.10, awardedAmount: 1341.38, sourceText: '原告请求加班工资3494.10元',
+      judgmentItems: [{ action: 'pay' as const, targetPartyRole: 'plaintiff' as const, targetClaimType: 'overtime_pay', awardedAmount: 1341.38, sourceText: '被告支付原告加班工资1341.38元' }],
+    };
+    expect(hasReliableAmountCorrespondence(claim, parties)).toBe(true);
+    expect(repairReliableAmountSupport(claim, parties).supportStatus).toBe('partially_supported');
+  });
+
+  it('excludes non-monetary confirmation and employer negative-payment requests', () => {
+    const confirmation = {
+      id: 'confirmation', claimName: '劳动关系解除确认', claimType: 'employment_termination_confirmation', claimant: 'employee' as const, supportStatus: 'supported' as const,
+      requestedAmount: 3000, awardedAmount: 1000, sourceText: '请求确认劳动关系解除3000元', judgmentItems: [{ action: 'support' as const, targetPartyRole: 'plaintiff' as const, awardedAmount: 1000, sourceText: '确认劳动关系解除1000元' }],
+    };
+    const employerNegativePayment = {
+      id: 'employer-negative', claimName: '经济补偿金', claimType: 'economic_compensation', claimant: 'employer' as const, claimantRole: 'employer' as const, claimantPartyId: 'employer-party',
+      supportStatus: 'supported' as const, requestedAmount: 34970.12, awardedAmount: 1341.38, sourceText: '原告公司请求无需支付经济补偿金34970.12元',
+      judgmentItems: [{ action: 'pay' as const, targetPartyRole: 'defendant' as const, awardedAmount: 1341.38, sourceText: '判令原告向被告支付经济补偿金1341.38元' }],
+    };
+    const employerPlaintiffParties = [
+      { id: 'employee-party', name: '张某', laborRole: 'employee' as const, proceduralRoles: ['defendant' as const] },
+      { id: 'employer-party', name: '甲有限公司', laborRole: 'employer' as const, proceduralRoles: ['plaintiff' as const] },
+    ];
+    expect(repairReliableAmountSupport(confirmation, parties).supportStatus).toBe('supported');
+    expect(repairReliableAmountSupport(employerNegativePayment, employerPlaintiffParties).supportStatus).toBe('supported');
+  });
+
+  it('does not repair multiple amount actions with ambiguous correspondence', () => {
+    const claim = {
+      id: 'ambiguous-amount', claimName: '经济补偿金', claimType: 'economic_compensation', claimant: 'employee' as const, claimantRole: 'employee' as const, claimantPartyId: 'employee-party',
+      supportStatus: 'supported' as const, requestedAmount: 3494.10, awardedAmount: 1341.38, sourceText: '原告请求经济补偿金3494.10元',
+      judgmentItems: [
+        { action: 'pay' as const, targetPartyRole: 'plaintiff' as const, awardedAmount: 1341.38, sourceText: '支付经济补偿金1341.38元' },
+        { action: 'pay' as const, targetPartyRole: 'plaintiff' as const, awardedAmount: 900, sourceText: '另行支付经济补偿金900元' },
+      ],
+    };
+    expect(hasReliableAmountCorrespondence(claim, parties)).toBe(false);
+    expect(repairReliableAmountSupport(claim, parties).supportStatus).toBe('supported');
   });
 });
 

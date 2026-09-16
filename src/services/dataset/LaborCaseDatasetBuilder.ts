@@ -12,7 +12,9 @@ import { CityResolver } from '../parser/CityResolver';
 import { LaborInfoParserAdapter } from '../parser/LaborInfoParserAdapter';
 import { ParserEvaluator } from '../parser/ParserEvaluator';
 import { ReviewStorageService } from '../data/ReviewStorageService';
+import { aggregateClaimOutcomes } from '../outcome/ClaimOutcomeResolver';
 import { resolvePartyOutcomes } from '../outcome/OutcomeResolver';
+import { isPotentialAmountConflict, repairReliableAmountSupports } from '../outcome/AmountSupportRepair';
 
 /**
  * 珠三角 9 大核心城市列表
@@ -119,9 +121,38 @@ export class LaborCaseDatasetBuilder {
       ? changes.disputeType
       : (parsed.disputeType && parsed.disputeType.length > 0 ? parsed.disputeType : ['劳动合同争议']);
 
-    const claims = (hasReviewerChanges && changes?.claims && changes.claims.length > 0)
+    const sourceClaims = (hasReviewerChanges && changes?.claims && changes.claims.length > 0)
       ? changes.claims
       : (parsed.claims || []);
+    const amountRepair = repairReliableAmountSupports(sourceClaims, parsed.parties || []);
+    const claims = amountRepair.claims;
+    const repairedClaimIds = new Set(amountRepair.repairedClaimIds);
+    const preservedDiagnostics = (parsed.outcomeDiagnostics || []).filter((diagnostic) => (
+      !(diagnostic.reasonCode === 'amount_conflict' && diagnostic.claimId && repairedClaimIds.has(diagnostic.claimId))
+    ));
+    const existingAmountConflictIds = new Set(
+      preservedDiagnostics
+        .filter((diagnostic) => diagnostic.reasonCode === 'amount_conflict' && diagnostic.claimId)
+        .map((diagnostic) => diagnostic.claimId as string),
+    );
+    const amountConflictDiagnostics = claims
+      .filter((claim) => isPotentialAmountConflict(claim) && !!claim.id && !repairedClaimIds.has(claim.id) && !existingAmountConflictIds.has(claim.id))
+      .map((claim) => ({
+        target: 'claim' as const,
+        claimId: claim.id,
+        claimType: claim.claimType,
+        outcome: claim.supportStatus,
+        reasonCode: 'amount_conflict' as const,
+        reasonMessage: '请求金额与判付金额冲突',
+        evidence: {
+          claimText: claim.sourceText,
+          amountText: `请求金额：${claim.requestedAmount}；裁判金额：${claim.awardedAmount}`,
+          diagnosticText: '金额对应关系不明，建议人工复核。',
+        },
+        needsReview: true,
+        suggestedReviewType: 'manual_review' as const,
+      }));
+    const outcomeDiagnostics = [...preservedDiagnostics, ...amountConflictDiagnostics];
 
     const employerDefenses = (hasReviewerChanges && changes?.employerDefenses)
       ? changes.employerDefenses
@@ -140,13 +171,13 @@ export class LaborCaseDatasetBuilder {
       : (parsed.keyLegalPoints || []);
 
     const applicantRole = changes?.applicantRole ?? parsed.applicantRole ?? 'unknown';
-    const applicantOutcome: LegalOutcomeType = changes?.applicantOutcome
+    let applicantOutcome: LegalOutcomeType = changes?.applicantOutcome
       ?? changes?.overallResult
       ?? parsed.applicantOutcome
       ?? parsed.overallResult
       ?? 'unclear';
     // 兼容旧字段；其语义固定为申请人视角。
-    const overallResult = applicantOutcome;
+    let overallResult = applicantOutcome;
 
     // 5. Parser 的明确 party outcomes 是事实来源；仅在 Review 改了 Outcome/角色时确定性重算。
     let employeeOutcome = parsed.employeeOutcome ?? 'unclear';
@@ -160,6 +191,26 @@ export class LaborCaseDatasetBuilder {
       employerOutcome = changes.employerOutcome;
     } else if (reviewChangesPerspective) {
       ({ employeeOutcome, employerOutcome } = resolvePartyOutcomes(applicantRole, applicantOutcome));
+    }
+
+    if (amountRepair.repairedClaimIds.length > 0) {
+      const repairedEmployeeClaims = claims.filter((claim) => (claim.claimantRole ?? claim.claimant) === 'employee');
+      const repairedEmployerClaims = claims.filter((claim) => (claim.claimantRole ?? claim.claimant) === 'employer');
+      const hasRepairedRole = (role: 'employee' | 'employer') => claims.some((claim) => (
+        claim.id && repairedClaimIds.has(claim.id) && (claim.claimantRole ?? claim.claimant) === role
+      ));
+      if (hasRepairedRole('employee')) {
+        employeeOutcome = aggregateClaimOutcomes(repairedEmployeeClaims, employeeOutcome);
+      }
+      if (hasRepairedRole('employer')) {
+        employerOutcome = aggregateClaimOutcomes(repairedEmployerClaims, employerOutcome);
+      }
+      if (applicantRole === 'employee' && hasRepairedRole('employee')) {
+        applicantOutcome = employeeOutcome;
+      } else if (applicantRole === 'employer' && hasRepairedRole('employer')) {
+        applicantOutcome = employerOutcome;
+      }
+      overallResult = applicantOutcome;
     }
 
     // 6. 识别城市与珠三角 (PRD) 属性
@@ -216,7 +267,7 @@ export class LaborCaseDatasetBuilder {
       employerParty,
       applicantRole,
       parties: parsed.parties || [],
-      outcomeDiagnostics: parsed.outcomeDiagnostics,
+      outcomeDiagnostics,
 
       employerDefenses,
       evidence,

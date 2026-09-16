@@ -3,6 +3,11 @@ import type { ClaimSupportStatus } from '../../types';
 const AMOUNT_PATTERN = /(?:人民币\s*)?([0-9][0-9,]*(?:\.\d+)?)\s*元/;
 
 export class AmountResolver {
+  public static countAmounts(text: string | undefined): number {
+    if (!text) return 0;
+    return (text.match(/(?:人民币\s*)?[0-9][0-9,]*(?:\.\d+)?\s*元/g) || []).length;
+  }
+
   public static extractFirstAmount(text: string): number | undefined {
     const match = text.match(AMOUNT_PATTERN);
     if (!match) return undefined;
@@ -41,7 +46,7 @@ export class AmountResolver {
     requestedAmount: number | undefined,
     awardedAmount: number | undefined,
   ): ClaimSupportStatus | undefined {
-    if (requestedAmount === undefined || awardedAmount === undefined || requestedAmount < 0 || awardedAmount < 0) {
+    if (requestedAmount === undefined || awardedAmount === undefined || !Number.isFinite(requestedAmount) || !Number.isFinite(awardedAmount) || requestedAmount <= 0 || awardedAmount < 0) {
       return undefined;
     }
     if (awardedAmount === 0) return 'not_supported';

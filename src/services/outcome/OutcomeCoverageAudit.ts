@@ -9,6 +9,7 @@ import {
   outcomeReviewReasonLabels,
   outcomeReviewSuggestionForDisplay,
 } from './OutcomeReviewQueue';
+import { isMonetaryClaimType, isPotentialAmountConflict, repairReliableAmountSupports } from './AmountSupportRepair';
 
 export interface OutcomeCoverageReasonBreakdown {
   reasonCode: string;
@@ -85,12 +86,46 @@ export function createOutcomeCoverageAudit(
   records: AnalysisCaseRecord[],
 ): OutcomeCoverageAudit {
   const safeRecords = Array.isArray(records) ? records : [];
-  const claims = safeRecords.flatMap((record) => Array.isArray(record.claims) ? record.claims : []);
-  const reviewQueue = buildOutcomeReviewQueue(safeRecords);
+  const normalizedRecords = safeRecords.map((record) => {
+    const repair = repairReliableAmountSupports(record.claims || [], record.parties || []);
+    const repairedClaimIds = new Set(repair.repairedClaimIds);
+    const preservedDiagnostics = (record.outcomeDiagnostics || []).filter((diagnostic) => (
+      !(diagnostic.reasonCode === 'amount_conflict' && diagnostic.claimId && repairedClaimIds.has(diagnostic.claimId))
+    ));
+    const existingAmountConflictIds = new Set(
+      preservedDiagnostics
+        .filter((diagnostic) => diagnostic.reasonCode === 'amount_conflict' && diagnostic.claimId)
+        .map((diagnostic) => diagnostic.claimId as string),
+    );
+    const amountConflictDiagnostics = repair.claims
+      .filter((claim) => isPotentialAmountConflict(claim) && !!claim.id && !repairedClaimIds.has(claim.id) && !existingAmountConflictIds.has(claim.id))
+      .map((claim) => ({
+        target: 'claim' as const,
+        claimId: claim.id,
+        claimType: claim.claimType,
+        outcome: claim.supportStatus,
+        reasonCode: 'amount_conflict' as const,
+        reasonMessage: '请求金额与判付金额冲突',
+        evidence: {
+          claimText: claim.sourceText,
+          amountText: `请求金额：${claim.requestedAmount}；裁判金额：${claim.awardedAmount}`,
+          diagnosticText: '金额对应关系不明，建议人工复核。',
+        },
+        needsReview: true,
+        suggestedReviewType: 'manual_review' as const,
+      }));
+    return {
+      ...record,
+      claims: repair.claims,
+      outcomeDiagnostics: [...preservedDiagnostics, ...amountConflictDiagnostics],
+    };
+  });
+  const claims = normalizedRecords.flatMap((record) => Array.isArray(record.claims) ? record.claims : []);
+  const reviewQueue = buildOutcomeReviewQueue(normalizedRecords);
   const byOutcome = { ...EMPTY_OUTCOMES };
   let needsReviewClaims = 0;
 
-  for (const record of safeRecords) {
+  for (const record of normalizedRecords) {
     for (const claim of (record.claims || [])) {
       if (claimNeedsReview(record, claim)) needsReviewClaims += 1;
       byOutcome[claim.supportStatus || 'unclear'] += 1;
@@ -112,7 +147,7 @@ export function createOutcomeCoverageAudit(
     }));
 
   const claimTypeMap = new Map<string, { total: number; needsReview: number; unresolved: number }>();
-  for (const record of safeRecords) {
+  for (const record of normalizedRecords) {
     for (const claim of (record.claims || [])) {
       const claimType = claimTypeOf(claim);
       const current = claimTypeMap.get(claimType) || { total: 0, needsReview: 0, unresolved: 0 };
@@ -142,9 +177,9 @@ export function createOutcomeCoverageAudit(
 
   const amountRiskItems: OutcomeCoverageAmountRiskItem[] = [];
   let amountPairs = 0;
-  for (const record of safeRecords) {
+  for (const record of normalizedRecords) {
     for (const claim of (record.claims || [])) {
-      if (claim.requestedAmount === undefined || claim.awardedAmount === undefined) continue;
+      if (!isMonetaryClaimType(claim.claimType) || claim.requestedAmount === undefined || claim.awardedAmount === undefined) continue;
       amountPairs += 1;
       if (claim.supportStatus === 'supported' && claim.awardedAmount > 0 && claim.awardedAmount < claim.requestedAmount) {
         amountRiskItems.push({
@@ -162,7 +197,7 @@ export function createOutcomeCoverageAudit(
   const unresolvedClaims = byOutcome.unclear;
   return {
     analysisRunId,
-    totalCases: safeRecords.length,
+    totalCases: normalizedRecords.length,
     totalClaims: claims.length,
     resolvedClaims: claims.length - unresolvedClaims,
     unresolvedClaims,

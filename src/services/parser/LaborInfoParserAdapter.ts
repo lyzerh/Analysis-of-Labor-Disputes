@@ -27,6 +27,7 @@ import {
 import { ParserUtils } from './ParserUtils';
 import { resolvePartyOutcomes } from '../outcome/OutcomeResolver';
 import { AmountResolver } from './AmountResolver';
+import { hasReliableAmountCorrespondence, isPotentialAmountConflict, repairReliableAmountSupport } from '../outcome/AmountSupportRepair';
 
 interface ClaimPatternDefinition {
   name: string;
@@ -796,8 +797,14 @@ export class LaborInfoParserAdapter {
         ? undefined
         : AmountResolver.extractAmountNearAliases(sourceText, pat.keywords)
         ?? localActions.find((item) => item.requestedAmount !== undefined)?.requestedAmount;
-      const awardedAmount = localActions.find((item) => item.awardedAmount !== undefined)?.awardedAmount;
-      const amountOutcome = AmountResolver.resolveAmountOutcome(requestedAmount, awardedAmount);
+      const amountBearingActions = localActions.filter((item) => item.awardedAmount !== undefined);
+      const awardedAmount = amountBearingActions[0]?.awardedAmount;
+      const amountPairReliable = amountBearingActions.length === 1
+        && amountBearingActions[0]?.targetClaimType === claimType
+        && AmountResolver.countAmounts(amountBearingActions[0]?.sourceText) <= 1;
+      const amountOutcome = amountPairReliable
+        ? AmountResolver.resolveAmountOutcome(requestedAmount, awardedAmount)
+        : undefined;
 
       // 当同一段同时出现原告与被告请求时，以主文中的受益方确定具体请求归属。
       // 这避免“驳回公司请求”把劳动者被判支付的同名请求吞掉。
@@ -854,7 +861,7 @@ export class LaborInfoParserAdapter {
         },
       }));
       
-      claims.push({
+      const claimRecord: LaborInfoClaimItem = {
         id: claimId,
         claimName: pat.name,
         claimType,
@@ -867,7 +874,8 @@ export class LaborInfoParserAdapter {
         awardedAmount,
         sourceText,
         judgmentItems,
-      });
+      };
+      claims.push(repairReliableAmountSupport(claimRecord, parties.parties || []));
     }
 
     if (claims.length === 0) {
@@ -1605,7 +1613,9 @@ export class LaborInfoParserAdapter {
       )) ?? false;
       const lowConfidence = parties.confidence < 0.6
         || claim.judgmentItems?.some((item) => item.referenceResolution?.confidence !== undefined && (item.referenceResolution.confidence ?? 1) < 0.7);
-      if (claim.supportStatus !== 'unclear' && !lowConfidence && !unresolvedAction) continue;
+      const amountNeedsReview = isPotentialAmountConflict(claim)
+        && !hasReliableAmountCorrespondence(claim, parties.parties || []);
+      if (claim.supportStatus !== 'unclear' && !lowConfidence && !unresolvedAction && !amountNeedsReview) continue;
 
       const actions = claim.judgmentItems || [];
       let reasonCode: OutcomeUnclearReasonCode = 'unknown';
@@ -1618,8 +1628,7 @@ export class LaborInfoParserAdapter {
       } else if (claim.proceduralBasis === 'appeal_request' && /维持原判|维持原裁决/.test(decisionText)
         && !actions.some((item) => item.action === 'support' || item.action === 'reject')) {
         reasonCode = 'appeal_inheritance_unclear';
-      } else if (claim.requestedAmount !== undefined && claim.awardedAmount !== undefined
-        && (claim.requestedAmount < 0 || claim.awardedAmount < 0 || claim.awardedAmount > claim.requestedAmount)) {
+      } else if (amountNeedsReview) {
         reasonCode = 'amount_conflict';
       } else if (actions.some((item) => /支付|补发|补缴/.test(item.sourceText) && item.targetPartyRole === 'unknown')) {
         reasonCode = 'payment_beneficiary_unclear';

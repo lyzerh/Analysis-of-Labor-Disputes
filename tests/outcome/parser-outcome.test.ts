@@ -83,6 +83,15 @@ describe('Layer 2: unknown, partial and multi-claim outcomes', () => {
     expect(result.employerOutcome).toBe('partially_supported');
   });
 
+  it('keeps an ambiguous multi-award amount claim for review instead of guessing partial support', () => {
+    const text = '原告：张某。被告：甲有限公司。原告请求经济补偿金3000元。判决如下：被告支付原告经济补偿金1000元；被告另行支付原告经济补偿金500元。';
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('ambiguous-award-amount', text));
+    expect(result.claims.find((item) => item.claimType === 'economic_compensation')).toMatchObject({ supportStatus: 'supported' });
+    expect(result.outcomeDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ claimType: 'economic_compensation', reasonCode: 'amount_conflict', needsReview: true }),
+    ]));
+  });
+
   it('preserves three claim-level facts and aggregates the case as partial', () => {
     const text = [
       '原告：张某。被告：甲有限公司。',

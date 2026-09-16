@@ -86,4 +86,51 @@ describe('Layer 3: Parser -> Builder outcome contract', () => {
     expect(record.employeeOutcome).toBe('supported');
     expect(record.employerOutcome).toBe('not_supported');
   });
+
+  it('repairs a reliable supported lower-award amount pair while preserving source data', () => {
+    const parsed = parsedResult({
+      employeeParty: '成柏昱',
+      employerParty: '上海景和国际展览有限公司',
+      applicantRole: 'employee',
+      parties: [
+        { id: 'employee-party', name: '成柏昱', laborRole: 'employee', proceduralRoles: ['plaintiff'] },
+        { id: 'employer-party', name: '上海景和国际展览有限公司', laborRole: 'employer', proceduralRoles: ['defendant'] },
+      ],
+      claims: [{
+        id: 'cheng-overtime',
+        claimName: '加班工资',
+        claimType: 'overtime_pay',
+        claimant: 'employee',
+        claimantRole: 'employee',
+        claimantPartyId: 'employee-party',
+        supportStatus: 'supported',
+        requestedAmount: 3494.10,
+        awardedAmount: 1341.38,
+        sourceText: '原告请求被告支付加班工资3494.10元',
+        judgmentItems: [{
+          action: 'pay',
+          targetPartyRole: 'plaintiff',
+          targetClaimType: 'overtime_pay',
+          awardedAmount: 1341.38,
+          sourceText: '被告向原告支付加班工资1341.38元',
+        }],
+      }],
+      applicantOutcome: 'supported',
+      employeeOutcome: 'supported',
+      employerOutcome: 'not_supported',
+      overallResult: 'supported',
+    });
+    const before = JSON.stringify(parsed);
+    arrangeParser(parsed);
+
+    const record = LaborCaseDatasetBuilder.buildSingleRecord(rawDocument('builder-amount-repair', '测试文本'), null);
+
+    expect(record.claims[0]).toMatchObject({ supportStatus: 'partially_supported', requestedAmount: 3494.10, awardedAmount: 1341.38 });
+    expect(record.employeeOutcome).toBe('partially_supported');
+    expect(record.applicantOutcome).toBe('partially_supported');
+    expect(record.outcomeDiagnostics || []).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ claimId: 'cheng-overtime', reasonCode: 'amount_conflict' }),
+    ]));
+    expect(JSON.stringify(parsed)).toBe(before);
+  });
 });
