@@ -298,7 +298,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         )}
       </div>
 
-      {activeSubview === 'review' && <div aria-label="Outcome Review Items" className="mx-4 mt-3 flex-1 min-h-0 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+      {activeSubview === 'review' && <div aria-label="Outcome Review Items" className="mx-4 mt-3 flex flex-1 min-h-0 flex-col overflow-hidden rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
         <div className="grid items-start gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,auto)]">
           <div className="min-w-0">
             <div className="font-bold">{createReviewQueueScopeLabel(hasAnalysisRun, reviewQueue.length, involvedReviewCaseCount)}</div>
@@ -336,7 +336,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         {reviewQueue.length === 0 ? (
           <div className="mt-1 text-amber-800">当前分析记录没有未确定结果。</div>
         ) : (
-          <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="mt-2 min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1">
             {filteredReviewQueue.length === 0 ? <div className="text-amber-800">当前筛选条件没有待复核项。</div> : (
               <div className="grid gap-2 lg:grid-cols-2" aria-label="待复核卡片列表">
                 {filteredReviewQueue.map((item, index) => (

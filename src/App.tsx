@@ -115,7 +115,7 @@ export function App() {
       />
 
       {/* Main Right Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
         {/* Global Header */}
         <Header
           onSearch={handleGlobalSearch}
@@ -125,7 +125,7 @@ export function App() {
         />
 
         {/* Scrollable Tab View Area */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden select-text">
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden select-text">
           {currentTab === 'caseLibrary' && (
             <LaborAnalysisCaseLibrary
               onNavigateToCrawler={() => setCurrentTab('dataManagement')}

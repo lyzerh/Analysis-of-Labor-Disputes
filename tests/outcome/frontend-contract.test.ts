@@ -171,6 +171,19 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(source).toMatch(/onClick=\{\(\) => updateReviewStatus\(item, status\)\}/);
   });
 
+  it('keeps the review queue vertically scrollable without clipping its two-column cards', () => {
+    const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    const appSource = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
+    expect(source).toMatch(/aria-label="Outcome Review Items" className="mx-4 mt-3 flex flex-1 min-h-0 flex-col overflow-hidden/);
+    expect(source).toMatch(/className="mt-2 min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1"/);
+    expect(source).toMatch(/aria-label="待复核卡片列表"/);
+    expect(source).toMatch(/lg:grid-cols-2/);
+    expect(source).toMatch(/outcomeReviewEvidenceFields/);
+    expect(source).toMatch(/aria-label="复核状态操作"/);
+    expect(appSource).toMatch(/flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden/);
+    expect(appSource).toMatch(/<main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden select-text">/);
+  });
+
   it('splits Case Analysis into browse and review subviews with browse as the default', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     const scopeSource = readFileSync(new URL('../../src/services/presentation/CaseAnalysisScopePresentation.ts', import.meta.url), 'utf8');
