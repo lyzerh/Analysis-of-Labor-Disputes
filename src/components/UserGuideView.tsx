@@ -103,7 +103,7 @@ export const UserGuideView: React.FC<UserGuideViewProps> = ({ onNavigate }) => {
             <p>进入具体案件后，可以查看：</p>
             <div className="flex flex-wrap gap-2 mt-2">
               <span className="bg-slate-100 px-2 py-1 rounded text-2xs font-medium">基本信息</span>
-              <span className="bg-slate-100 px-2 py-1 rounded text-2xs font-medium">劳动者诉求</span>
+              <span className="bg-slate-100 px-2 py-1 rounded text-2xs font-medium">诉求与裁判结果</span>
               <span className="bg-slate-100 px-2 py-1 rounded text-2xs font-medium">企业抗辩</span>
               <span className="bg-slate-100 px-2 py-1 rounded text-2xs font-medium">关键证据</span>
               <span className="bg-slate-100 px-2 py-1 rounded text-2xs font-medium">法院裁判理由</span>

@@ -177,6 +177,24 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(queueSource).toMatch(/建议人工判断/);
   });
 
+  it('keeps ordinary outcome presentation on labor-role dimensions and labels claim ownership', () => {
+    const caseAnalysisSource = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    const librarySource = readFileSync(new URL('../../src/components/LaborAnalysisCaseLibrary.tsx', import.meta.url), 'utf8');
+    expect(caseAnalysisSource).not.toMatch(/申请人结果/);
+    expect(librarySource).not.toMatch(/申请人结果/);
+    expect(caseAnalysisSource).toMatch(/劳动者实体结果/);
+    expect(caseAnalysisSource).toMatch(/用人单位实体结果/);
+    expect(caseAnalysisSource).toMatch(/诉求与裁判结果/);
+    expect(caseAnalysisSource).toMatch(/提出方：\{ownership\.claimantLabel\}/);
+    expect(caseAnalysisSource).toMatch(/实质受益方：\{ownership\.beneficiaryLabel\}/);
+    expect(caseAnalysisSource).toMatch(/关联权益：\{ownership\.relatedLabel\}/);
+    expect(caseAnalysisSource).toMatch(/程序身份映射/);
+    expect(caseAnalysisSource).toMatch(/outcomeReviewEvidenceFields/);
+    expect(librarySource).toMatch(/诉求与裁判结果/);
+    expect(librarySource).toMatch(/提出方：\{ownership\.claimantLabel\}/);
+    expect(librarySource).not.toMatch(/申请人结果/);
+  });
+
   it('shows the same selected analysis context in workspace and case analysis without auto-latest fallback', () => {
     const workspaceSource = readFileSync(new URL('../../src/components/ResearchWorkspace.tsx', import.meta.url), 'utf8');
     const appSource = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');

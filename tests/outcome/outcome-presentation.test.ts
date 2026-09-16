@@ -1,10 +1,31 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  getClaimOwnershipPresentation,
   getOutcomePresentation,
   getPartyOutcomePresentations,
 } from '../../src/services/outcome/OutcomePresentation';
-import type { LegalOutcomeType } from '../../src/types';
+import type { AnalysisCaseRecord, LaborInfoClaimItem, LegalOutcomeType } from '../../src/types';
+
+function record(overrides: Partial<AnalysisCaseRecord> = {}): Pick<AnalysisCaseRecord, 'parties' | 'applicantRole'> {
+  return {
+    applicantRole: 'employer',
+    parties: [
+      { id: 'employer', name: '甲有限公司', laborRole: 'employer', proceduralRoles: ['plaintiff'] },
+      { id: 'employee', name: '张某', laborRole: 'employee', proceduralRoles: ['defendant'] },
+    ],
+    ...overrides,
+  };
+}
+
+function claim(overrides: Partial<LaborInfoClaimItem> = {}): LaborInfoClaimItem {
+  return {
+    claimName: '经济补偿金',
+    claimant: 'unknown',
+    supportStatus: 'unclear',
+    ...overrides,
+  };
+}
 
 describe('UI Outcome presentation contract', () => {
   it.each([
@@ -57,5 +78,51 @@ describe('UI Outcome presentation contract', () => {
       expect(source).toContain('getOutcomePresentation');
       expect(source).not.toMatch(/\.overallResult\b/);
     }
+  });
+});
+
+describe('Claim ownership presentation contract', () => {
+  it('shows claimant and substantive beneficiary independently for an employee payment claim', () => {
+    const presentation = getClaimOwnershipPresentation(claim({
+      claimant: 'employee',
+      claimantRole: 'employee',
+      judgmentItems: [{ action: 'pay', targetPartyRole: 'plaintiff', sourceText: '被告支付原告经济补偿金' }],
+    }), record({ applicantRole: 'employee', parties: [
+      { id: 'employee', name: '张某', laborRole: 'employee', proceduralRoles: ['plaintiff'] },
+      { id: 'employer', name: '甲有限公司', laborRole: 'employer', proceduralRoles: ['defendant'] },
+    ] }));
+
+    expect(presentation).toMatchObject({
+      claimantRole: 'employee',
+      claimantLabel: '劳动者',
+      beneficiaryRole: 'employee',
+      beneficiaryLabel: '劳动者',
+    });
+  });
+
+  it('shows an employer negative-payment claim with employee associated rights', () => {
+    const presentation = getClaimOwnershipPresentation(claim({
+      claimName: '请求不支付经济补偿金',
+      claimant: 'employer',
+      claimantRole: 'employer',
+      sourceText: '原告请求确认无需支付经济补偿金。',
+      judgmentItems: [{ action: 'reject', targetPartyRole: 'plaintiff', sourceText: '驳回原告全部诉讼请求' }],
+    }), record());
+
+    expect(presentation).toMatchObject({
+      claimantRole: 'employer',
+      claimantLabel: '用人单位',
+      relatedRole: 'employee',
+      relatedLabel: '劳动者',
+    });
+    expect(presentation.beneficiaryRole).toBeUndefined();
+  });
+
+  it('does not guess unknown ownership', () => {
+    const presentation = getClaimOwnershipPresentation(claim(), record({ applicantRole: 'unknown', parties: [] }));
+
+    expect(presentation).toMatchObject({ claimantRole: 'unknown', claimantLabel: '未识别' });
+    expect(presentation.beneficiaryRole).toBeUndefined();
+    expect(presentation.relatedRole).toBeUndefined();
   });
 });

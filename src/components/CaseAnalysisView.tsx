@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { AnalysisCaseRecord, CaseParty, OutcomeResolutionDiagnostic, ProceduralRole } from '../types';
 import { Database, Search, FileText, Scale, Target, ShieldAlert, BookOpen, AlertCircle, X } from 'lucide-react';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
-import { getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
+import { getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
 import { formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
 import {
@@ -501,9 +501,8 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                           裁判结果与要点
                         </div>
                         {selectedOutcomePresentations && <div className="bg-purple-50/50 p-3 rounded-xl border border-purple-100 text-xs space-y-2">
-                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">劳动者结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{selectedOutcomePresentations.employee.label}{outcomeDiagnostic('employee')?.reasonMessage ? `：${outcomeDiagnostic('employee')?.reasonMessage}` : ''}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">用人单位结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{selectedOutcomePresentations.employer.label}{outcomeDiagnostic('employer')?.reasonMessage ? `：${outcomeDiagnostic('employer')?.reasonMessage}` : ''}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">申请人结果：</span><span className={`font-bold ${selectedOutcomePresentations.applicant.textClassName}`}>{selectedOutcomePresentations.applicant.label}{outcomeDiagnostic('applicant')?.reasonMessage ? `：${outcomeDiagnostic('applicant')?.reasonMessage}` : ''}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">劳动者实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{selectedOutcomePresentations.employee.label}{outcomeDiagnostic('employee')?.reasonMessage ? `：${outcomeDiagnostic('employee')?.reasonMessage}` : ''}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">用人单位实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{selectedOutcomePresentations.employer.label}{outcomeDiagnostic('employer')?.reasonMessage ? `：${outcomeDiagnostic('employer')?.reasonMessage}` : ''}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">争议类型：</span><span className="font-medium text-slate-900">{Array.isArray(record.disputeType) ? record.disputeType.join('、') : (record.disputeType || '未知')}</span></div>
                           {Array.isArray(record.keyLegalPoints) && record.keyLegalPoints.length > 0 && (
                             <div className="flex flex-col mt-2">
@@ -520,18 +519,24 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                         <div className="space-y-3">
                           <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
                             <Target className="w-4 h-4 text-rose-500" />
-                            劳动者诉求清单
+                            诉求与裁判结果
                           </div>
                           {Array.isArray(record.claims) && record.claims.length > 0 ? (
                             <div className="space-y-2">
                               {record.claims.map((claim, idx) => {
                                 const presentation = getOutcomePresentation(claim.supportStatus);
+                                const ownership = getClaimOwnershipPresentation(claim, record);
                                 const diagnostic = selectedDiagnostics.find((item) => item.claimId === claim.id);
                                 const isFocused = selectedReviewItem?.claimId === claim.id && selectedReviewItem.caseId === record.caseId;
                                 return (
                                   <div key={idx} className={`bg-white border p-2.5 rounded-lg text-xs flex justify-between items-start gap-2 ${isFocused ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-slate-200'}`}>
                                     <div className="text-slate-800 leading-relaxed">
                                       {claim.claimName}
+                                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                                        <span>提出方：{ownership.claimantLabel}</span>
+                                        {ownership.beneficiaryLabel && <span>实质受益方：{ownership.beneficiaryLabel}</span>}
+                                        {ownership.relatedLabel && <span>关联权益：{ownership.relatedLabel}</span>}
+                                      </div>
                                       {diagnostic?.reasonMessage ? <span className="block text-amber-700 mt-1">无法确定：{diagnostic.reasonMessage}{diagnostic.reasonCode ? <span className="text-amber-700/70">（{diagnostic.reasonCode}）</span> : null}</span> : null}
                                       {diagnostic?.needsReview ? <OutcomeEvidenceFields item={{
                                         ...diagnostic,

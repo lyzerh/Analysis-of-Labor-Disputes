@@ -3,7 +3,7 @@ import { Search, MapPin, Calendar, FileText, Briefcase, Database, X, Eye, Extern
 import { AnalysisCaseRecord } from '../types';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { DataService } from '../services/data/dataService';
-import { getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
+import { getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
 import { filterAnalysisCaseRecords } from '../services/case/CaseLibraryFilter';
 import { formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
@@ -289,9 +289,8 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                       <Scale className="w-4 h-4 text-purple-600" /> 裁判结果
                     </h4>
                     <div className="text-xs space-y-2 text-slate-700">
-                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">劳动者结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{selectedOutcomePresentations.employee.label}</span></div>
-                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">用人单位结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{selectedOutcomePresentations.employer.label}</span></div>
-                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">申请人结果：</span><span className={`font-bold ${selectedOutcomePresentations.applicant.textClassName}`}>{selectedOutcomePresentations.applicant.label}</span></div>
+                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">劳动者实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{selectedOutcomePresentations.employee.label}</span></div>
+                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">用人单位实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{selectedOutcomePresentations.employer.label}</span></div>
                       <div className="flex"><span className="text-slate-500 w-24 shrink-0">主要争议：</span><span>{Array.isArray(selectedRecord.disputeType) ? selectedRecord.disputeType.join('、') : (selectedRecord.disputeType || '-')}</span></div>
                       {selectedRecord.legalOutcomeSummary && (
                         <div className="flex mt-2 pt-2 border-t border-purple-200/50">
@@ -304,14 +303,22 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-3">
-                      <h4 className="text-sm font-bold text-slate-800 border-b pb-2">劳动者诉求</h4>
+                      <h4 className="text-sm font-bold text-slate-800 border-b pb-2">诉求与裁判结果</h4>
                       {Array.isArray(selectedRecord.claims) && selectedRecord.claims.length > 0 ? (
                         <div className="space-y-2">
                           {selectedRecord.claims.map((c, i) => {
                             const presentation = getOutcomePresentation(c.supportStatus);
+                            const ownership = getClaimOwnershipPresentation(c, selectedRecord);
                             return (
                               <div key={i} className="bg-slate-50 p-2 rounded text-xs text-slate-700 border border-slate-200 flex justify-between gap-2">
-                                <span>{c.claimName || (c as any).text || '-'}</span>
+                                <span>
+                                  <span className="block">{c.claimName || (c as any).text || '-'}</span>
+                                  <span className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                                    <span>提出方：{ownership.claimantLabel}</span>
+                                    {ownership.beneficiaryLabel && <span>实质受益方：{ownership.beneficiaryLabel}</span>}
+                                    {ownership.relatedLabel && <span>关联权益：{ownership.relatedLabel}</span>}
+                                  </span>
+                                </span>
                                 <span className={`shrink-0 px-1.5 py-0.5 rounded text-2xs font-bold ${presentation.badgeClassName}`}>
                                   {presentation.label}
                                 </span>
