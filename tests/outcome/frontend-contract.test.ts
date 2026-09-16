@@ -136,6 +136,24 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(source).toMatch(/setSelectedCaseId\(item\.caseId\)/);
   });
 
+  it('splits Case Analysis into browse and review subviews with browse as the default', () => {
+    const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    expect(source).toMatch(/type CaseAnalysisSubview = 'browse' \| 'review'/);
+    expect(source).toMatch(/useState<CaseAnalysisSubview>\('browse'\)/);
+    expect(source).toMatch(/案例浏览/);
+    expect(source).toMatch(/待复核项/);
+    expect(source).toMatch(/activeSubview === 'review'/);
+    expect(source).toMatch(/activeSubview === 'browse'/);
+    expect(source).toMatch(/activeSubview === 'review' && <div aria-label="Outcome Review Items"/);
+    expect(source).toMatch(/activeSubview === 'browse' && <div className="flex flex-col lg:flex-row/);
+    expect(source).toMatch(/涉及案例：\{involvedReviewCaseCount\} 个/);
+    expect(source).toMatch(/一篇案例可能包含多个待复核诉求/);
+    expect(source).toMatch(/setActiveSubview\('browse'\)/);
+    expect(source).toMatch(/setSelectedReviewItem\(item\)/);
+    expect(source).toMatch(/当前为案例浏览，可直接查看本地案例。选择一次分析后可查看待复核项。/);
+    expect(source).not.toMatch(/未选择分析运行；当前为案例库视图/);
+  });
+
   it('shows the same selected analysis context in workspace and case analysis without auto-latest fallback', () => {
     const workspaceSource = readFileSync(new URL('../../src/components/ResearchWorkspace.tsx', import.meta.url), 'utf8');
     const appSource = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');

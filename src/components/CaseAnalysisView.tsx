@@ -42,6 +42,8 @@ interface CaseAnalysisViewProps {
   initialAnalysisRunId?: string;
 }
 
+type CaseAnalysisSubview = 'browse' | 'review';
+
 const researchAnalysisService = new ResearchAnalysisService();
 
 const OutcomeEvidenceFields: React.FC<{
@@ -71,6 +73,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
   const [keyword, setKeyword] = useState('');
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [analysisContext, setAnalysisContext] = useState<ResearchAnalysisContext | null>(null);
+  const [activeSubview, setActiveSubview] = useState<CaseAnalysisSubview>('browse');
   const [reviewStatusFilter, setReviewStatusFilter] = useState<OutcomeReviewStatusFilter>('all');
   const [reviewReasonFilter, setReviewReasonFilter] = useState('');
   const [reviewSuggestionFilter, setReviewSuggestionFilter] = useState('');
@@ -168,6 +171,10 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
     ? getPartyOutcomePresentations(selectedCase)
     : null;
   const reviewQueue = useMemo(() => buildOutcomeReviewQueue(records), [records]);
+  const involvedReviewCaseCount = useMemo(
+    () => new Set(reviewQueue.map((item) => item.caseId)).size,
+    [reviewQueue],
+  );
   const selectedDiagnostics = selectedCase?.outcomeDiagnostics || [];
   const outcomeDiagnostic = (target: OutcomeResolutionDiagnostic['target']) => selectedDiagnostics.find((item) => item.target === target);
   const filteredReviewQueue = useMemo(
@@ -187,6 +194,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
     setKeyword('');
     setSelectedCaseId(item.caseId);
     setSelectedReviewItem(item);
+    setActiveSubview('browse');
   };
 
 
@@ -205,20 +213,49 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
 
   return (
     <div className="flex flex-col h-[calc(100vh-10rem)] border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm min-h-0">
-      <div className="mx-4 mt-4">
-        <AnalysisContextBar
-          run={analysisContext?.analysisRun}
-          snapshotId={analysisContext?.snapshot.id}
-          scopeLabel={analysisContext ? (analysisContext.statisticalScope === 'corpus' ? '语料总体' : '本次样本') : undefined}
-          reviewQueueCount={reviewQueue.length}
-          qualityStatus={analysisContext?.quality.status}
-          emptyLabel={initialAnalysisRunId ? '正在加载所选分析运行' : '未选择分析运行；当前为案例库视图'}
-        />
+      <div className="mx-4 mt-4 space-y-2">
+        <div role="tablist" aria-label="案例分析视图" className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeSubview === 'browse'}
+            onClick={() => setActiveSubview('browse')}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${activeSubview === 'browse' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            案例浏览
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeSubview === 'review'}
+            onClick={() => setActiveSubview('review')}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${activeSubview === 'review' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            待复核项
+          </button>
+        </div>
+        {analysisContext?.analysisRun && (
+          <AnalysisContextBar
+            run={analysisContext.analysisRun}
+            snapshotId={analysisContext.snapshot.id}
+            scopeLabel={analysisContext.statisticalScope === 'corpus' ? '语料总体' : '本次样本'}
+            reviewQueueCount={reviewQueue.length}
+            qualityStatus={analysisContext.quality.status}
+          />
+        )}
+        {!analysisContext?.analysisRun && activeSubview === 'browse' && (
+          <div className="text-[11px] text-slate-500">
+            当前为案例浏览，可直接查看本地案例。选择一次分析后可查看待复核项。
+          </div>
+        )}
       </div>
 
-      <div aria-label="Outcome Review Items" className="mx-4 mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+      {activeSubview === 'review' && <div aria-label="Outcome Review Items" className="mx-4 mt-3 flex-1 min-h-0 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="font-bold">待复核项（{reviewQueue.length}）</div>
+          <div>
+            <div className="font-bold">待复核项：{reviewQueue.length} 项｜涉及案例：{involvedReviewCaseCount} 个</div>
+            <div className="mt-0.5 text-[11px] text-amber-800/80">一篇案例可能包含多个待复核诉求。</div>
+          </div>
           <div className="flex flex-wrap gap-1.5 text-[11px]">
             <select aria-label="复核状态筛选" value={reviewStatusFilter} onChange={(event) => setReviewStatusFilter(event.target.value as OutcomeReviewStatusFilter)} className="rounded border border-amber-300 bg-white px-2 py-1">
               <option value="all">全部</option>
@@ -237,7 +274,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         {reviewQueue.length === 0 ? (
           <div className="mt-1 text-amber-800">当前分析记录没有未确定结果。</div>
         ) : (
-          <div className="mt-2 space-y-1.5 max-h-32 overflow-y-auto">
+          <div className="mt-2 space-y-1.5 max-h-[calc(100vh-19rem)] overflow-y-auto">
             {filteredReviewQueue.length === 0 ? <div className="text-amber-800">当前筛选条件没有待复核项。</div> : filteredReviewQueue.map((item, index) => (
               <button
                 type="button"
@@ -257,9 +294,9 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
             ))}
           </div>
         )}
-      </div>
+      </div>}
 
-      {selectedReviewItem && selectedCase && selectedReviewItem.caseId === selectedCase.caseId && (
+      {activeSubview === 'browse' && selectedReviewItem && selectedCase && selectedReviewItem.caseId === selectedCase.caseId && (
         <div className="mx-4 mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-950">
           <div className="font-semibold">已定位到当前案例的待复核项</div>
           <div className="mt-1">原因：{selectedReviewItem.reasonMessage || (selectedReviewItem.reasonCode && outcomeReviewReasonLabels[selectedReviewItem.reasonCode]) || '待复核'} {selectedReviewItem.reasonCode && <span className="text-indigo-700/70">（{selectedReviewItem.reasonCode}）</span>}</div>
@@ -269,7 +306,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
 
       {/* 顶部工具栏 (可选，目前放在左侧列表上方) */}
 
-      <div className="flex flex-col lg:flex-row h-full divide-y lg:divide-y-0 lg:divide-x divide-slate-200 min-h-0">
+      {activeSubview === 'browse' && <div className="flex flex-col lg:flex-row h-full divide-y lg:divide-y-0 lg:divide-x divide-slate-200 min-h-0">
         
         {/* 左侧案例列表独立滚动区域 */}
         <aside className="w-full lg:w-1/3 flex flex-col min-h-0 bg-slate-50/50">
@@ -509,7 +546,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
             })()}
           </div>
         </main>
-      </div>
+      </div>}
     </div>
   );
 };
