@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  getCaseEntityOutcomeLabel,
   getClaimOwnershipPresentation,
   getOutcomePresentation,
   getPartyOutcomePresentations,
 } from '../../src/services/outcome/OutcomePresentation';
+import { createCaseSummaryPresentation } from '../../src/services/presentation/CaseMetadataPresentation';
 import type { AnalysisCaseRecord, LaborInfoClaimItem, LegalOutcomeType } from '../../src/types';
 
 function record(overrides: Partial<AnalysisCaseRecord> = {}): Pick<AnalysisCaseRecord, 'parties' | 'applicantRole'> {
@@ -124,5 +126,39 @@ describe('Claim ownership presentation contract', () => {
     expect(presentation).toMatchObject({ claimantRole: 'unknown', claimantLabel: '未识别' });
     expect(presentation.beneficiaryRole).toBeUndefined();
     expect(presentation.relatedRole).toBeUndefined();
+  });
+});
+
+describe('Case detail information hierarchy contract', () => {
+  it('builds a compact summary from reliable case fields', () => {
+    expect(createCaseSummaryPresentation({
+      employeeParty: '张某',
+      employerParty: '甲有限公司',
+      caseLevel: '一审',
+      disputeType: ['劳动合同解除'],
+      claims: [{ claimName: '经济补偿金', claimant: 'employee', supportStatus: 'supported' }],
+      outcomeDiagnostics: [{ target: 'employee', outcome: 'unclear', needsReview: true }],
+      employerDefenses: [{ defenseType: '合法解除', matchedText: '员工手册', confidence: 1 }],
+    })).toEqual({
+      primary: '本案：劳动者 张某｜用人单位 甲有限公司｜一审/初裁｜劳动合同解除',
+      secondary: '识别结果：1 项诉求｜1 项待复核｜已识别 1 项企业抗辩',
+    });
+  });
+
+  it('omits unavailable summary fields instead of guessing', () => {
+    expect(createCaseSummaryPresentation({
+      employeeParty: null,
+      employerParty: '未识别',
+      caseLevel: 'unknown',
+      disputeType: [],
+      claims: [],
+      outcomeDiagnostics: [],
+      employerDefenses: [],
+    })).toEqual({});
+  });
+
+  it('uses 待复核 only for unclear entity outcomes', () => {
+    expect(getCaseEntityOutcomeLabel('unclear')).toBe('待复核');
+    expect(getCaseEntityOutcomeLabel('supported')).toBe('支持');
   });
 });

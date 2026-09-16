@@ -2,9 +2,9 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { AnalysisCaseRecord, CaseParty, OutcomeResolutionDiagnostic, ProceduralRole } from '../types';
 import { Database, Search, FileText, Scale, Target, ShieldAlert, BookOpen, AlertCircle, X } from 'lucide-react';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
-import { getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
+import { getCaseEntityOutcomeLabel, getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
-import { formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
+import { createCaseSummaryPresentation, formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
 import {
   buildOutcomeReviewQueue,
   filterOutcomeReviewQueue,
@@ -198,7 +198,6 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
     deferred: 0,
   }), [reviewQueue, reviewStatuses]);
   const selectedDiagnostics = selectedCase?.outcomeDiagnostics || [];
-  const outcomeDiagnostic = (target: OutcomeResolutionDiagnostic['target']) => selectedDiagnostics.find((item) => item.target === target);
   const filteredReviewQueue = useMemo(
     () => filterOutcomeReviewQueue(reviewQueue, reviewStatusFilter, reviewReasonFilter as any, reviewSuggestionFilter as any, reviewStatuses),
     [reviewQueue, reviewReasonFilter, reviewStatusFilter, reviewSuggestionFilter, reviewStatuses],
@@ -371,7 +370,10 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
           <div className="mt-1">原因：{selectedReviewItem.reasonMessage || (selectedReviewItem.reasonCode && outcomeReviewReasonLabels[selectedReviewItem.reasonCode]) || '待复核'} {selectedReviewItem.reasonCode && <span className="text-indigo-700/70">（{selectedReviewItem.reasonCode}）</span>}</div>
           <div className="mt-1">状态：{outcomeReviewStatusLabels[outcomeReviewUserStatus(selectedReviewItem, reviewStatuses)]}</div>
           {outcomeReviewSuggestionHint(selectedReviewItem) && <div className="mt-1">处理建议：{outcomeReviewSuggestionHint(selectedReviewItem)}</div>}
-          <OutcomeEvidenceFields item={selectedReviewItem} />
+          <details className="mt-1">
+            <summary className="cursor-pointer text-indigo-700">展开诊断证据片段</summary>
+            <OutcomeEvidenceFields item={selectedReviewItem} />
+          </details>
         </div>
       )}
 
@@ -467,6 +469,15 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                     <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4">
                       {record.title || record.caseNumber}
                     </h3>
+                    {(() => {
+                      const summary = createCaseSummaryPresentation(record);
+                      return (summary.primary || summary.secondary) ? (
+                        <div aria-label="案件摘要" className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-950">
+                          {summary.primary && <div className="font-medium">{summary.primary}</div>}
+                          {summary.secondary && <div className="mt-0.5 text-[11px] text-indigo-800/80">{summary.secondary}</div>}
+                        </div>
+                      ) : null;
+                    })()}
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-3">
@@ -501,8 +512,8 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                           裁判结果与要点
                         </div>
                         {selectedOutcomePresentations && <div className="bg-purple-50/50 p-3 rounded-xl border border-purple-100 text-xs space-y-2">
-                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">劳动者实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{selectedOutcomePresentations.employee.label}{outcomeDiagnostic('employee')?.reasonMessage ? `：${outcomeDiagnostic('employee')?.reasonMessage}` : ''}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">用人单位实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{selectedOutcomePresentations.employer.label}{outcomeDiagnostic('employer')?.reasonMessage ? `：${outcomeDiagnostic('employer')?.reasonMessage}` : ''}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">劳动者实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{getCaseEntityOutcomeLabel(record.employeeOutcome)}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">用人单位实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{getCaseEntityOutcomeLabel(record.employerOutcome)}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">争议类型：</span><span className="font-medium text-slate-900">{Array.isArray(record.disputeType) ? record.disputeType.join('、') : (record.disputeType || '未知')}</span></div>
                           {Array.isArray(record.keyLegalPoints) && record.keyLegalPoints.length > 0 && (
                             <div className="flex flex-col mt-2">
@@ -536,18 +547,24 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                                         <span>提出方：{ownership.claimantLabel}</span>
                                         {ownership.beneficiaryLabel && <span>实质受益方：{ownership.beneficiaryLabel}</span>}
                                         {ownership.relatedLabel && <span>关联权益：{ownership.relatedLabel}</span>}
+                                        {diagnostic?.needsReview && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">待复核</span>}
                                       </div>
                                       {diagnostic?.reasonMessage ? <span className="block text-amber-700 mt-1">无法确定：{diagnostic.reasonMessage}{diagnostic.reasonCode ? <span className="text-amber-700/70">（{diagnostic.reasonCode}）</span> : null}</span> : null}
-                                      {diagnostic?.needsReview ? <OutcomeEvidenceFields item={{
-                                        ...diagnostic,
-                                        caseId: record.caseId,
-                                        title: record.title,
-                                        caseNumber: record.caseNumber,
-                                        employeeParty: record.employeeParty,
-                                        employerParty: record.employerParty,
-                                        applicantRole: record.applicantRole,
-                                        parties: record.parties,
-                                      }} /> : null}
+                                      {diagnostic?.needsReview ? (
+                                        <details className="mt-1 text-[11px] text-slate-600">
+                                          <summary className="cursor-pointer text-indigo-700">展开诊断证据片段</summary>
+                                          <OutcomeEvidenceFields item={{
+                                            ...diagnostic,
+                                            caseId: record.caseId,
+                                            title: record.title,
+                                            caseNumber: record.caseNumber,
+                                            employeeParty: record.employeeParty,
+                                            employerParty: record.employerParty,
+                                            applicantRole: record.applicantRole,
+                                            parties: record.parties,
+                                          }} />
+                                        </details>
+                                      ) : null}
                                     </div>
                                     <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${presentation.badgeClassName}`}>
                                       {presentation.label}
@@ -582,12 +599,12 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                       </div>
                     </div>
                     
-                    <div className="mt-6 pt-6 border-t border-slate-100 space-y-3">
-                      <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
+                    <details className="mt-6 pt-6 border-t border-slate-100">
+                      <summary className="flex cursor-pointer list-none items-center gap-1.5 font-bold text-slate-800 text-sm">
                         <FileText className="w-4 h-4 text-indigo-600" />
-                        关键证据与法院认定
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        关键证据与法院认定：{(record.evidence || []).length} 条证据｜{record.courtReasoning?.trim() ? '1' : '0'} 条认定理由
+                      </summary>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                         <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
                           <div className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">关键证据</div>
                           {Array.isArray(record.evidence) && record.evidence.length > 0 ? (
@@ -614,7 +631,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                           )}
                         </div>
                       </div>
-                    </div>
+                    </details>
                     
                   </div>
               </div>

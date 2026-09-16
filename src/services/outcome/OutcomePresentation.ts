@@ -125,6 +125,10 @@ export function getOutcomePresentation(outcome: LegalOutcomeType): OutcomePresen
   return PRESENTATIONS[outcome];
 }
 
+export function getCaseEntityOutcomeLabel(outcome: LegalOutcomeType): string {
+  return outcome === 'unclear' ? '待复核' : getOutcomePresentation(outcome).label;
+}
+
 export function getPartyOutcomePresentations(
   record: Pick<AnalysisCaseRecord, 'employeeOutcome' | 'employerOutcome' | 'applicantOutcome'>,
 ): {

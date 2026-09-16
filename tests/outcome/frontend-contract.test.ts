@@ -195,6 +195,22 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(librarySource).not.toMatch(/申请人结果/);
   });
 
+  it('keeps case detail dense sections collapsed and unresolved outcomes concise', () => {
+    const caseAnalysisSource = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    const librarySource = readFileSync(new URL('../../src/components/LaborAnalysisCaseLibrary.tsx', import.meta.url), 'utf8');
+    const metadataSource = readFileSync(new URL('../../src/services/presentation/CaseMetadataPresentation.ts', import.meta.url), 'utf8');
+    expect(caseAnalysisSource).toMatch(/createCaseSummaryPresentation/);
+    expect(caseAnalysisSource).toMatch(/aria-label="案件摘要"/);
+    expect(caseAnalysisSource).toMatch(/getCaseEntityOutcomeLabel/);
+    expect(caseAnalysisSource).toMatch(/展开诊断证据片段/);
+    expect(caseAnalysisSource).toMatch(/<details className="mt-6 pt-6 border-t/);
+    expect(caseAnalysisSource).toMatch(/关键证据与法院认定：\{\(record\.evidence \|\| \[\]\)\.length\}/);
+    expect(librarySource).toMatch(/createCaseSummaryPresentation/);
+    expect(librarySource).toMatch(/关键证据与法院认定：/);
+    expect(metadataSource).toMatch(/createCaseSummaryPresentation/);
+    expect(metadataSource).toMatch(/本案：/);
+  });
+
   it('shows the same selected analysis context in workspace and case analysis without auto-latest fallback', () => {
     const workspaceSource = readFileSync(new URL('../../src/components/ResearchWorkspace.tsx', import.meta.url), 'utf8');
     const appSource = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');

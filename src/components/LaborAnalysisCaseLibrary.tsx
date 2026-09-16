@@ -3,10 +3,10 @@ import { Search, MapPin, Calendar, FileText, Briefcase, Database, X, Eye, Extern
 import { AnalysisCaseRecord } from '../types';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { DataService } from '../services/data/dataService';
-import { getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
+import { getCaseEntityOutcomeLabel, getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
 import { filterAnalysisCaseRecords } from '../services/case/CaseLibraryFilter';
-import { formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
+import { createCaseSummaryPresentation, formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
 
 export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => void, onNavigateToReview?: () => void, onNavigateToAnalytics?: () => void, onNavigateToDefense?: () => void }> = () => {
   const [loading, setLoading] = useState(true);
@@ -283,14 +283,24 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                     </div>
                   </div>
 
+                  {(() => {
+                    const summary = createCaseSummaryPresentation(selectedRecord);
+                    return (summary.primary || summary.secondary) ? (
+                      <div aria-label="案件摘要" className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-950">
+                        {summary.primary && <div className="font-medium">{summary.primary}</div>}
+                        {summary.secondary && <div className="mt-0.5 text-[11px] text-indigo-800/80">{summary.secondary}</div>}
+                      </div>
+                    ) : null;
+                  })()}
+
                   {/* 裁判结果 */}
                   {selectedOutcomePresentations && <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
                     <h4 className="text-sm font-bold text-purple-900 mb-3 flex items-center gap-2">
                       <Scale className="w-4 h-4 text-purple-600" /> 裁判结果
                     </h4>
                     <div className="text-xs space-y-2 text-slate-700">
-                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">劳动者实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{selectedOutcomePresentations.employee.label}</span></div>
-                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">用人单位实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{selectedOutcomePresentations.employer.label}</span></div>
+                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">劳动者实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{getCaseEntityOutcomeLabel(selectedRecord.employeeOutcome)}</span></div>
+                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">用人单位实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{getCaseEntityOutcomeLabel(selectedRecord.employerOutcome)}</span></div>
                       <div className="flex"><span className="text-slate-500 w-24 shrink-0">主要争议：</span><span>{Array.isArray(selectedRecord.disputeType) ? selectedRecord.disputeType.join('、') : (selectedRecord.disputeType || '-')}</span></div>
                       {selectedRecord.legalOutcomeSummary && (
                         <div className="flex mt-2 pt-2 border-t border-purple-200/50">
@@ -309,6 +319,7 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                           {selectedRecord.claims.map((c, i) => {
                             const presentation = getOutcomePresentation(c.supportStatus);
                             const ownership = getClaimOwnershipPresentation(c, selectedRecord);
+                            const needsReview = selectedRecord.outcomeDiagnostics?.some((diagnostic) => diagnostic.claimId === c.id && diagnostic.needsReview);
                             return (
                               <div key={i} className="bg-slate-50 p-2 rounded text-xs text-slate-700 border border-slate-200 flex justify-between gap-2">
                                 <span>
@@ -317,6 +328,7 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                                     <span>提出方：{ownership.claimantLabel}</span>
                                     {ownership.beneficiaryLabel && <span>实质受益方：{ownership.beneficiaryLabel}</span>}
                                     {ownership.relatedLabel && <span>关联权益：{ownership.relatedLabel}</span>}
+                                    {needsReview && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">待复核</span>}
                                   </span>
                                 </span>
                                 <span className={`shrink-0 px-1.5 py-0.5 rounded text-2xs font-bold ${presentation.badgeClassName}`}>
@@ -344,7 +356,9 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <details>
+                    <summary className="cursor-pointer list-none text-sm font-bold text-slate-800">关键证据与法院认定：{(selectedRecord.evidence || []).length} 条证据｜{selectedRecord.courtReasoning?.trim() ? '1' : '0'} 条认定理由</summary>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-3">
                     <div className="space-y-3">
                       <h4 className="text-sm font-bold text-slate-800 border-b pb-2">关键证据</h4>
                       {Array.isArray(selectedRecord.evidence) && selectedRecord.evidence.length > 0 ? (
@@ -364,7 +378,8 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                         </div>
                       ) : <div className="text-xs text-slate-400">无记录</div>}
                     </div>
-                  </div>
+                    </div>
+                  </details>
               </div>
             </div>
           </div>
