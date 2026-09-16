@@ -328,6 +328,9 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
               <span>规则改进：{reviewStatusCounts.rule_improvement}</span>
             </div>
             <div className="mt-0.5 text-[10px] text-amber-800/80">一篇案例可能包含多个待复核诉求。<span className="mx-1">·</span>当前仅标记复核状态，不会修改分析结果或统计口径。</div>
+            <div aria-label="复核覆盖层说明" className="mt-1 rounded border border-indigo-100 bg-indigo-50/70 px-2 py-1 text-[10px] text-indigo-800">
+              <span className="font-medium">复核覆盖层：尚未启用</span><span className="mx-1">·</span>后续人工或 LLM 复核结果将作为覆盖层保存，不会覆盖原始规则解析结果。
+            </div>
           </div>
           <div aria-label="待复核筛选" className="flex flex-wrap gap-1 text-[10px] xl:justify-end">
             <select aria-label="复核状态筛选" value={reviewStatusFilter} onChange={(event) => setReviewStatusFilter(event.target.value as OutcomeReviewStatusFilter)} className="rounded border border-amber-300 bg-white px-1.5 py-0.5">

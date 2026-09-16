@@ -252,6 +252,12 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(queueSource).toMatch(/建议人工判断/);
   });
 
+  it('exposes the review overlay boundary without implying that review has run', () => {
+    const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
+    expect(source).toMatch(/复核覆盖层：尚未启用/);
+    expect(source).toMatch(/不会覆盖原始规则解析结果/);
+  });
+
   it('keeps ordinary outcome presentation on labor-role dimensions and labels claim ownership', () => {
     const caseAnalysisSource = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     const librarySource = readFileSync(new URL('../../src/components/LaborAnalysisCaseLibrary.tsx', import.meta.url), 'utf8');

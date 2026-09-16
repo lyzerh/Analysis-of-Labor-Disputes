@@ -884,6 +884,54 @@ export interface OutcomeReviewItem extends OutcomeResolutionDiagnostic {
 }
 
 /**
+ * ReviewOverlay keeps a reviewed conclusion separate from the immutable
+ * rule-based AnalysisCaseRecord. Accepted overlays are applied only in an
+ * explicitly requested reviewed projection.
+ */
+export type ReviewOverlayTarget = 'case' | 'claim' | 'outcome' | 'amount' | 'party' | 'evidence';
+export type ReviewOverlaySource = 'human' | 'llm_validated';
+export type ReviewOverlayStatus = 'draft' | 'accepted' | 'rejected';
+export type ReviewOverlaySchemaVersion = 'review-overlay-v1';
+
+export interface ReviewOverlayValues {
+  outcome?: LegalOutcomeType | null;
+  claimType?: string | null;
+  claimantRole?: LaborRole | null;
+  beneficiaryRole?: LaborRole | null;
+  requestedAmount?: number | null;
+  awardedAmount?: number | null;
+}
+
+export interface ReviewOverlay {
+  id: string;
+  analysisRunId: string;
+  caseId: string;
+  reviewItemId: string;
+  claimId?: string | null;
+  target: ReviewOverlayTarget;
+  original: ReviewOverlayValues;
+  reviewed: ReviewOverlayValues;
+  evidence: OutcomeDiagnosticEvidence;
+  source: ReviewOverlaySource;
+  status: ReviewOverlayStatus;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+  schemaVersion: ReviewOverlaySchemaVersion;
+}
+
+/** Future LLM output boundary: candidates can become draft overlays only
+ * after validation; this type does not imply that any LLM call occurred. */
+export interface LlmReviewCandidateInput {
+  reviewItemId: string;
+  caseId: string;
+  claimId?: string | null;
+  currentOutcome: LegalOutcomeType;
+  reasonCode: OutcomeUnclearReasonCode;
+  evidence: OutcomeDiagnosticEvidence;
+}
+
+/**
  * 工劳网文书结构化解析结果 (扩展至 ArbitrationCase)
  */
 export interface LaborInfoParsedResult {
