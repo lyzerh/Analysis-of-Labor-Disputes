@@ -150,99 +150,71 @@ describe('Review queue interaction and analysis context contract', () => {
 
   it('makes review items actionable and exposes reason plus typed evidence fields', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
-    expect(source).toMatch(/onClick=\{\(\) => handleReviewItemClick\(item\)\}/);
+    const workspace = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
+    expect(source).toMatch(/onSelectCase=\{handleReviewItemClick\}/);
+    expect(workspace).toMatch(/onClick=\{\(\) => onSelectCase\(item\)\}/);
     expect(source).toMatch(/outcomeReviewEvidenceFields/);
     expect(source).toMatch(/OutcomeEvidenceFields/);
-    expect(source).toMatch(/复核原因筛选/);
     expect(source).toMatch(/setSelectedCaseId\(item\.caseId\)/);
-    expect(source).toMatch(/shouldMarkOutcomeReviewItemViewed/);
-    expect(source).toMatch(/if \(shouldMarkOutcomeReviewItemViewed\(item, reviewStatuses\)\)/);
   });
 
-  it('keeps the review queue space-efficient and semantically layered', () => {
+  it('keeps the pipeline workspace space-efficient and semantically layered', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
-    expect(source).toMatch(/aria-label="待复核筛选"/);
-    expect(source).toMatch(/aria-label="待复核卡片列表"/);
-    expect(source).toMatch(/2xl:grid-cols-2/);
-    expect(source).not.toMatch(/md:grid-cols-\[minmax\(0,1fr\)_minmax\(9rem,10rem\)\]/);
-    expect(source).toMatch(/当前结果：\{getOutcomePresentation\(item\.outcome\)\.label\}/);
-    expect(source).toMatch(/建议：\{outcomeReviewSuggestionLabels/);
-    expect(source).toMatch(/状态：\{outcomeReviewStatusLabels/);
-    expect(source).toMatch(/line-clamp-2/);
-    expect(source).toMatch(/aria-label="复核状态操作"/);
-    expect(source).toMatch(/onClick=\{\(\) => updateReviewStatus\(item, status\)\}/);
+    const workspace = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
+    expect(source).toMatch(/流水线工作台/);
+    expect(workspace).toMatch(/aria-label="分析流水线工作台"/);
+    expect(workspace).toMatch(/aria-label="流水线总览"/);
+    expect(workspace).toMatch(/aria-label="裁判结果诊断线索"/);
+    expect(workspace).toMatch(/xl:grid-cols-2/);
+    expect(workspace).toMatch(/当前结果：\{getOutcomePresentation\(item\.outcome\)\.label\}/);
+    expect(workspace).toMatch(/line-clamp-2/);
+    expect(workspace).toMatch(/SemanticReviewWorkspace/);
   });
 
-  it('keeps the review queue vertically scrollable without clipping its two-column cards', () => {
+  it('keeps the pipeline workspace vertically scrollable without clipping its cards', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     const appSource = readFileSync(new URL('../../src/App.tsx', import.meta.url), 'utf8');
+    const workspace = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
     expect(source).toMatch(/className="flex h-full min-h-0 flex-col overflow-hidden/);
-    expect(source).toMatch(/aria-label="Outcome Review Items" className="mx-4 mt-3 flex min-h-0 flex-1 flex-col overflow-hidden/);
-    expect(source).toMatch(/className="mt-1 min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1"/);
-    expect(source).toMatch(/aria-label="待复核卡片列表"/);
-    expect(source).toMatch(/2xl:grid-cols-2/);
-    expect(source).toMatch(/lg:grid-cols-3/);
-    expect(source).toMatch(/outcomeReviewEvidenceFields/);
-    expect(source).toMatch(/aria-label="复核状态操作"/);
-    expect(source).toMatch(/LLM候选/);
-    expect(source).toMatch(/aria-label={label}/);
-    expect(source).toMatch(/expandedReviewItems/);
-    expect(source).toMatch(/aria-expanded={expanded}/);
-    expect(source).toMatch(/展开详情/);
-    expect(source).toMatch(/收起详情/);
-    expect(source).toMatch(/line-clamp-4/);
-    expect(source).toMatch(/line-clamp-2/);
+    expect(workspace).toMatch(/min-h-0 flex-1 overflow-y-auto/);
+    expect(workspace).toMatch(/xl:grid-cols-2/);
+    expect(workspace).toMatch(/overflow-y-auto/);
     expect(appSource).toMatch(/flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden/);
     expect(appSource).toMatch(/<main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden select-text">/);
   });
 
-  it('keeps the review header and coverage audit compact while retaining scope warnings', () => {
-    const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
-    const auditSource = readFileSync(new URL('../../src/components/OutcomeCoverageAuditPanel.tsx', import.meta.url), 'utf8');
-    expect(source).toMatch(/一篇案例可能包含多个待复核诉求/);
-    expect(source).toMatch(/当前仅标记复核状态，不会修改分析结果或统计口径/);
-    expect(source).toMatch(/flex flex-wrap items-center gap-x-3/);
-    expect(auditSource).toMatch(/结果覆盖率审计/);
-    expect(auditSource).toMatch(/总诉求：{audit\.totalClaims}/);
-    expect(auditSource).toMatch(/md:grid-cols-3/);
-    expect(auditSource).toMatch(/text-\[9px\]/);
+  it('keeps the pipeline header compact while retaining scope and immutable-result warnings', () => {
+    const workspace = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
+    expect(workspace).toMatch(/当前显示的是本次分析集中的案例/);
+    expect(workspace).toMatch(/当前为本地案例浏览/);
+    expect(workspace).toMatch(/不会改写原始解析或研究统计/);
+    expect(workspace).toMatch(/grid gap-2 sm:grid-cols-2 xl:grid-cols-4/);
   });
 
   it('splits Case Analysis into browse and review subviews with browse as the default', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     const scopeSource = readFileSync(new URL('../../src/services/presentation/CaseAnalysisScopePresentation.ts', import.meta.url), 'utf8');
-    expect(source).toMatch(/type CaseAnalysisSubview = 'browse' \| 'review'/);
+    expect(source).toMatch(/type CaseAnalysisSubview = 'browse' \| 'pipeline'/);
     expect(source).toMatch(/useState<CaseAnalysisSubview>\('browse'\)/);
     expect(source).toMatch(/案例浏览/);
-    expect(source).toMatch(/待复核项/);
-    expect(source).toMatch(/activeSubview === 'review'/);
+    expect(source).toMatch(/流水线工作台/);
+    expect(source).toMatch(/activeSubview === 'pipeline'/);
     expect(source).toMatch(/activeSubview === 'browse'/);
-    expect(source).toMatch(/activeSubview === 'review' && <div aria-label="Outcome Review Items"/);
     expect(source).toMatch(/activeSubview === 'browse' && <div className="flex flex-col lg:flex-row/);
-    expect(source).toMatch(/createReviewQueueScopeLabel/);
-    expect(scopeSource).toMatch(/待复核项来自当前分析集/);
-    expect(source).toMatch(/一篇案例可能包含多个待复核诉求/);
+    expect(source).toMatch(/<PipelineWorkspace records=\{records\}/);
     expect(source).toMatch(/setActiveSubview\('browse'\)/);
     expect(source).toMatch(/setSelectedReviewItem\(item\)/);
     expect(source).toMatch(/createCaseAnalysisScopeNotice/);
     expect(source).toMatch(/createCaseListScopeLabel/);
     expect(source).not.toMatch(/共 \$\{filteredRecords\.length\} 个案例/);
+    expect(scopeSource).toMatch(/待复核项来自当前分析集/);
   });
 
-  it('exposes UI-only review decision hints, status controls, persistence, and safe degradation', () => {
+  it('keeps legacy review persistence out of the formal pipeline UI', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     const queueSource = readFileSync(new URL('../../src/services/outcome/OutcomeReviewQueue.ts', import.meta.url), 'utf8');
-    expect(source).toMatch(/当前仅标记复核状态，不会修改分析结果或统计口径/);
-    expect(source).toMatch(/updateReviewStatus\(item, 'viewed'\)/);
-    expect(source).toMatch(/加入 LLM 复核候选/);
-    expect(source).toMatch(/标记人工复核/);
-    expect(source).toMatch(/标记规则改进/);
-    expect(source).toMatch(/暂缓处理/);
-    expect(source).toMatch(/当前结果：\{getOutcomePresentation\(item\.outcome\)\.label\}/);
-    expect(source).toMatch(/未查看：\{reviewStatusCounts\.unseen\}/);
-    expect(source).toMatch(/LLM候选：\{reviewStatusCounts\.llm_candidate\}/);
-    expect(source).toMatch(/manual_review/);
-    expect(source).toMatch(/rule_improvement/);
+    expect(source).not.toMatch(/加入 LLM 复核候选|标记人工复核|标记规则改进|暂缓处理/);
+    expect(source).not.toMatch(/reviewStatusCounts|updateReviewStatus/);
     expect(queueSource).toMatch(/labor-analysis-review-status-v1/);
     expect(queueSource).toMatch(/readOutcomeReviewStatusMap/);
     expect(queueSource).toMatch(/catch \{/);
@@ -253,9 +225,9 @@ describe('Review queue interaction and analysis context contract', () => {
   });
 
   it('exposes the review overlay boundary without implying that review has run', () => {
-    const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
-    expect(source).toMatch(/复核覆盖层：尚未启用/);
-    expect(source).toMatch(/不会覆盖原始规则解析结果/);
+    const source = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
+    expect(source).toMatch(/阶段变化不会改写原始解析或研究统计/);
+    expect(source).toMatch(/不会覆盖原始规则解析结果|不会改写原始解析/);
   });
 
   it('keeps ordinary outcome presentation on labor-role dimensions and labels claim ownership', () => {
@@ -312,9 +284,9 @@ describe('Review queue interaction and analysis context contract', () => {
   it('renders a compact outcome coverage audit without changing the review queue contract', () => {
     const caseAnalysisSource = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     const auditPanelSource = readFileSync(new URL('../../src/components/OutcomeCoverageAuditPanel.tsx', import.meta.url), 'utf8');
-    expect(caseAnalysisSource).toMatch(/OutcomeCoverageAuditPanel/);
-    expect(caseAnalysisSource).toMatch(/createOutcomeCoverageAudit/);
-    expect(caseAnalysisSource).toMatch(/analysisContext\?\.analysisRun \? records : \[\]/);
+    const pipelineSource = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
+    expect(caseAnalysisSource).toMatch(/PipelineWorkspace/);
+    expect(pipelineSource).toMatch(/自动核验未通过/);
     expect(auditPanelSource).toMatch(/结果覆盖率审计/);
     expect(auditPanelSource).toMatch(/总诉求：\{audit\.totalClaims\}/);
     expect(auditPanelSource).toMatch(/已确定：\{audit\.resolvedClaims\}/);

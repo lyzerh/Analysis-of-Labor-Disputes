@@ -1,5 +1,9 @@
 import type { AnalysisEngineVersions, SemanticAnalysisConfig } from '../../types';
-import { DEFAULT_SEMANTIC_MODEL, SEMANTIC_PROMPT_VERSION } from '../semantic/SemanticPrompt';
+import {
+  SEMANTIC_LLM_MODEL,
+  SEMANTIC_LLM_PROVIDER,
+  SEMANTIC_RESULT_PROMPT_VERSION,
+} from '../semantic/SemanticPrompt';
 
 /**
  * Version of the current LaborInfo party/claim/reference parser contract.
@@ -30,9 +34,9 @@ export function getSemanticAnalysisConfig(enabled: boolean): SemanticAnalysisCon
   return enabled
     ? {
         enabled: true,
-        promptVersion: SEMANTIC_PROMPT_VERSION,
-        provider: 'gemini',
-        model: DEFAULT_SEMANTIC_MODEL,
+        promptVersion: SEMANTIC_RESULT_PROMPT_VERSION,
+        provider: SEMANTIC_LLM_PROVIDER,
+        model: SEMANTIC_LLM_MODEL,
       }
     : getDefaultSemanticAnalysisConfig();
 }

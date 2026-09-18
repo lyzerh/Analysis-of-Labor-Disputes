@@ -179,18 +179,26 @@ export class LaborCaseDatasetBuilder {
     // 兼容旧字段；其语义固定为申请人视角。
     let overallResult = applicantOutcome;
 
-    // 5. Parser 的明确 party outcomes 是事实来源；仅在 Review 改了 Outcome/角色时确定性重算。
+    // 5. Parser 的明确 party outcomes 是事实来源。
+    // Review 只有在同时提供双方视角结果时才能覆盖；申请人视角字段只用于
+    // 补全尚未确定的一方，不能把已经确定的结果重新翻转。
     let employeeOutcome = parsed.employeeOutcome ?? 'unclear';
     let employerOutcome = parsed.employerOutcome ?? 'unclear';
-    const reviewChangesPerspective = changes?.applicantRole !== undefined
-      || changes?.applicantOutcome !== undefined
-      || changes?.overallResult !== undefined;
 
     if (changes?.employeeOutcome !== undefined && changes?.employerOutcome !== undefined) {
       employeeOutcome = changes.employeeOutcome;
       employerOutcome = changes.employerOutcome;
-    } else if (reviewChangesPerspective) {
-      ({ employeeOutcome, employerOutcome } = resolvePartyOutcomes(applicantRole, applicantOutcome));
+    } else if (changes?.applicantOutcome !== undefined) {
+      const reviewedPartyOutcomes = resolvePartyOutcomes(applicantRole, applicantOutcome);
+      const conflictsWithParsedOutcome = (
+        employeeOutcome !== 'unclear' && employeeOutcome !== reviewedPartyOutcomes.employeeOutcome
+      ) || (
+        employerOutcome !== 'unclear' && employerOutcome !== reviewedPartyOutcomes.employerOutcome
+      );
+      if (!conflictsWithParsedOutcome) {
+        if (employeeOutcome === 'unclear') employeeOutcome = reviewedPartyOutcomes.employeeOutcome;
+        if (employerOutcome === 'unclear') employerOutcome = reviewedPartyOutcomes.employerOutcome;
+      }
     }
 
     if (amountRepair.repairedClaimIds.length > 0) {

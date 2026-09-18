@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { AnalysisCaseRecord, CaseParty, OutcomeResolutionDiagnostic, ProceduralRole } from '../types';
+import { AnalysisCaseRecord, CaseParty, OutcomeResolutionDiagnostic, OutcomeReviewItem, ProceduralRole } from '../types';
 import { Database, Search, FileText, Scale, Target, ShieldAlert, BookOpen, AlertCircle, X } from 'lucide-react';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { getCaseEntityOutcomeLabel, getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
@@ -7,27 +7,16 @@ import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
 import { createCaseSummaryPresentation, formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
 import {
   buildOutcomeReviewQueue,
-  filterOutcomeReviewQueue,
   outcomeReviewReasonLabels,
   outcomeReviewEvidenceFields,
-  outcomeReviewSuggestionLabels,
-  outcomeReviewSuggestionForDisplay,
-  outcomeReviewSuggestionHint,
-  outcomeReviewStatusLabels,
-  outcomeReviewUserStatus,
-  shouldMarkOutcomeReviewItemViewed,
-  outcomeReviewItemId,
-  readOutcomeReviewStatusMap,
-  writeOutcomeReviewStatusMap,
-  type OutcomeReviewStatusMap,
-  type OutcomeReviewUserStatus,
-  type OutcomeReviewStatusFilter,
 } from '../services/outcome/OutcomeReviewQueue';
 import { ResearchAnalysisService, type ResearchAnalysisContext } from '../services/analysis/ResearchAnalysisService';
 import { AnalysisContextBar } from './AnalysisContextBar';
-import { createCaseAnalysisScopeNotice, createCaseListScopeLabel, createReviewQueueScopeLabel } from '../services/presentation/CaseAnalysisScopePresentation';
-import { createOutcomeCoverageAudit } from '../services/outcome/OutcomeCoverageAudit';
-import { OutcomeCoverageAuditPanel } from './OutcomeCoverageAuditPanel';
+import { createCaseAnalysisScopeNotice, createCaseListScopeLabel } from '../services/presentation/CaseAnalysisScopePresentation';
+import { PipelineWorkspace } from './PipelineWorkspace';
+import { CollapsibleText } from './CollapsibleText';
+import { cleanPipelineDiagnosticMessage } from '../services/presentation/PipelineStagePresentation';
+import { runSingleCaseSemanticAnalysis, type SingleCaseSemanticRunResult } from '../services/semantic/LlmRuntimeService';
 
 const proceduralRoleLabels: Record<ProceduralRole, string> = {
   plaintiff: '原告',
@@ -55,7 +44,7 @@ interface CaseAnalysisViewProps {
   initialAnalysisRunId?: string;
 }
 
-type CaseAnalysisSubview = 'browse' | 'review';
+type CaseAnalysisSubview = 'browse' | 'pipeline';
 
 const researchAnalysisService = new ResearchAnalysisService();
 
@@ -78,7 +67,7 @@ const OutcomeEvidenceFields: React.FC<{
       {visibleFields.map((field) => (
         <div key={field.key} className={compact ? 'min-w-0 rounded border border-slate-200/80 bg-slate-50/70 px-1 py-0.5' : undefined} title={field.text || field.placeholder}>
           <span className="block font-medium text-slate-700">{field.label}</span>
-          <span className={compact ? 'mt-0.5 block max-h-16 overflow-hidden break-words leading-4 line-clamp-4' : undefined}>{field.text || field.placeholder}</span>
+          <CollapsibleText text={field.key === 'diagnosticText' ? cleanPipelineDiagnosticMessage(field.text, field.placeholder || '') : (field.text || field.placeholder)} collapsedLines={4} className={compact ? 'mt-0.5 leading-4' : 'mt-0.5'} />
         </div>
       ))}
     </div>
@@ -95,12 +84,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [analysisContext, setAnalysisContext] = useState<ResearchAnalysisContext | null>(null);
   const [activeSubview, setActiveSubview] = useState<CaseAnalysisSubview>('browse');
-  const [reviewStatusFilter, setReviewStatusFilter] = useState<OutcomeReviewStatusFilter>('all');
-  const [reviewReasonFilter, setReviewReasonFilter] = useState('');
-  const [reviewSuggestionFilter, setReviewSuggestionFilter] = useState('');
-  const [selectedReviewItem, setSelectedReviewItem] = useState<ReturnType<typeof buildOutcomeReviewQueue>[number] | null>(null);
-  const [reviewStatuses, setReviewStatuses] = useState<OutcomeReviewStatusMap>(() => readOutcomeReviewStatusMap());
-  const [expandedReviewItems, setExpandedReviewItems] = useState<Record<string, boolean>>({});
+  const [selectedReviewItem, setSelectedReviewItem] = useState<OutcomeReviewItem | null>(null);
 
   // ② 所有 effect
   useEffect(() => {
@@ -202,66 +186,18 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
     ? getPartyOutcomePresentations(selectedCase)
     : null;
   const reviewQueue = useMemo(() => buildOutcomeReviewQueue(records), [records]);
-  const involvedReviewCaseCount = useMemo(
-    () => new Set(reviewQueue.map((item) => item.caseId)).size,
-    [reviewQueue],
-  );
-  const reviewStatusCounts = useMemo(() => reviewQueue.reduce<Record<OutcomeReviewUserStatus, number>>((counts, item) => {
-    const status = outcomeReviewUserStatus(item, reviewStatuses);
-    counts[status] += 1;
-    return counts;
-  }, {
-    unseen: 0,
-    viewed: 0,
-    llm_candidate: 0,
-    manual_review: 0,
-    rule_improvement: 0,
-    deferred: 0,
-  }), [reviewQueue, reviewStatuses]);
   const selectedDiagnostics = selectedCase?.outcomeDiagnostics || [];
-  const filteredReviewQueue = useMemo(
-    () => filterOutcomeReviewQueue(reviewQueue, reviewStatusFilter, reviewReasonFilter as any, reviewSuggestionFilter as any, reviewStatuses),
-    [reviewQueue, reviewReasonFilter, reviewStatusFilter, reviewSuggestionFilter, reviewStatuses],
-  );
-  const reviewReasonOptions = useMemo(
-    () => [...new Set(reviewQueue.map((item) => item.reasonCode).filter(Boolean))] as string[],
-    [reviewQueue],
-  );
-  const reviewSuggestionOptions = useMemo(
-    () => [...new Set(reviewQueue.map((item) => outcomeReviewSuggestionForDisplay(item)).filter(Boolean))] as string[],
-    [reviewQueue],
-  );
-  const outcomeCoverageAudit = useMemo(
-    () => createOutcomeCoverageAudit(
-      analysisContext?.analysisRun?.id || '',
-      analysisContext?.analysisRun ? records : [],
-    ),
-    [analysisContext?.analysisRun?.id, records],
-  );
 
-  const updateReviewStatus = (item: ReturnType<typeof buildOutcomeReviewQueue>[number], status: OutcomeReviewUserStatus) => {
-    setReviewStatuses((current) => {
-      const next = { ...current, [outcomeReviewItemId(item)]: status };
-      writeOutcomeReviewStatusMap(next);
-      return next;
-    });
-  };
-
-  const toggleReviewItemExpanded = (item: ReturnType<typeof buildOutcomeReviewQueue>[number]) => {
-    setExpandedReviewItems((current) => ({
-      ...current,
-      [item.reviewItemId]: !current[item.reviewItemId],
-    }));
-  };
-
-  const handleReviewItemClick = (item: ReturnType<typeof buildOutcomeReviewQueue>[number]) => {
+  const handleReviewItemClick = (item: OutcomeReviewItem) => {
     setKeyword('');
     setSelectedCaseId(item.caseId);
     setSelectedReviewItem(item);
-    if (shouldMarkOutcomeReviewItemViewed(item, reviewStatuses)) {
-      updateReviewStatus(item, 'viewed');
-    }
     setActiveSubview('browse');
+  };
+
+  const handleRunSingleCase = async (record: AnalysisCaseRecord): Promise<SingleCaseSemanticRunResult> => {
+    const rawDocument = await LaborAnalysisPipeline.getRawDocumentForRecord(record);
+    return runSingleCaseSemanticAnalysis(record, rawDocument);
   };
 
 
@@ -294,11 +230,11 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
           <button
             type="button"
             role="tab"
-            aria-selected={activeSubview === 'review'}
-            onClick={() => setActiveSubview('review')}
-            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${activeSubview === 'review' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            aria-selected={activeSubview === 'pipeline'}
+            onClick={() => setActiveSubview('pipeline')}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${activeSubview === 'pipeline' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
           >
-            待复核项
+            流水线工作台
           </button>
         </div>
         {analysisContext?.analysisRun && (
@@ -317,123 +253,14 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
         )}
       </div>
 
-      {activeSubview === 'review' && <div aria-label="Outcome Review Items" className="mx-4 mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-amber-200 bg-amber-50/70 p-2 text-xs text-amber-900">
-        <div className="flex shrink-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-              <div className="font-bold">{createReviewQueueScopeLabel(hasAnalysisRun, reviewQueue.length, involvedReviewCaseCount)}</div>
-              <span>未查看：{reviewStatusCounts.unseen}</span>
-              <span>LLM候选：{reviewStatusCounts.llm_candidate}</span>
-              <span>人工复核：{reviewStatusCounts.manual_review}</span>
-              <span>规则改进：{reviewStatusCounts.rule_improvement}</span>
-            </div>
-            <div className="mt-0.5 text-[10px] text-amber-800/80">一篇案例可能包含多个待复核诉求。<span className="mx-1">·</span>当前仅标记复核状态，不会修改分析结果或统计口径。</div>
-            <div aria-label="复核覆盖层说明" className="mt-1 rounded border border-indigo-100 bg-indigo-50/70 px-2 py-1 text-[10px] text-indigo-800">
-              <span className="font-medium">复核覆盖层：尚未启用</span><span className="mx-1">·</span>后续人工或 LLM 复核结果将作为覆盖层保存，不会覆盖原始规则解析结果。
-            </div>
-          </div>
-          <div aria-label="待复核筛选" className="flex flex-wrap gap-1 text-[10px] xl:justify-end">
-            <select aria-label="复核状态筛选" value={reviewStatusFilter} onChange={(event) => setReviewStatusFilter(event.target.value as OutcomeReviewStatusFilter)} className="rounded border border-amber-300 bg-white px-1.5 py-0.5">
-              <option value="all">全部</option>
-              <option value="needs_review">待复核</option>
-              <option value="unseen">未查看</option>
-              <option value="viewed">已查看</option>
-              <option value="llm_candidate">LLM候选</option>
-              <option value="manual_review">人工复核</option>
-              <option value="rule_improvement">规则改进</option>
-              <option value="deferred">暂缓</option>
-            </select>
-            <select aria-label="复核原因筛选" value={reviewReasonFilter} onChange={(event) => setReviewReasonFilter(event.target.value)} className="rounded border border-amber-300 bg-white px-1.5 py-0.5">
-              <option value="">所有原因</option>
-              {reviewReasonOptions.map((reason) => <option key={reason} value={reason}>{outcomeReviewReasonLabels[reason as keyof typeof outcomeReviewReasonLabels] || reason}</option>)}
-            </select>
-            <select aria-label="处理建议筛选" value={reviewSuggestionFilter} onChange={(event) => setReviewSuggestionFilter(event.target.value)} className="rounded border border-amber-300 bg-white px-1.5 py-0.5">
-              <option value="">所有建议</option>
-              {reviewSuggestionOptions.map((suggestion) => <option key={suggestion} value={suggestion}>{outcomeReviewSuggestionLabels[suggestion as keyof typeof outcomeReviewSuggestionLabels] || suggestion}</option>)}
-            </select>
-          </div>
-        </div>
-        <OutcomeCoverageAuditPanel audit={outcomeCoverageAudit} />
-        {reviewQueue.length === 0 ? (
-          <div className="mt-1 text-amber-800">当前分析记录没有未确定结果。</div>
-        ) : (
-          <div className="mt-1 min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1">
-            {filteredReviewQueue.length === 0 ? <div className="text-amber-800">当前筛选条件没有待复核项。</div> : (
-              <div className="grid gap-3 2xl:grid-cols-2" aria-label="待复核卡片列表">
-                {filteredReviewQueue.map((item, index) => (
-                  <div key={`${item.caseId}-${item.claimId || item.target || 'outcome'}-${index}`} className="min-w-0 rounded-lg border border-amber-200/70 bg-white/70 p-2.5 hover:bg-white">
-                    {(() => {
-                      const expanded = Boolean(expandedReviewItems[item.reviewItemId]);
-                      const evidenceFields = outcomeReviewEvidenceFields(item);
-                      return (
-                        <>
-                    <button
-                      type="button"
-                      onClick={() => handleReviewItemClick(item)}
-                      className="block w-full min-w-0 rounded text-left focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    >
-                      <div className="line-clamp-2 text-sm font-semibold leading-5 text-slate-900" title={item.title || item.caseNumber || item.caseId}>{item.title || item.caseNumber || item.caseId}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-700">
-                        <span>{item.claimType || item.target || '结果'}</span>
-                        <span>｜当前结果：{getOutcomePresentation(item.outcome).label}</span>
-                        <span className="min-w-0 max-w-full line-clamp-2">｜原因：{item.reasonMessage || (item.reasonCode && outcomeReviewReasonLabels[item.reasonCode]) || '待复核'}</span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-600">
-                        {outcomeReviewSuggestionForDisplay(item) && <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700">建议：{outcomeReviewSuggestionLabels[outcomeReviewSuggestionForDisplay(item)!]}</span>}
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">状态：{outcomeReviewStatusLabels[outcomeReviewUserStatus(item, reviewStatuses)]}</span>
-                        {outcomeReviewSuggestionHint(item) && <span className="max-w-full line-clamp-2 text-indigo-700">{outcomeReviewSuggestionHint(item)}</span>}
-                      </div>
-                    </button>
-                    <OutcomeEvidenceFields item={item} compact expanded={expanded} />
-                    <div className="mt-1 text-[11px] text-indigo-700">
-                      <button type="button" aria-expanded={expanded} onClick={() => toggleReviewItemExpanded(item)} className="rounded px-1 py-0.5 hover:bg-indigo-50">
-                        {expanded ? '收起详情' : '展开详情'}
-                      </button>
-                    </div>
-                    {expanded && (
-                      <div className="mt-1 rounded border border-indigo-100 bg-indigo-50/50 px-2 py-1 text-[11px] text-indigo-900">
-                        {item.reasonCode && <div>技术原因：{item.reasonCode}</div>}
-                        {item.reasonMessage && <div className="mt-0.5">完整原因：{item.reasonMessage}</div>}
-                        {evidenceFields.length === 0 && <div>暂无更多诊断证据片段。</div>}
-                      </div>
-                    )}
-                    <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-slate-200 pt-1.5" aria-label="复核状态操作">
-                      {([
-                        ['viewed', '已查看', '已查看'],
-                        ['llm_candidate', '加入 LLM 复核候选', 'LLM候选'],
-                        ['manual_review', '标记人工复核', '人工'],
-                        ['rule_improvement', '标记规则改进', '规则'],
-                        ['deferred', '暂缓处理', '暂缓'],
-                      ] as const).map(([status, label, shortLabel]) => (
-                        <button
-                          key={status}
-                          type="button"
-                          onClick={() => updateReviewStatus(item, status)}
-                          aria-label={label}
-                          title={label}
-                          className={`min-w-0 whitespace-nowrap rounded border px-1 py-0.5 text-[10px] ${outcomeReviewUserStatus(item, reviewStatuses) === status ? 'border-amber-500 bg-amber-100 text-amber-900' : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-50'}`}
-                        >
-                          {shortLabel}
-                        </button>
-                      ))}
-                    </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>}
+      {activeSubview === 'pipeline' && (
+        <PipelineWorkspace records={records} reviewItems={reviewQueue} onSelectCase={handleReviewItemClick} hasAnalysisRun={hasAnalysisRun} onRunSingleCase={handleRunSingleCase} />
+      )}
 
       {activeSubview === 'browse' && selectedReviewItem && selectedCase && selectedReviewItem.caseId === selectedCase.caseId && (
         <div className="mx-4 mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-950">
-          <div className="font-semibold">已定位到当前案例的待复核项</div>
-          <div className="mt-1">原因：{selectedReviewItem.reasonMessage || (selectedReviewItem.reasonCode && outcomeReviewReasonLabels[selectedReviewItem.reasonCode]) || '待复核'} {selectedReviewItem.reasonCode && <span className="text-indigo-700/70">（{selectedReviewItem.reasonCode}）</span>}</div>
-          <div className="mt-1">状态：{outcomeReviewStatusLabels[outcomeReviewUserStatus(selectedReviewItem, reviewStatuses)]}</div>
-          {outcomeReviewSuggestionHint(selectedReviewItem) && <div className="mt-1">处理建议：{outcomeReviewSuggestionHint(selectedReviewItem)}</div>}
+          <div className="font-semibold">已定位到当前案例的诊断线索</div>
+          <div className="mt-1">原因：{cleanPipelineDiagnosticMessage(selectedReviewItem.reasonMessage, (selectedReviewItem.reasonCode && outcomeReviewReasonLabels[selectedReviewItem.reasonCode]) || '待复核')} {selectedReviewItem.reasonCode && <span className="text-indigo-700/70">（{selectedReviewItem.reasonCode}）</span>}</div>
           <details className="mt-1">
             <summary className="cursor-pointer text-indigo-700">展开诊断证据片段</summary>
             <OutcomeEvidenceFields item={selectedReviewItem} />
@@ -652,7 +479,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                               {record.employerDefenses.map((def: any, idx: number) => (
                                 <div key={idx} className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg text-xs space-y-1">
                                   <div className="font-bold text-emerald-900">{def.defenseType || def.type}</div>
-                                  <div className="text-slate-700 leading-relaxed">{def.matchedText || def.text}</div>
+                                  <CollapsibleText text={def.matchedText || def.text} collapsedLines={4} className="text-slate-700 leading-relaxed" />
                                 </div>
                               ))}
                             </div>
@@ -676,7 +503,8 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                               {record.evidence.map((ev: any, idx: number) => (
                                 <li key={idx}>
                                   <span className="font-medium text-slate-900">【{evidenceProviderLabel(ev.provider)}】</span>
-                                  {ev.name || ev.type}：{ev.matchedText || ev.text}
+                                  <span className="ml-1">{ev.name || ev.type}：</span>
+                                  <CollapsibleText text={ev.matchedText || ev.text} collapsedLines={4} className="mt-0.5" />
                                 </li>
                               ))}
                             </ul>
@@ -688,7 +516,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                           <div className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">法院/仲裁委认定理由</div>
                           {typeof record.courtReasoning === 'string' && record.courtReasoning.trim().length > 0 ? (
                             <div className="text-xs text-slate-700 bg-white p-2 border border-slate-100 rounded leading-relaxed">
-                              {record.courtReasoning}
+                              <CollapsibleText text={record.courtReasoning} collapsedLines={4} />
                             </div>
                           ) : (
                             <div className="text-xs text-slate-400">未识别</div>

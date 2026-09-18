@@ -188,6 +188,23 @@ describe('Stage 5 Step 6 research-aware analytics', () => {
     expect(runs.saved.errorCode).toBe('ANALYSIS_INPUT_BLOCKED');
   });
 
+  it('blocks formal execution when every available record fails Analytics Gate', async () => {
+    const blockedRecord = analysisRecord('blocked-by-gate', 'supported', {
+      semanticResolutionStatus: 'pending',
+      unresolvedReferences: [{
+        sourceText: '待解析裁判片段', referencedClaimIds: [], confidence: 0,
+        resolutionMethod: 'unresolved', needsSemanticResolution: true,
+      }],
+    });
+    const { service, runs } = await fixture({ records: new Map([['A', blockedRecord]]) });
+    let invoked = false;
+    const execution = await service.executeResearchAnalysis('analysis-1', () => { invoked = true; return {}; });
+    expect(invoked).toBe(false);
+    expect(execution.result).toBeUndefined();
+    expect(runs.saved.status).toBe('failed');
+    expect(runs.saved.errorCode).toBe('ANALYTICS_ADMISSION_BLOCKED');
+  });
+
   it('warns for balanced sampling and says it is not population representative', async () => {
     const { service } = await fixture({ sampledIds: ['A', 'B'], method: 'stratified_seeded_random', allocationStrategy: 'balanced' });
     const context = await service.loadResearchAnalysisContext('analysis-1');
@@ -226,8 +243,8 @@ describe('Stage 5 Step 6 research-aware analytics', () => {
     ]);
     const { service } = await fixture({ records });
     const context = await service.loadResearchAnalysisContext('analysis-1');
-    expect(context.quality.metrics).toMatchObject({ includedCaseCount: 2, excludedCaseCount: 1, unknownOutcomeCount: 1, knownOutcomeCount: 1, unknownOutcomeRate: 0.5 });
-    expect(context.quality.issues.map((issue) => issue.code)).toContain('HIGH_UNKNOWN_OUTCOME_RATE');
+    expect(context.quality.metrics).toMatchObject({ includedCaseCount: 1, excludedCaseCount: 2, unknownOutcomeCount: 0, knownOutcomeCount: 1, unknownOutcomeRate: 0 });
+    expect(context.quality.issues.map((issue) => issue.code)).not.toContain('HIGH_UNKNOWN_OUTCOME_RATE');
   });
 
   it('never classifies unclear as not_supported and exposes the rate denominator', async () => {
@@ -238,7 +255,7 @@ describe('Stage 5 Step 6 research-aware analytics', () => {
     ]);
     const { service } = await fixture({ records });
     const execution = await service.executeResearchAnalysis('analysis-1', (input) => input.length);
-    expect(execution.result?.metadata.denominatorContract).toMatchObject({ knownOutcomeCount: 2, unknownOutcomeExcludedCount: 1 });
+    expect(execution.result?.metadata.denominatorContract).toMatchObject({ knownOutcomeCount: 2, unknownOutcomeExcludedCount: 0 });
     expect(execution.context.quality.metrics.outcomeCounts.not_supported).toBe(1);
   });
 
@@ -249,9 +266,9 @@ describe('Stage 5 Step 6 research-aware analytics', () => {
     ]);
     const { service, runs, run } = await fixture({ records });
     const execution = await service.executeResearchAnalysis('analysis-1', (input) => ({ n: input.length }));
-    expect(execution.result?.result).toEqual({ n: 2 });
+    expect(execution.result?.result).toEqual({ n: 1 });
     expect(runs.saved.status).toBe('completed');
-    expect(runs.saved.resultSummary).toEqual({ processedCaseCount: 3, includedCaseCount: 2, excludedCaseCount: 0, failedCaseCount: 1, unknownOutcomeCount: 1 });
+    expect(runs.saved.resultSummary).toEqual({ processedCaseCount: 3, includedCaseCount: 1, excludedCaseCount: 1, failedCaseCount: 1, unknownOutcomeCount: 0 });
     expect(runs.saved.provenanceHash).toBe(run.provenanceHash);
     expect(runs.saved.inputCaseIds).toEqual(run.inputCaseIds);
   });

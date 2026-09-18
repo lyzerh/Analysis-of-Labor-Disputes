@@ -13,6 +13,11 @@ import {
   type AnalysisQualityAssessment,
   type AnalysisQualityIssue,
 } from '../analytics/AnalysisQualityGuardrails';
+import {
+  filterAnalyticsEligibleRecords,
+  type AnalyticsAdmissionFilterOptions,
+} from '../analytics/AnalyticsAdmission';
+import { readSemanticReviewItems } from '../semantic/SemanticReviewStorage';
 import { LaborAnalysisPipeline } from '../data/LaborAnalysisPipeline';
 import {
   DexieCandidatePoolSnapshotStore,
@@ -113,14 +118,17 @@ function integrityIssue(code: string, message: string): AnalysisQualityIssue {
   return { code, severity: 'error', message };
 }
 
-function resultSummary(context: ResearchAnalysisContext): AnalysisResultSummary {
+function resultSummary(
+  context: ResearchAnalysisContext,
+  analyticsEligibleRecords: AnalysisCaseRecord[],
+): AnalysisResultSummary {
   const metrics = context.quality.metrics;
   return {
     processedCaseCount: metrics.expectedInputCount,
-    includedCaseCount: metrics.includedCaseCount,
-    excludedCaseCount: metrics.excludedCaseCount,
+    includedCaseCount: analyticsEligibleRecords.length,
+    excludedCaseCount: metrics.availableRecordCount - analyticsEligibleRecords.length,
     failedCaseCount: metrics.missingRecordCount,
-    unknownOutcomeCount: metrics.unknownOutcomeCount,
+    unknownOutcomeCount: analyticsEligibleRecords.filter((record) => record.applicantOutcome === 'unclear').length,
   };
 }
 
@@ -201,7 +209,7 @@ export class ResearchAnalysisService {
 
   public async executeResearchAnalysis<T>(
     analysisRunId: string,
-    analyze: (records: AnalysisCaseRecord[]) => T,
+    analyze: (records: AnalysisCaseRecord[], admissionOptions?: AnalyticsAdmissionFilterOptions) => T,
   ): Promise<ResearchAnalysisExecution<T>> {
     const context = await this.loadResearchAnalysisContext(analysisRunId);
     let currentRun = context.analysisRun;
@@ -217,16 +225,35 @@ export class ResearchAnalysisService {
     if (currentRun.status === 'failed') {
       throw new Error(`AnalysisRun ${currentRun.id} has failed and cannot be executed`);
     }
+    const admissionOptions: AnalyticsAdmissionFilterOptions = {
+      reviewItems: readSemanticReviewItems(),
+      totalInputCount: context.records.length,
+    };
+    const analyticsAdmission = filterAnalyticsEligibleRecords(context.records, admissionOptions);
+    if (analyticsAdmission.eligibleRecords.length === 0) {
+      if (currentRun.status === 'pending' || currentRun.status === 'running') {
+        currentRun = await this.analysisRuns.markAnalysisRunFailed(currentRun.id, {
+          code: 'ANALYTICS_ADMISSION_BLOCKED',
+          message: '没有 AnalysisCaseRecord 通过 Analytics Gate；正式分析已阻断。',
+        });
+      }
+      return { context, analysisRun: currentRun };
+    }
     if (currentRun.status === 'pending') {
       currentRun = await this.analysisRuns.markAnalysisRunRunning(currentRun.id);
     }
 
     try {
-      const report = analyze(context.records);
+      const report = analyze(analyticsAdmission.eligibleRecords, admissionOptions);
       if (currentRun.status === 'running') {
-        currentRun = await this.analysisRuns.markAnalysisRunCompleted(currentRun.id, resultSummary(context));
+        currentRun = await this.analysisRuns.markAnalysisRunCompleted(
+          currentRun.id,
+          resultSummary(context, analyticsAdmission.eligibleRecords),
+        );
       }
       const metrics = context.quality.metrics;
+      const eligibleRecords = analyticsAdmission.eligibleRecords;
+      const knownOutcomeCount = eligibleRecords.filter((record) => record.applicantOutcome !== 'unclear').length;
       const sampling = context.samplingRun
         ? {
             method: context.samplingRun.method,
@@ -255,9 +282,9 @@ export class ResearchAnalysisService {
         analyticsVersion: ANALYTICS_VERSION,
         denominatorContract: {
           outcomeRatePolicy: 'known_outcomes_only',
-          knownOutcomeCount: metrics.knownOutcomeCount,
-          unknownOutcomeExcludedCount: metrics.unknownOutcomeCount,
-          includedCaseCount: metrics.includedCaseCount,
+          knownOutcomeCount,
+          unknownOutcomeExcludedCount: eligibleRecords.length - knownOutcomeCount,
+          includedCaseCount: eligibleRecords.length,
         },
         ...(sampling ? { sampling } : {}),
       };

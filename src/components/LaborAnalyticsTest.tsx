@@ -52,6 +52,7 @@ import {
   type ResearchAnalysisContext,
   type ResearchAnalyticsMetadata,
 } from '../services/analysis/ResearchAnalysisService';
+import { filterAnalyticsEligibleRecords } from '../services/analytics/AnalyticsAdmission';
 import { ResearchAnalysisHeader } from './ResearchAnalysisHeader';
 
 const researchAnalysisService = new ResearchAnalysisService();
@@ -107,13 +108,13 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
     try {
       const execution = await researchAnalysisService.executeResearchAnalysis(
         selectedAnalysisRunId,
-        (records) => LaborDisputeAnalyticsEngine.generateReport(records),
+        (records, admissionOptions) => LaborDisputeAnalyticsEngine.generateReport(records, admissionOptions),
       );
       setResearchContext(execution.context);
       setAllRecords(execution.context.records);
       setReport(execution.result?.result ?? null);
       setResearchMetadata(execution.result?.metadata ?? null);
-      if (!execution.result) setResearchError('质量门禁已阻止本次正式分析，请查看 Quality issues。');
+      if (!execution.result) setResearchError('Analytics Gate 或质量门禁已阻止本次正式分析，请查看 Quality issues。');
     } catch (err) {
       setResearchError(err instanceof Error ? err.message : '统计分析引擎执行失败');
     } finally {
@@ -238,7 +239,8 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
               handleOpenDrilldown(
                 '正式分析集案件',
                 '质量分 >= 80 或已通过人工审核的合格分析集案例',
-                (Array.isArray(allRecords) ? allRecords : []).filter((r) => r.isIncludedInAnalysisSet).map((r) => r.caseId)
+                filterAnalyticsEligibleRecords(Array.isArray(allRecords) ? allRecords : []).eligibleRecords
+                  .map((r) => r.caseId)
               )
             }
             className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 shadow-sm hover:shadow transition-all cursor-pointer group"

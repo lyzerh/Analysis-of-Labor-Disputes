@@ -42,6 +42,7 @@ import {
   type ResearchAnalysisContext,
   type ResearchAnalyticsMetadata,
 } from '../services/analysis/ResearchAnalysisService';
+import { filterAnalyticsEligibleRecords } from '../services/analytics/AnalyticsAdmission';
 import { ResearchAnalysisHeader } from './ResearchAnalysisHeader';
 
 const researchAnalysisService = new ResearchAnalysisService();
@@ -100,14 +101,14 @@ export const DefenseStrategyAnalysis: React.FC<DefenseStrategyAnalysisProps> = (
     try {
       const execution = await researchAnalysisService.executeResearchAnalysis(
         selectedAnalysisRunId,
-        (records) => DefenseStrategyAnalyzer.analyze(records),
+        (records, admissionOptions) => DefenseStrategyAnalyzer.analyze(records, admissionOptions),
       );
       setResearchContext(execution.context);
       setAllRecords(execution.context.records);
       const generatedReport = execution.result?.result ?? null;
       setReport(generatedReport);
       setResearchMetadata(execution.result?.metadata ?? null);
-      if (!execution.result) setResearchError('质量门禁已阻止本次正式分析，请查看 Quality issues。');
+      if (!execution.result) setResearchError('Analytics Gate 或质量门禁已阻止本次正式分析，请查看 Quality issues。');
 
       if (generatedReport && generatedReport.failedDefenses.length > 0) {
         setSelectedDefenseKey(generatedReport.failedDefenses[0].defense);
@@ -241,7 +242,8 @@ export const DefenseStrategyAnalysis: React.FC<DefenseStrategyAnalysisProps> = (
               handleOpenDrilldown(
                 '企业获支持案件',
                 '裁判结果为企业完全支持的有效案件',
-                allRecords.filter((r) => r.isIncludedInAnalysisSet && r.employerOutcome === 'supported').map((r) => r.caseId)
+                filterAnalyticsEligibleRecords(allRecords).eligibleRecords
+                  .filter((r) => r.employerOutcome === 'supported').map((r) => r.caseId)
               )
             }
             className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 shadow-sm hover:shadow transition-all cursor-pointer group"
@@ -264,7 +266,7 @@ export const DefenseStrategyAnalysis: React.FC<DefenseStrategyAnalysisProps> = (
               handleOpenDrilldown(
                 '企业未完全支持案件',
                 '裁判结果为部分支持或全部驳回的案件',
-                allRecords.filter((r) => r.isIncludedInAnalysisSet && (
+                filterAnalyticsEligibleRecords(allRecords).eligibleRecords.filter((r) => (
                   r.employerOutcome === 'partially_supported' || r.employerOutcome === 'not_supported'
                 )).map((r) => r.caseId)
               )

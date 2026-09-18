@@ -121,6 +121,7 @@ export type SemanticResolverErrorCode =
   | 'network_error'
   | 'rate_limited'
   | 'provider_error'
+  | 'output_truncated'
   | 'invalid_json'
   | 'schema_invalid'
   | 'empty_response'

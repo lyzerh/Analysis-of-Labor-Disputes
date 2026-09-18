@@ -13,6 +13,7 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:outcome": "vitest run tests/outcome",
+    "semantic:smoke": "tsx scripts/semantic-smoke.ts",
     "test:semantic:integration": "vitest run --config vitest.semantic-integration.config.ts"
   },
   "dependencies": {

@@ -9,7 +9,6 @@ import {
   HardDrive,
   Settings,
   Scale,
-  WifiOff,
   Brain,
   Globe,
   Layers,
@@ -20,6 +19,7 @@ import {
   CheckCircle2,
   FlaskConical,
 } from 'lucide-react';
+import { isLlmAvailable, useLlmRuntimeSettings } from '../services/semantic/LlmRuntimeSettings';
 
 export type NavTab =
   | 'caseLibrary'
@@ -58,6 +58,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
 }) => {
+  const { settings: llmSettings } = useLlmRuntimeSettings();
+  const llmEnabled = isLlmAvailable(llmSettings);
+
   const navGroups: NavGroup[] = [
     {
       title: '法务工作台',
@@ -91,7 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </h1>
           <p className="text-xs text-slate-400 truncate flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-            企业法务本地离线版
+            企业法务本地数据版
           </p>
         </div>
       </div>
@@ -142,15 +145,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </nav>
 
-      {/* Footer Info & Offline Status */}
+      {/* Footer Info & Local Data Status */}
       <div className="p-3 border-t border-slate-800 bg-slate-950/50">
         <div className="bg-slate-900/90 rounded-lg p-2.5 border border-slate-800 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <WifiOff className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-slate-300 font-medium">离线纯本地模式</span>
+            <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-slate-300 font-medium">本地数据存储</span>
           </div>
           <span className="text-2xs bg-emerald-950/80 text-emerald-300 border border-emerald-800/50 px-1.5 py-0.5 rounded font-mono">
             IndexedDB
+          </span>
+        </div>
+        <div className="mt-2 flex items-center justify-between px-1 text-2xs">
+          <div className="flex items-center gap-1.5 text-slate-400">
+            <Brain className={`w-3.5 h-3.5 ${llmEnabled ? 'text-violet-300' : 'text-slate-500'}`} />
+            <span>{llmEnabled ? 'OpenRouter 已启用' : 'AI 未启用'}</span>
+          </div>
+          <span className={llmEnabled ? 'text-violet-300' : 'text-slate-500'}>
+            {llmEnabled ? 'BYOK' : '可选'}
           </span>
         </div>
         <div className="text-2xs text-slate-400 text-center mt-2">

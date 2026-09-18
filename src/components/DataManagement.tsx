@@ -25,13 +25,14 @@ import { LaborInfoReview } from './LaborInfoReview';
 import { LaborInfoApiTest } from './LaborInfoApiTest';
 import { LaborInfoParserTest } from './LaborInfoParserTest';
 import { DatasetBuilderTest } from './DatasetBuilderTest';
+import { SemanticReviewWorkspace } from './SemanticReviewWorkspace';
 
 interface DataManagementProps {
   onDataChanged?: () => void;
 }
 
 export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged }) => {
-  const [activeTab, setActiveTab] = useState<'backup' | 'crawler' | 'import' | 'quality' | 'advanced'>('crawler');
+  const [activeTab, setActiveTab] = useState<'backup' | 'crawler' | 'import' | 'quality' | 'semanticReview' | 'advanced'>('crawler');
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
@@ -91,6 +92,18 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
         </button>
 
         <button
+          onClick={() => setActiveTab('semanticReview')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+            activeTab === 'semanticReview'
+              ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          语义人工复核
+        </button>
+
+        <button
           onClick={() => setActiveTab('advanced')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
             activeTab === 'advanced'
@@ -107,6 +120,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
         {activeTab === 'crawler' && <LaborInfoCrawlerComponent />}
         {activeTab === 'import' && <ImportCases onImportComplete={() => onDataChanged?.()} onNavigateToDatabase={() => {}} />}
         {activeTab === 'quality' && <LaborInfoReview />}
+        {activeTab === 'semanticReview' && <SemanticReviewWorkspace />}
         {activeTab === 'backup' && <BackupRestorePanel onDataChanged={onDataChanged} />}
         {activeTab === 'advanced' && <AdvancedToolsPanel />}
       </div>

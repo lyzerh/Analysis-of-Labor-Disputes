@@ -36,7 +36,7 @@ describe.skipIf(!hasCredential)('Gemini semantic resolver integration', () => {
       safeMessage?: string;
     } | undefined;
     const googleClient = new GoogleGenAI({ apiKey: apiKey as string });
-    const model = process.env.GEMINI_SEMANTIC_MODEL ?? DEFAULT_SEMANTIC_MODEL;
+    const model = DEFAULT_SEMANTIC_MODEL;
     const diagnosticClient: GeminiGenerateClient = {
       models: {
         generateContent: async (request) => {

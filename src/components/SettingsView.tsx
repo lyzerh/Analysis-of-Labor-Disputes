@@ -11,8 +11,13 @@ import {
   Database,
   Info,
   BookOpen,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { db } from '../db';
+import { SEMANTIC_LLM_MODEL } from '../services/semantic/SemanticPrompt';
+import { testOpenRouterConnection, type OpenRouterConnectionStatus } from '../services/semantic/BrowserOpenRouterSemanticClient';
+import { useLlmRuntimeSettings } from '../services/semantic/LlmRuntimeSettings';
 
 interface SettingsViewProps {
   onNavigateToGuide?: () => void;
@@ -29,6 +34,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
     raw: 0,
     tasks: 0,
   });
+  const { settings, setSettings, clearSettings } = useLlmRuntimeSettings();
+  const [connectionStatus, setConnectionStatus] = useState<OpenRouterConnectionStatus>('unknown');
 
   useEffect(() => {
     loadStorageStats();
@@ -58,6 +65,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
         });
       } catch (_) {}
     }
+  };
+
+  const connectionStatusLabels: Record<OpenRouterConnectionStatus, string> = {
+    unknown: '尚未测试',
+    testing: '测试连接中…',
+    available: '连接成功',
+    invalid_key: 'API Key 无效或无权限',
+    model_unavailable: '当前模型不可用',
+    rate_limited: '额度不足或已限流',
+    provider_unavailable: 'OpenRouter 服务暂不可用',
+    network_error: '网络错误',
+    timeout: '连接超时',
+    unknown_error: '未知连接错误',
+  };
+
+  const handleTestConnection = async () => {
+    if (!settings.apiKey?.trim()) {
+      setConnectionStatus('invalid_key');
+      return;
+    }
+    setConnectionStatus('testing');
+    setConnectionStatus(await testOpenRouterConnection());
+  };
+
+  const persistApiKeyInput = (value: string) => {
+    setSettings({ ...settings, apiKey: value || null });
+    setConnectionStatus('unknown');
+  };
+
+  const handleClearKey = () => {
+    clearSettings();
+    setConnectionStatus('unknown');
   };
 
   return (
@@ -130,26 +169,57 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
         </div>
       </div>
 
-      {/* AI Module Status Card */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+      {/* BYOK AI Runtime Card */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4" data-testid="llm-runtime-settings">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
             <Sparkles className="w-4 h-4 text-purple-600" />
-            AI 法律分析接口状态
+            AI 语义分析
           </h3>
-          <span className="text-2xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded font-mono font-semibold">
-            Standby (已就绪/默认关闭)
+          <span className={`text-2xs px-2 py-0.5 rounded font-semibold ${settings.enabled && settings.apiKey ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
+            {settings.enabled && settings.apiKey ? '已启用' : '未启用'}
           </span>
         </div>
 
-        <div className="p-4 bg-purple-50/40 rounded-xl border border-purple-200/60 text-xs text-slate-700 space-y-2">
-          <p className="leading-relaxed">
-            按照当前阶段明确要求，系统<strong>不调用 Gemini API</strong>、
-            <strong>不要求 GEMINI_API_KEY</strong>、<strong>不开启外部分析服务</strong>。
-          </p>
-          <div className="text-2xs text-slate-500 flex items-center gap-1.5">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>AI 分析接口已按工厂模式（MockLegalAIService）完成预留，后续升级可随时无缝启用。</span>
+        <div className="rounded-xl border border-purple-200/60 bg-purple-50/40 p-4 text-xs text-slate-700 space-y-3">
+          <p className="leading-relaxed">使用您自己的 OpenRouter API Key 启用复杂语义解析。Key 仅用于当前浏览器会话，并直接用于调用 OpenRouter；浏览器端 BYOK 不代表绝对安全，请仅使用您愿意在本机浏览器中使用的 Key。</p>
+          <label className="flex items-center justify-between gap-3 rounded-lg border border-white/80 bg-white/70 px-3 py-2">
+            <span className="font-semibold text-slate-800">启用 AI 语义分析</span>
+            <input
+              type="checkbox"
+              aria-label="启用 AI 语义分析"
+              checked={settings.enabled}
+              onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })}
+              className="h-4 w-4 accent-indigo-600"
+            />
+          </label>
+          <div>
+            <label htmlFor="openrouter-api-key" className="font-semibold text-slate-800">OpenRouter API Key</label>
+            <input
+              id="openrouter-api-key"
+              type="password"
+              autoComplete="off"
+              value={settings.apiKey || ''}
+              onChange={(event) => persistApiKeyInput(event.target.value)}
+              onBlur={(event) => persistApiKeyInput(event.currentTarget.value)}
+              placeholder="粘贴您自己的 OpenRouter API Key"
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={handleTestConnection} disabled={!settings.apiKey || connectionStatus === 'testing'} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+              {connectionStatus === 'testing' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}测试连接
+            </button>
+            <button type="button" onClick={handleClearKey} disabled={!settings.apiKey} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
+              <Trash2 className="h-3.5 w-3.5" />清除 Key
+            </button>
+            <span role="status" className={`text-xs ${connectionStatus === 'available' ? 'text-emerald-700' : connectionStatus === 'unknown' ? 'text-slate-500' : 'text-amber-700'}`}>
+              {connectionStatusLabels[connectionStatus]}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-2xs text-slate-500">
+            <CheckCircle className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+            <span>当前模型：OpenRouter Free（{SEMANTIC_LLM_MODEL}）</span>
           </div>
         </div>
       </div>

@@ -9,6 +9,10 @@ import {
   LegalOutcomeType,
 } from '../../types';
 import { isEmployerProvidedEvidence } from '../evidence/EvidenceProvider';
+import {
+  filterAnalyticsEligibleRecords,
+  type AnalyticsAdmissionFilterOptions,
+} from './AnalyticsAdmission';
 
 /**
  * 目标城市白名单配置 (广州、深圳、东莞)
@@ -73,11 +77,14 @@ export class LaborDisputeAnalyticsEngine {
   /**
    * 执行统计分析并生成报告
    */
-  public static generateReport(allRecords: AnalysisCaseRecord[]): LaborDisputeReport {
-    const totalCases = allRecords.length;
+  public static generateReport(
+    allRecords: AnalysisCaseRecord[],
+    admissionOptions: AnalyticsAdmissionFilterOptions = {},
+  ): LaborDisputeReport {
+    const totalCases = admissionOptions.totalInputCount ?? allRecords.length;
 
-    // 1. 严格过滤：仅纳入 isIncludedInAnalysisSet === true 的案例
-    const includedRecords = allRecords.filter((r) => r.isIncludedInAnalysisSet === true);
+    // 1. 唯一统计准入：旧字段只能作为规则路径的一部分，不能绕过语义门禁。
+    const includedRecords = filterAnalyticsEligibleRecords(allRecords, admissionOptions).eligibleRecords;
     const excludedCases = totalCases - includedRecords.length;
 
     // 2. 基础总体指标

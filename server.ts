@@ -46,7 +46,7 @@ function getSemanticResolver(): GeminiSemanticResolver {
     }
     semanticResolver = new GeminiSemanticResolver({
       apiKey,
-      modelName: process.env.GEMINI_SEMANTIC_MODEL ?? DEFAULT_SEMANTIC_MODEL,
+      modelName: DEFAULT_SEMANTIC_MODEL,
     });
   }
   return semanticResolver;
@@ -70,7 +70,7 @@ app.post("/api/semantic/resolve", async (req, res) => {
       caseId,
       fragmentCount,
       provider: 'gemini',
-      model: process.env.GEMINI_SEMANTIC_MODEL ?? DEFAULT_SEMANTIC_MODEL,
+      model: DEFAULT_SEMANTIC_MODEL,
       latencyMs: Date.now() - startedAt,
       accepted: result.accepted.length,
       humanReview: result.humanReview.length,

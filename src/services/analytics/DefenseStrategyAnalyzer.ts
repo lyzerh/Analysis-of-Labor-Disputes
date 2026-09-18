@@ -11,6 +11,10 @@ import {
   CourtReasoningKeywordStat,
 LegalOutcomeType } from '../../types';
 import { isEmployerProvidedEvidence } from '../evidence/EvidenceProvider';
+import {
+  filterAnalyticsEligibleRecords,
+  type AnalyticsAdmissionFilterOptions,
+} from './AnalyticsAdmission';
 
 /**
  * 重点标准抗辩事由清单 (用于标准统计与矩阵对齐)
@@ -102,9 +106,12 @@ export class DefenseStrategyAnalyzer {
   /**
    * 执行策略关联分析并生成报告
    */
-  public static analyze(allRecords: AnalysisCaseRecord[]): DefenseAnalysisReport {
-    // 1. 严格过滤仅纳入有效分析集 (isIncludedInAnalysisSet === true)
-    const includedRecords = allRecords.filter((r) => r.isIncludedInAnalysisSet === true);
+  public static analyze(
+    allRecords: AnalysisCaseRecord[],
+    admissionOptions: AnalyticsAdmissionFilterOptions = {},
+  ): DefenseAnalysisReport {
+    // 1. 唯一统计准入：旧字段不能绕过语义、审计与人工复核门禁。
+    const includedRecords = filterAnalyticsEligibleRecords(allRecords, admissionOptions).eligibleRecords;
 
     const analyzedCaseCount = includedRecords.length;
     const employerSupportedCases = includedRecords.filter((r) => r.employerOutcome === 'supported');

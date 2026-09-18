@@ -48,11 +48,11 @@ describe('Layer 3: Parser -> Builder outcome contract', () => {
     expect(record.employerOutcome).toBe('supported');
   });
 
-  it('does not reinterpret an employer-plaintiff-loss review as an employee loss (P0)', () => {
+  it('does not reinterpret an already-determined employer-plaintiff result from legacy overallResult (P0)', () => {
     arrangeParser(parsedResult({
-      overallResult: 'supported',
-      employeeOutcome: 'not_supported',
-      employerOutcome: 'supported',
+      overallResult: 'not_supported',
+      employeeOutcome: 'supported',
+      employerOutcome: 'not_supported',
     }));
     const review: ParserReviewRecord = {
       id: 'review-employer-loss',
@@ -65,6 +65,119 @@ describe('Layer 3: Parser -> Builder outcome contract', () => {
 
     const record = LaborCaseDatasetBuilder.buildSingleRecord(
       rawDocument('builder-review-employer-loss', '测试文本'),
+      review,
+    );
+
+    expect(record.employeeOutcome).toBe('supported');
+    expect(record.employerOutcome).toBe('not_supported');
+  });
+
+  it('does not overwrite determined party outcomes when applicantOutcome review conflicts', () => {
+    arrangeParser(parsedResult({
+      applicantRole: 'employer',
+      applicantOutcome: 'not_supported',
+      overallResult: 'not_supported',
+      employeeOutcome: 'supported',
+      employerOutcome: 'not_supported',
+    }));
+    const review: ParserReviewRecord = {
+      id: 'review-conflicting-applicant-outcome',
+      rawDocumentId: 'builder-review-conflicting-applicant-outcome',
+      caseTitle: '申请人视角冲突审核',
+      reviewStatus: 'modified',
+      reviewerChanges: {
+        applicantRole: 'employer',
+        applicantOutcome: 'supported',
+        overallResult: 'supported',
+      },
+      reviewTime: '2024-01-01T00:00:00.000Z',
+    };
+
+    const record = LaborCaseDatasetBuilder.buildSingleRecord(
+      rawDocument('builder-review-conflicting-applicant-outcome', '测试文本'),
+      review,
+    );
+
+    expect(record.applicantOutcome).toBe('supported');
+    expect(record.employeeOutcome).toBe('supported');
+    expect(record.employerOutcome).toBe('not_supported');
+  });
+
+  it('leaves unresolved sides unclear when applicant review conflicts with a determined party outcome', () => {
+    arrangeParser(parsedResult({
+      applicantRole: 'employer',
+      applicantOutcome: 'supported',
+      overallResult: 'supported',
+      employeeOutcome: 'unclear',
+      employerOutcome: 'supported',
+    }));
+    const review: ParserReviewRecord = {
+      id: 'review-partial-conflict',
+      rawDocumentId: 'builder-review-partial-conflict',
+      caseTitle: '部分结果冲突审核',
+      reviewStatus: 'modified',
+      reviewerChanges: { applicantRole: 'employer', applicantOutcome: 'not_supported' },
+      reviewTime: '2024-01-01T00:00:00.000Z',
+    };
+
+    const record = LaborCaseDatasetBuilder.buildSingleRecord(
+      rawDocument('builder-review-partial-conflict', '测试文本'),
+      review,
+    );
+
+    expect(record.employeeOutcome).toBe('unclear');
+    expect(record.employerOutcome).toBe('supported');
+  });
+
+  it('keeps unknown party outcomes unclear when review lacks explicit party results', () => {
+    arrangeParser(parsedResult({
+      applicantRole: 'unknown',
+      applicantOutcome: 'unclear',
+      overallResult: 'unclear',
+      employeeOutcome: 'unclear',
+      employerOutcome: 'unclear',
+    }));
+    const review: ParserReviewRecord = {
+      id: 'review-unknown-role',
+      rawDocumentId: 'builder-review-unknown-role',
+      caseTitle: '未知身份审核',
+      reviewStatus: 'modified',
+      reviewerChanges: { overallResult: 'supported' },
+      reviewTime: '2024-01-01T00:00:00.000Z',
+    };
+
+    const record = LaborCaseDatasetBuilder.buildSingleRecord(
+      rawDocument('builder-unknown-role', '测试文本'),
+      review,
+    );
+
+    expect(record.employeeOutcome).toBe('unclear');
+    expect(record.employerOutcome).toBe('unclear');
+  });
+
+  it('applies an explicit pair of human-reviewed party outcomes without deriving from overallResult', () => {
+    arrangeParser(parsedResult({
+      applicantRole: 'employer',
+      applicantOutcome: 'supported',
+      overallResult: 'supported',
+      employeeOutcome: 'not_supported',
+      employerOutcome: 'supported',
+    }));
+    const review: ParserReviewRecord = {
+      id: 'review-explicit-party-outcomes',
+      rawDocumentId: 'builder-explicit-party-outcomes',
+      caseTitle: '双方结果审核',
+      reviewStatus: 'modified',
+      reviewerChanges: {
+        employeeOutcome: 'supported',
+        employerOutcome: 'not_supported',
+        overallResult: 'supported',
+      },
+      reviewTime: '2024-01-01T00:00:00.000Z',
+    };
+
+    const record = LaborCaseDatasetBuilder.buildSingleRecord(
+      rawDocument('builder-explicit-party-outcomes', '测试文本'),
       review,
     );
 

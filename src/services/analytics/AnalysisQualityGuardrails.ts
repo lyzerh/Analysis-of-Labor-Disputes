@@ -5,6 +5,10 @@ import type {
   LegalOutcomeType,
   SamplingRun,
 } from '../../types';
+import {
+  filterAnalyticsEligibleRecords,
+  type AnalyticsAdmissionFilterOptions,
+} from './AnalyticsAdmission';
 
 export const ANALYTICS_QUALITY_GUARDRAIL_VERSION = 'analytics-quality-v1' as const;
 
@@ -66,6 +70,7 @@ export interface EvaluateAnalysisQualityInput {
   availableInputIds: Set<string>;
   missingCaseIds: string[];
   integrityIssues?: AnalysisQualityIssue[];
+  analyticsAdmission?: AnalyticsAdmissionFilterOptions;
 }
 
 function ratio(numerator: number, denominator: number): number {
@@ -85,7 +90,10 @@ function qualityStatus(issues: AnalysisQualityIssue[]): AnalysisQualityStatus {
 
 export function evaluateAnalysisQuality(input: EvaluateAnalysisQualityInput): AnalysisQualityAssessment {
   const issues = [...(input.integrityIssues ?? [])];
-  const includedRecords = input.records.filter((record) => record.isIncludedInAnalysisSet);
+  const includedRecords = filterAnalyticsEligibleRecords(
+    input.records,
+    input.analyticsAdmission,
+  ).eligibleRecords;
   const excludedCaseCount = input.records.length - includedRecords.length;
   const outcomeCounts: Record<LegalOutcomeType, number> = {
     supported: 0,
@@ -127,9 +135,9 @@ export function evaluateAnalysisQuality(input: EvaluateAnalysisQualityInput): An
     });
   } else if (includedRecords.length === 0) {
     issues.push({
-      code: 'NO_INCLUDED_ANALYSIS_RECORDS',
-      severity: 'error',
-      message: '可用记录全部未通过分析集准入，正式分析已阻止。',
+      code: 'NO_ANALYTICS_ELIGIBLE_RECORDS',
+      severity: 'warning',
+      message: '当前可用记录全部未通过 Analytics Gate；正式分析将由准入门禁阻止。',
       affectedCount: input.records.length,
     });
   }

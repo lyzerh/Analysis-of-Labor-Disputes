@@ -24,7 +24,7 @@ describe('Layer 3: Analytics outcome contracts', () => {
     expect(overtime?.employerOutcome.supported).toBe(0);
   });
 
-  it('keeps unclear records out of supported, not-supported and failure buckets', () => {
+  it('keeps unclear records out of formal analytics entirely', () => {
     const record = analysisRecord('analytics-unclear', 'unclear', {
       employerDefenses: [{ defenseType: '严重违纪', matchedText: '企业提出严重违纪抗辩', confidence: 1 }],
     });
@@ -34,9 +34,7 @@ describe('Layer 3: Analytics outcome contracts', () => {
     expect(report.employerSupportedCaseCount).toBe(0);
     expect(report.employerNonSupportedCaseCount).toBe(0);
     expect(report.failedDefenses).toHaveLength(0);
-    expect(defense?.unclearCount).toBe(1);
-    expect(defense?.supportedCount).toBe(0);
-    expect(defense?.notSupportedCount).toBe(0);
+    expect(defense).toBeUndefined();
   });
 
   it('uses claim.claimant before mapping a claim outcome to a party', () => {
@@ -61,17 +59,13 @@ describe('Layer 3: Analytics outcome contracts', () => {
         employerDefenses: defense,
         claims: [{ claimName: '违法解除', claimant: 'employee', supportStatus: 'supported' }],
       }),
-      analysisRecord('matrix-unclear', 'unclear', {
-        employerDefenses: defense,
-        claims: [{ claimName: '违法解除', claimant: 'employee', supportStatus: 'unclear' }],
-      }),
     ];
     const cell = DefenseStrategyAnalyzer.analyze(records).matrix.cells['加班工资']?.['严重违纪'];
     expect(cell).toMatchObject({
       employerSupportedCount: 1,
       employerPartiallySupportedCount: 0,
       employerNotSupportedCount: 1,
-      employerUnclearCount: 1,
+      employerUnclearCount: 0,
       knownOutcomeDenominator: 2,
       employerSupportRate: 50,
     });

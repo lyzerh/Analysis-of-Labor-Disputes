@@ -84,7 +84,7 @@ export const ResearchAnalysisHeader: React.FC<ResearchAnalysisHeaderProps> = ({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <div>模式：{researchModeLabel(context.analysisRun.mode)}</div>
             <div>输入：N={context.analysisRun.inputCaseCount}</div>
-            <div>可用：N={quality?.metrics.includedCaseCount ?? 0}</div>
+            <div>Analytics 准入：N={metadata ? metadata.usableCaseCount : '待执行'}</div>
             <div>质量：{quality?.status === 'blocked' ? '阻断' : quality?.status === 'warning' ? '警告' : '通过'}</div>
             <div className="col-span-2 truncate" title={context.analysisRun.id}>AnalysisRun：{shortResearchId(context.analysisRun.id)}</div>
             <div className="col-span-2 truncate" title={context.snapshot.id}>研究范围：{shortResearchId(context.snapshot.id)}</div>
