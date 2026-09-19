@@ -309,7 +309,7 @@ describe('Research Workspace service contract', () => {
   it('requires explicit semantic provider metadata when enabled', async () => {
     const { service } = await setup();
     const run = await service.createAnalysisRun({ snapshotId: 'snapshot-A', mode: 'exhaustive', semanticEnabled: true });
-    expect(run.semantic).toMatchObject({ enabled: true, promptVersion: expect.any(String), provider: 'openrouter', model: 'openrouter/free' });
+    expect(run.semantic).toMatchObject({ enabled: true, promptVersion: expect.any(String), provider: 'deepseek', model: 'deepseek-flash' });
   });
 });
 

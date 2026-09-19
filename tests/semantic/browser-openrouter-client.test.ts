@@ -10,6 +10,13 @@ import {
 } from '../../src/services/semantic/SemanticResolutionOrchestrator';
 import { readSemanticReviewItems } from '../../src/services/semantic/SemanticReviewStorage';
 import type { UnresolvedSemanticTask } from '../../src/services/semantic/SemanticResult';
+import {
+  SEMANTIC_AB_FLASH_MODEL,
+  SEMANTIC_AB_GEMMA_MODEL,
+  SEMANTIC_LLM_MODEL,
+  SEMANTIC_OPENROUTER_MODEL,
+  readSemanticProviderExperiment,
+} from '../../src/services/semantic/SemanticPrompt';
 
 class MemoryStorage {
   private readonly values = new Map<string, string>();
@@ -83,6 +90,31 @@ describe('browser OpenRouter semantic client', () => {
     vi.unstubAllGlobals();
   });
 
+  it('keeps the A/B switch local-only and opt-in', () => {
+    vi.stubGlobal('window', {
+      location: { hostname: 'localhost', search: '?semantic-ab-model=flash' },
+    });
+    expect(readSemanticProviderExperiment()).toMatchObject({
+      modelName: SEMANTIC_AB_FLASH_MODEL,
+      maxOutputTokens: 8192,
+      timeoutMs: 60000,
+    });
+
+    vi.stubGlobal('window', {
+      location: { hostname: '127.0.0.1', search: '?semantic-ab-model=gemma' },
+    });
+    expect(readSemanticProviderExperiment()).toMatchObject({
+      modelName: SEMANTIC_AB_GEMMA_MODEL,
+      maxOutputTokens: 8192,
+      timeoutMs: 60000,
+    });
+
+    vi.stubGlobal('window', {
+      location: { hostname: 'example.com', search: '?semantic-ab-model=flash' },
+    });
+    expect(readSemanticProviderExperiment()).toBeNull();
+  });
+
   it('uses the fixed free route and extracts chat completion content', async () => {
     const response = new Response(JSON.stringify({
       choices: [{ message: { content: '{"ok":true}' } }],
@@ -109,7 +141,7 @@ describe('browser OpenRouter semantic client', () => {
     expect(init.headers).not.toHaveProperty('X-Title');
     expect(Object.values(init.headers).every((value) => /^[\x00-\x7F]*$/.test(String(value)))).toBe(true);
     expect(JSON.parse(init.body)).toMatchObject({
-      model: 'openrouter/free',
+      model: SEMANTIC_OPENROUTER_MODEL,
       messages: [
         { role: 'system', content: 'System instruction' },
         { role: 'user', content: 'Return JSON only' },
@@ -118,7 +150,15 @@ describe('browser OpenRouter semantic client', () => {
   });
 
   it('traces response metadata without logging the full response body', async () => {
-    const body = JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] });
+    const body = JSON.stringify({
+      model: 'nvidia/test-model',
+      choices: [{
+        message: { content: '{"ok":true}' },
+        finish_reason: 'stop',
+        native_finish_reason: 'stop',
+      }],
+      usage: { prompt_tokens: 12, completion_tokens: 7 },
+    });
     const fetchMock = vi.fn().mockResolvedValue(new Response(body, {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -127,7 +167,7 @@ describe('browser OpenRouter semantic client', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('window', { location: { hostname: 'localhost' } });
 
-    await createBrowserOpenRouterSemanticClient('test-key').models.generateContent({
+    await createBrowserOpenRouterSemanticClient('test-key', { caseId: task.caseId }).models.generateContent({
       model: 'ignored',
       contents: 'Return JSON only',
     });
@@ -142,6 +182,21 @@ describe('browser OpenRouter semantic client', () => {
     expect(trace).toContain('"jsonParseSuccess":true');
     expect(trace).toContain(JSON.stringify(body.slice(0, 120).replace(/\s+/g, ' ')));
     expect(trace).not.toContain('Authorization');
+
+    const semanticTrace = infoSpy.mock.calls
+      .map((call) => call.join(' '))
+      .find((message) => message.includes('[semantic] providerResponse'));
+    expect(semanticTrace).toContain('"caseId":"case-openrouter"');
+    expect(semanticTrace).toContain('"httpStatus":200');
+    expect(semanticTrace).toContain('"provider":"openrouter"');
+    expect(semanticTrace).toContain('"model":"nvidia/test-model"');
+    expect(semanticTrace).toContain('"finishReason":"stop"');
+    expect(semanticTrace).toContain('"nativeFinishReason":"stop"');
+    expect(semanticTrace).toContain('"contentPresent":true');
+    expect(semanticTrace).toContain('"contentLength":11');
+    expect(semanticTrace).toContain('"promptTokens":12');
+    expect(semanticTrace).toContain('"completionTokens":7');
+    expect(semanticTrace).not.toContain('test-key');
   });
 
   it('passes a valid OpenRouter response through the existing local schema parser', async () => {
@@ -152,15 +207,36 @@ describe('browser OpenRouter semantic client', () => {
 
     const resolver = new GeminiSemanticResultResolver({
       apiKey: 'test-key',
-      modelName: 'openrouter/free',
+      modelName: SEMANTIC_LLM_MODEL,
       client: createBrowserOpenRouterSemanticClient('test-key'),
     });
     await expect(resolver.resolve(task)).resolves.toMatchObject({ status: 'resolved', resolver: 'llm' });
     const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(requestBody.max_tokens).toBe(4096);
+    expect(requestBody.max_tokens).toBe(8192);
     expect(requestBody.messages[0].content).toContain('"claimResolutions"');
     expect(requestBody.messages[0].content).toContain('"sourceEvidence"');
     expect(requestBody.messages[1].content).toContain('SemanticResolutionResult');
+  });
+
+  it('supports an explicit A/B model and output budget without changing the default route', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify(validSemanticResult) } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const resolver = new GeminiSemanticResultResolver({
+      apiKey: 'test-key',
+      modelName: SEMANTIC_AB_FLASH_MODEL,
+      maxOutputTokens: 8192,
+      timeoutMs: 60000,
+      client: createBrowserOpenRouterSemanticClient('test-key', {
+        modelName: SEMANTIC_AB_FLASH_MODEL,
+      }),
+    });
+    await resolver.resolve(task);
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(requestBody.model).toBe(SEMANTIC_AB_FLASH_MODEL);
+    expect(requestBody.max_tokens).toBe(8192);
   });
 
   it('routes a formal OpenRouter result through schema and local audit successfully', async () => {
@@ -175,12 +251,42 @@ describe('browser OpenRouter semantic client', () => {
 
     const resolver = new GeminiSemanticResultResolver({
       apiKey: 'test-key',
-      modelName: 'openrouter/free',
+      modelName: SEMANTIC_LLM_MODEL,
       client: createBrowserOpenRouterSemanticClient('test-key'),
     });
     const audited = await resolveUnresolvedSemanticTaskWithAudit(task, resolver);
     expect(audited.result.resolverErrorCode).toBeUndefined();
     expect(audited.audit).toMatchObject({ decision: 'pass', reasonCodes: [] });
+  });
+
+  it('traces semantic JSON, schema, and audit stages without logging source text', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.stubGlobal('window', { location: { hostname: 'localhost' } });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{
+        message: { content: JSON.stringify(validSemanticResult) },
+        finish_reason: 'stop',
+        native_finish_reason: 'stop',
+      }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const resolver = new GeminiSemanticResultResolver({
+      apiKey: 'test-key',
+      modelName: SEMANTIC_LLM_MODEL,
+      client: createBrowserOpenRouterSemanticClient('test-key', { caseId: task.caseId }),
+    });
+    const audited = await resolveUnresolvedSemanticTaskWithAudit(task, resolver);
+    const traces = infoSpy.mock.calls.map((call) => call.join(' ')).join('\n');
+
+    expect(audited.audit.decision).toBe('pass');
+    expect(traces).toContain('[semantic] semanticJsonParse');
+    expect(traces).toContain('"success":true');
+    expect(traces).toContain('[semantic] schemaValidation');
+    expect(traces).toContain('"passed":true');
+    expect(traces).toContain('[semantic] audit');
+    expect(traces).toContain('"decision":"pass"');
+    expect(traces).not.toContain(task.rawText);
   });
 
   it.each([null, ''])('classifies a length-terminated response with content=%s as output_truncated and skips human review', async (content) => {
@@ -195,7 +301,7 @@ describe('browser OpenRouter semantic client', () => {
 
     const resolver = new GeminiSemanticResultResolver({
       apiKey: 'test-key',
-      modelName: 'openrouter/free',
+      modelName: SEMANTIC_LLM_MODEL,
       client: createBrowserOpenRouterSemanticClient('test-key'),
     });
     const storage = new MemoryStorage() as unknown as Storage;
@@ -224,7 +330,7 @@ describe('browser OpenRouter semantic client', () => {
 
     const resolver = new GeminiSemanticResultResolver({
       apiKey: 'test-key',
-      modelName: 'openrouter/free',
+      modelName: SEMANTIC_LLM_MODEL,
       client: createBrowserOpenRouterSemanticClient('test-key'),
     });
     await expect(resolver.resolve(task)).resolves.toMatchObject({

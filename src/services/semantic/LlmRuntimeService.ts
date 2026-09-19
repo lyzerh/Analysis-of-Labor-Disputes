@@ -1,5 +1,5 @@
 import type { AnalysisCaseRecord, RawDocument } from '../../types';
-import { createBrowserOpenRouterSemanticClient } from './BrowserOpenRouterSemanticClient';
+import { createBrowserDeepSeekSemanticClient } from './BrowserDeepSeekSemanticClient';
 import { GeminiSemanticResultResolver } from './GeminiSemanticResultResolver';
 import { readLlmRuntimeSettings, isLlmAvailable, type LlmRuntimeSettings } from './LlmRuntimeSettings';
 import {
@@ -15,8 +15,9 @@ import type {
   SemanticParty,
   UnresolvedSemanticTask,
 } from './SemanticResult';
-import { SEMANTIC_LLM_MODEL } from './SemanticPrompt';
+import { SEMANTIC_LLM_MODEL, SEMANTIC_LLM_TIMEOUT_MS, SEMANTIC_MAX_OUTPUT_TOKENS } from './SemanticPrompt';
 import { executableUnresolvedReferences, hasExecutableSemanticTask } from './SemanticTaskEligibility';
+import { traceSemantic } from './SemanticTracing';
 
 export type SingleCaseSemanticRunStatus = 'safe' | 'review' | 'awaiting_llm' | 'blocked';
 
@@ -32,6 +33,10 @@ const TRANSIENT_PROVIDER_ERROR_CODES = new Set([
   'rate_limited',
   'provider_error',
   'output_truncated',
+  'invalid_json',
+  'schema_invalid',
+  'empty_response',
+  'validation_rejected',
 ]);
 
 const claimIdOf = (claim: AnalysisCaseRecord['claims'][number], index: number): string =>
@@ -103,29 +108,44 @@ export const runSingleCaseSemanticAnalysis = async (
     return { status: 'awaiting_llm', message: 'AI 语义分析未启用，案例保持待 AI 语义分析。' };
   }
   if (!settings.apiKey?.trim()) {
-    return { status: 'awaiting_llm', message: 'OpenRouter API Key 未配置，案例保持待 AI 语义分析。' };
+    return { status: 'awaiting_llm', message: 'DeepSeek API Key 未配置，案例保持待 AI 语义分析。' };
   }
   if (!isLlmAvailable(settings)) {
-    return { status: 'awaiting_llm', message: 'OpenRouter API Key 未配置，案例保持待 AI 语义分析。' };
+    return { status: 'awaiting_llm', message: 'DeepSeek API Key 未配置，案例保持待 AI 语义分析。' };
   }
 
   const task = buildSemanticTask(record, rawDocument);
   const resolver = new GeminiSemanticResultResolver({
     apiKey: settings.apiKey,
     modelName: SEMANTIC_LLM_MODEL,
-    client: createBrowserOpenRouterSemanticClient(settings.apiKey),
+    timeoutMs: SEMANTIC_LLM_TIMEOUT_MS,
+    maxOutputTokens: SEMANTIC_MAX_OUTPUT_TOKENS,
+    client: createBrowserDeepSeekSemanticClient(settings.apiKey, { caseId: record.caseId }),
   });
   const audited = await resolveUnresolvedSemanticTaskWithAudit(task, resolver);
 
   if (audited.result.resolverErrorCode && TRANSIENT_PROVIDER_ERROR_CODES.has(audited.result.resolverErrorCode)) {
+    traceSemantic('finalRouting', {
+      caseId: record.caseId,
+      status: 'awaiting_llm',
+      resolverErrorCode: audited.result.resolverErrorCode,
+      auditDecision: audited.audit.decision,
+      auditReasonCodes: audited.audit.reasonCodes,
+    });
     return {
       status: 'awaiting_llm',
-      message: 'OpenRouter 调用失败，案例保持待 AI 语义分析；未创建人工复核项。',
+      message: 'DeepSeek 调用失败，案例保持待 AI 语义分析；未创建人工复核项。',
       auditReasonCodes: audited.audit.reasonCodes,
     };
   }
 
   if (audited.audit.decision === 'pass') {
+    traceSemantic('finalRouting', {
+      caseId: record.caseId,
+      status: 'safe',
+      auditDecision: audited.audit.decision,
+      auditReasonCodes: audited.audit.reasonCodes,
+    });
     return {
       status: 'safe',
       message: '单案例语义解析通过 Strict Schema 与 Minimal Audit，可安全进入语义准入。',
@@ -145,6 +165,13 @@ export const runSingleCaseSemanticAnalysis = async (
     createdAt: new Date().toISOString(),
   });
   if (reviewItem) enqueueSemanticReviewItem(reviewItem);
+  traceSemantic('finalRouting', {
+    caseId: record.caseId,
+    status: 'review',
+    resolverErrorCode: audited.result.resolverErrorCode ?? null,
+    auditDecision: audited.audit.decision,
+    auditReasonCodes: audited.audit.reasonCodes,
+  });
   return {
     status: 'review',
     message: '单案例语义解析完成，但 Audit 未通过，已进入人工复核。',

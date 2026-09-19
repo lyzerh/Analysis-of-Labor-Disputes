@@ -9,6 +9,7 @@ import {
   parseSemanticResolutionResult,
 } from '../semantic/SemanticResultSchema';
 import type { SemanticLocalAuditResult } from '../semantic/SemanticResultAudit';
+import { traceSemantic } from '../semantic/SemanticTracing';
 
 /**
  * The only admission decision used by formal analytics. Legacy parser fields
@@ -332,6 +333,12 @@ export const filterAnalyticsEligibleRecords = (
       technicalErrorCode: extra.technicalErrorCode !== undefined
         ? extra.technicalErrorCode
         : options.technicalErrors?.get(record.caseId),
+    });
+    traceSemantic('analyticsAdmission', {
+      caseId: record.caseId,
+      status: admission.status,
+      source: admission.source ?? null,
+      reasonCodes: admission.reasonCodes,
     });
     admissions.set(record.caseId, admission);
     if (admission.status === 'eligible') eligibleRecords.push(record);

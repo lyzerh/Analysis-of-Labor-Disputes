@@ -72,7 +72,7 @@ const RecordStageList: React.FC<{
                 disabled={!llmAvailable || runningCaseId === record.caseId}
                 onClick={() => onRunSingleCase(record)}
                 className="rounded border border-indigo-300 bg-white px-2 py-0.5 font-semibold text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
-                title={llmAvailable ? '仅对当前案例执行语义解析' : '请先在系统设置中启用 AI 并配置 OpenRouter API Key'}
+                title={llmAvailable ? '仅对当前案例执行语义解析' : '请先在系统设置中启用 AI 并配置 DeepSeek API Key'}
               >
                 {runningCaseId === record.caseId ? '分析中…' : '分析此案例'}
               </button>
@@ -137,9 +137,9 @@ export const PipelineWorkspace: React.FC<PipelineWorkspaceProps> = ({ records, r
   };
 
   const runtimeMessage = !settings.enabled
-    ? 'AI 语义分析未启用。在系统设置中启用并配置 OpenRouter API Key 后，可处理待分析案例。'
+    ? 'AI 语义分析未启用。在系统设置中启用并配置 DeepSeek API Key 后，可处理待分析案例。'
     : !settings.apiKey?.trim()
-      ? 'OpenRouter API Key 未配置。当前案例仍保持待 AI 语义分析。'
+      ? 'DeepSeek API Key 未配置。当前案例仍保持待 AI 语义分析。'
       : 'AI 语义分析已启用。仅对单个待分析案例执行现有 Semantic Resolver → Schema → Audit 流程。';
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3" data-testid="pipeline-workspace" aria-label="分析流水线工作台">

@@ -3,14 +3,19 @@ import type {
   GeminiSemanticResultClient,
 } from './GeminiSemanticResultResolver';
 import { readLlmRuntimeSettings } from './LlmRuntimeSettings';
-import { SEMANTIC_OPENROUTER_MODEL, SEMANTIC_OPENROUTER_PROVIDER } from './SemanticPrompt';
+import {
+  DEEPSEEK_API_BASE_URL,
+  SEMANTIC_LLM_MODEL,
+  SEMANTIC_LLM_PROVIDER,
+} from './SemanticPrompt';
 import { traceSemantic } from './SemanticTracing';
 
-export type OpenRouterConnectionStatus =
+export type DeepSeekConnectionStatus =
   | 'unknown'
   | 'testing'
   | 'available'
   | 'invalid_key'
+  | 'permission'
   | 'rate_limited'
   | 'provider_unavailable'
   | 'model_unavailable'
@@ -18,7 +23,7 @@ export type OpenRouterConnectionStatus =
   | 'timeout'
   | 'unknown_error';
 
-const OPENROUTER_API_ROOT = 'https://openrouter.ai/api/v1/chat/completions';
+const DEEPSEEK_API_ROOT = `${DEEPSEEK_API_BASE_URL}/chat/completions`;
 const CONNECTION_TIMEOUT_MS = 10_000;
 
 type ConnectionDiagnosticCode =
@@ -64,33 +69,33 @@ const requestBody = (request: GeminiResultGenerateRequest, modelName: string): R
       : []),
     { role: 'user', content: request.contents },
   ],
-  ...(request.config?.temperature !== undefined ? { temperature: request.config.temperature } : {}),
+  response_format: { type: 'json_object' },
   ...(request.config?.maxOutputTokens !== undefined ? { max_tokens: request.config.maxOutputTokens } : {}),
+  // The task is structured extraction rather than free-form reasoning.
+  thinking: { type: 'disabled' },
 });
 
-export interface BrowserOpenRouterSemanticClientOptions {
+export interface BrowserDeepSeekSemanticClientOptions {
   caseId?: string;
   modelName?: string;
 }
 
-export const createBrowserOpenRouterSemanticClient = (
+export const createBrowserDeepSeekSemanticClient = (
   apiKey: string,
-  options: BrowserOpenRouterSemanticClientOptions = {},
+  options: BrowserDeepSeekSemanticClientOptions = {},
 ): GeminiSemanticResultClient => ({
   models: {
     generateContent: async (request) => {
       traceConnection('before fetch');
-      const response = await fetch(OPENROUTER_API_ROOT, {
+      const response = await fetch(DEEPSEEK_API_ROOT, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey.trim()}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody(request, options.modelName ?? SEMANTIC_OPENROUTER_MODEL)),
+        body: JSON.stringify(requestBody(request, options.modelName ?? SEMANTIC_LLM_MODEL)),
         signal: request.config?.abortSignal,
       });
-      // Consume the body exactly once so development tracing and parsing see
-      // the same provider response without attempting to reuse a stream.
       const body = await response.text();
       let payload: any = {};
       let jsonParseSuccess = false;
@@ -111,7 +116,7 @@ export const createBrowserOpenRouterSemanticClient = (
       if (!response.ok) {
         const message = typeof payload?.error?.message === 'string'
           ? payload.error.message
-          : 'OpenRouter 请求失败';
+          : 'DeepSeek 请求失败';
         throw providerError(message, response.status);
       }
       const choice = payload?.choices?.[0];
@@ -123,19 +128,25 @@ export const createBrowserOpenRouterSemanticClient = (
         traceSemantic('providerResponse', {
           caseId: options.caseId ?? null,
           httpStatus: response.status,
-          provider: SEMANTIC_OPENROUTER_PROVIDER,
-          model: typeof payload?.model === 'string' ? payload.model : SEMANTIC_OPENROUTER_MODEL,
+          provider: SEMANTIC_LLM_PROVIDER,
+          model: typeof payload?.model === 'string' ? payload.model : SEMANTIC_LLM_MODEL,
+          thinkingRequested: 'disabled',
           finishReason: finishReason ?? null,
           nativeFinishReason: nativeFinishReason ?? null,
           contentPresent: text.length > 0,
           contentLength: text.length,
           promptTokens: typeof usage?.prompt_tokens === 'number' ? usage.prompt_tokens : null,
           completionTokens: typeof usage?.completion_tokens === 'number' ? usage.completion_tokens : null,
+          reasoningTokens: typeof usage?.reasoning_tokens === 'number'
+            ? usage.reasoning_tokens
+            : typeof usage?.completion_tokens_details?.reasoning_tokens === 'number'
+              ? usage.completion_tokens_details.reasoning_tokens
+              : null,
         });
       }
       if ((finishReason === 'length' || nativeFinishReason === 'length') && !text) {
         throw providerError(
-          'OpenRouter semantic output was truncated before JSON content was generated',
+          'DeepSeek semantic output was truncated before JSON content was generated',
           response.status,
           'output_truncated',
         );
@@ -149,7 +160,7 @@ const classifyStatus = (
   status: number | undefined,
   message: string,
   name?: string,
-): Exclude<OpenRouterConnectionStatus, 'unknown' | 'testing' | 'available'> => {
+): Exclude<DeepSeekConnectionStatus, 'unknown' | 'testing' | 'available'> => {
   const normalized = message.toLowerCase();
   if (name === 'AbortError'
     || status === 408
@@ -157,10 +168,10 @@ const classifyStatus = (
     || normalized.includes('timeout')
     || normalized.includes('aborted')
     || normalized.includes('deadline')) return 'timeout';
-  if (status === 401 || status === 403
+  if (status === 401
     || normalized.includes('api key')
-    || normalized.includes('authentication')
-    || normalized.includes('permission')) return 'invalid_key';
+    || normalized.includes('authentication')) return 'invalid_key';
+  if (status === 403 || normalized.includes('permission')) return 'permission';
   if (status === 404) return 'model_unavailable';
   if (status === 429 || normalized.includes('rate limit') || normalized.includes('quota')) return 'rate_limited';
   if (status !== undefined && status >= 500) return 'provider_unavailable';
@@ -168,19 +179,19 @@ const classifyStatus = (
   return 'unknown_error';
 };
 
-export const testOpenRouterConnection = async (apiKeyOverride?: string): Promise<OpenRouterConnectionStatus> => {
+export const testDeepSeekConnection = async (apiKeyOverride?: string): Promise<DeepSeekConnectionStatus> => {
   const runtimeSettings = readLlmRuntimeSettings();
   const apiKey = apiKeyOverride ?? runtimeSettings.apiKey ?? '';
   traceConnection('entered');
   traceConnection(`runtime enabled=${runtimeSettings.enabled}`);
   traceConnection(`apiKey present=${Boolean(apiKey.trim())}`);
-  traceConnection(`apiKey prefix=${apiKey.trim().startsWith('sk-or-') ? 'sk-or-' : apiKey.trim() ? 'other' : 'none'}`);
-  traceConnection(`provider=${SEMANTIC_OPENROUTER_PROVIDER}`);
+  traceConnection(`apiKey prefix=${apiKey.trim().startsWith('sk-') ? 'sk-' : apiKey.trim() ? 'other' : 'none'}`);
+  traceConnection(`provider=${SEMANTIC_LLM_PROVIDER}`);
   if (!apiKey.trim()) {
     traceConnection('early return', { errorCode: 'missing_api_key' satisfies ConnectionDiagnosticCode });
     return 'invalid_key';
   }
-  if (SEMANTIC_OPENROUTER_PROVIDER !== 'openrouter') {
+  if (SEMANTIC_LLM_PROVIDER !== 'deepseek') {
     traceConnection('provider mismatch', { errorCode: 'provider_not_configured' satisfies ConnectionDiagnosticCode });
     return 'unknown_error';
   }
@@ -195,16 +206,15 @@ export const testOpenRouterConnection = async (apiKeyOverride?: string): Promise
   try {
     controller = new AbortController();
     traceConnection('creating client');
-    const client = createBrowserOpenRouterSemanticClient(apiKey.trim());
+    const client = createBrowserDeepSeekSemanticClient(apiKey.trim());
     traceConnection('client created');
     traceConnection('calling client.testConnection');
     fetchStarted = true;
     const request = client.models.generateContent({
-      model: SEMANTIC_OPENROUTER_MODEL,
+      model: SEMANTIC_LLM_MODEL,
       contents: 'Return JSON only: {"ok":true}',
       config: {
         responseMimeType: 'application/json',
-        temperature: 0,
         abortSignal: controller.signal,
         httpOptions: { timeout: CONNECTION_TIMEOUT_MS },
       },
@@ -214,14 +224,14 @@ export const testOpenRouterConnection = async (apiKeyOverride?: string): Promise
       new Promise<never>((_, reject) => {
         timeout = setTimeout(() => {
           controller.abort();
-          reject(Object.assign(new Error('OpenRouter connection timeout'), { name: 'AbortError' }));
+          reject(Object.assign(new Error('DeepSeek connection timeout'), { name: 'AbortError' }));
         }, CONNECTION_TIMEOUT_MS);
       }),
     ]);
     return response.text ? 'available' : 'unknown_error';
   } catch (error) {
     const candidate = error as { status?: number; message?: string; name?: string; stack?: string };
-    const status = classifyStatus(candidate.status, candidate.message || 'OpenRouter connection failed', candidate.name);
+    const status = classifyStatus(candidate.status, candidate.message || 'DeepSeek connection failed', candidate.name);
     traceConnection('request failed', {
       errorCode: fetchStarted ? status : 'client_not_initialized',
       status: candidate.status,

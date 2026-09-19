@@ -159,7 +159,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="mt-2 flex items-center justify-between px-1 text-2xs">
           <div className="flex items-center gap-1.5 text-slate-400">
             <Brain className={`w-3.5 h-3.5 ${llmEnabled ? 'text-violet-300' : 'text-slate-500'}`} />
-            <span>{llmEnabled ? 'OpenRouter 已启用' : 'AI 未启用'}</span>
+            <span>{llmEnabled ? 'DeepSeek 已启用' : 'AI 未启用'}</span>
           </div>
           <span className={llmEnabled ? 'text-violet-300' : 'text-slate-500'}>
             {llmEnabled ? 'BYOK' : '可选'}

@@ -3,13 +3,14 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { SEMANTIC_LLM_MODEL, SEMANTIC_LLM_PROVIDER } from '../../src/services/semantic/SemanticPrompt';
 
-describe('OpenRouter activation contract', () => {
+describe('DeepSeek activation contract', () => {
   it('pins the official provider and free model without a model fallback', () => {
-    expect(SEMANTIC_LLM_PROVIDER).toBe('openrouter');
-    expect(SEMANTIC_LLM_MODEL).toBe('openrouter/free');
+    expect(SEMANTIC_LLM_PROVIDER).toBe('deepseek');
+    expect(SEMANTIC_LLM_MODEL).toBe('deepseek-flash');
     const runtimeSource = readFileSync(resolve(process.cwd(), 'src/services/semantic/LlmRuntimeService.ts'), 'utf8');
-    expect(runtimeSource).toContain('createBrowserOpenRouterSemanticClient');
+    expect(runtimeSource).toContain('createBrowserDeepSeekSemanticClient');
     expect(runtimeSource).toContain('modelName: SEMANTIC_LLM_MODEL');
+    expect(runtimeSource).toContain('timeoutMs: SEMANTIC_LLM_TIMEOUT_MS');
     expect(runtimeSource).not.toContain('createBrowserGeminiSemanticClient');
   });
 

@@ -47,7 +47,7 @@ describe('single-case browser semantic runtime', () => {
     expect(JSON.stringify(input)).toBe(before);
   });
 
-  it('keeps an output-truncated OpenRouter response awaiting and uses the 4096 token budget', async () => {
+  it('keeps an output-truncated DeepSeek response awaiting and uses the 8192 token budget', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{
         message: { content: null },
@@ -64,15 +64,15 @@ describe('single-case browser semantic runtime', () => {
       status: 'awaiting_llm',
       message: expect.stringContaining('未创建人工复核项'),
     });
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ max_tokens: 4096 });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ max_tokens: 8192, model: 'deepseek-flash' });
   });
 
-  it('routes a schema/JSON failure through the required audit-to-review boundary', async () => {
+  it('keeps schema/JSON technical failures awaiting without creating human review', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       candidates: [{ content: { parts: [{ text: '{not-json' }] } }],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     await expect(runSingleCaseSemanticAnalysis(record(), rawDocument, { enabled: true, apiKey: 'test-key' })).resolves.toMatchObject({
-      status: 'review',
+      status: 'awaiting_llm',
     });
   });
 });

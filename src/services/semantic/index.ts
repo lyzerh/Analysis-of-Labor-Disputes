@@ -18,5 +18,6 @@ export * from './SemanticReviewStorage';
 export * from './SemanticReviewQueue';
 export * from './BrowserGeminiSemanticClient';
 export * from './BrowserOpenRouterSemanticClient';
+export * from './BrowserDeepSeekSemanticClient';
 export * from './LlmRuntimeSettings';
 export * from './LlmRuntimeService';

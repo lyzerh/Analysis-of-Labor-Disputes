@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { db } from '../db';
 import { SEMANTIC_LLM_MODEL } from '../services/semantic/SemanticPrompt';
-import { testOpenRouterConnection, type OpenRouterConnectionStatus } from '../services/semantic/BrowserOpenRouterSemanticClient';
+import { testDeepSeekConnection, type DeepSeekConnectionStatus } from '../services/semantic/BrowserDeepSeekSemanticClient';
 import { useLlmRuntimeSettings } from '../services/semantic/LlmRuntimeSettings';
 
 interface SettingsViewProps {
@@ -35,7 +35,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
     tasks: 0,
   });
   const { settings, setSettings, clearSettings } = useLlmRuntimeSettings();
-  const [connectionStatus, setConnectionStatus] = useState<OpenRouterConnectionStatus>('unknown');
+  const [connectionStatus, setConnectionStatus] = useState<DeepSeekConnectionStatus>('unknown');
 
   useEffect(() => {
     loadStorageStats();
@@ -67,14 +67,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
     }
   };
 
-  const connectionStatusLabels: Record<OpenRouterConnectionStatus, string> = {
+  const connectionStatusLabels: Record<DeepSeekConnectionStatus, string> = {
     unknown: '尚未测试',
     testing: '测试连接中…',
     available: '连接成功',
     invalid_key: 'API Key 无效或无权限',
+    permission: 'API Key 无权限',
     model_unavailable: '当前模型不可用',
     rate_limited: '额度不足或已限流',
-    provider_unavailable: 'OpenRouter 服务暂不可用',
+    provider_unavailable: 'DeepSeek 服务暂不可用',
     network_error: '网络错误',
     timeout: '连接超时',
     unknown_error: '未知连接错误',
@@ -86,7 +87,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
       return;
     }
     setConnectionStatus('testing');
-    setConnectionStatus(await testOpenRouterConnection());
+    setConnectionStatus(await testDeepSeekConnection());
   };
 
   const persistApiKeyInput = (value: string) => {
@@ -182,7 +183,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
         </div>
 
         <div className="rounded-xl border border-purple-200/60 bg-purple-50/40 p-4 text-xs text-slate-700 space-y-3">
-          <p className="leading-relaxed">使用您自己的 OpenRouter API Key 启用复杂语义解析。Key 仅用于当前浏览器会话，并直接用于调用 OpenRouter；浏览器端 BYOK 不代表绝对安全，请仅使用您愿意在本机浏览器中使用的 Key。</p>
+          <p className="leading-relaxed">使用您自己的 DeepSeek API Key 启用复杂语义解析。Key 仅用于当前浏览器会话，并直接用于调用 DeepSeek；浏览器端 BYOK 不代表绝对安全，请仅使用您愿意在本机浏览器中使用的 Key。</p>
           <label className="flex items-center justify-between gap-3 rounded-lg border border-white/80 bg-white/70 px-3 py-2">
             <span className="font-semibold text-slate-800">启用 AI 语义分析</span>
             <input
@@ -194,15 +195,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
             />
           </label>
           <div>
-            <label htmlFor="openrouter-api-key" className="font-semibold text-slate-800">OpenRouter API Key</label>
+            <label htmlFor="deepseek-api-key" className="font-semibold text-slate-800">DeepSeek API Key</label>
             <input
-              id="openrouter-api-key"
+              id="deepseek-api-key"
               type="password"
               autoComplete="off"
               value={settings.apiKey || ''}
               onChange={(event) => persistApiKeyInput(event.target.value)}
               onBlur={(event) => persistApiKeyInput(event.currentTarget.value)}
-              placeholder="粘贴您自己的 OpenRouter API Key"
+              placeholder="粘贴您自己的 DeepSeek API Key"
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
             />
           </div>
@@ -219,7 +220,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
           </div>
           <div className="flex items-center gap-1.5 text-2xs text-slate-500">
             <CheckCircle className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-            <span>当前模型：OpenRouter Free（{SEMANTIC_LLM_MODEL}）</span>
+            <span>当前模型：DeepSeek V4.1 Flash（{SEMANTIC_LLM_MODEL}）</span>
           </div>
         </div>
       </div>

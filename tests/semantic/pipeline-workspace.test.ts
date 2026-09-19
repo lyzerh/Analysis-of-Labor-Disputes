@@ -139,7 +139,7 @@ describe('pipeline workspace UI contract', () => {
     expect(workspaceSource).toMatch(/分析此案例/);
     expect(workspaceSource).toMatch(/onRunSingleCase/);
     expect(workspaceSource).toMatch(/AI 语义分析未启用/);
-    expect(workspaceSource).toMatch(/OpenRouter API Key 未配置/);
+    expect(workspaceSource).toMatch(/DeepSeek API Key 未配置/);
     expect(workspaceSource).toMatch(/outcomeReviewEvidenceFields/);
     const evidenceSource = readFileSync(resolve(process.cwd(), 'src/services/outcome/OutcomeReviewQueue.ts'), 'utf8');
     expect(evidenceSource).toMatch(/诉求片段/);

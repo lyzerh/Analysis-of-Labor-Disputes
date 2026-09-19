@@ -17,6 +17,7 @@ import {
 import { parseSemanticResolutionResult } from './SemanticResultSchema';
 import type { SemanticResultResolver } from './SemanticResultResolver';
 import type { SemanticResolverErrorCode } from './types';
+import { traceSemantic } from './SemanticTracing';
 
 export type SemanticPipelineResult = ResolvedSemanticResult | SemanticResolutionResult;
 
@@ -104,6 +105,11 @@ export const resolveUnresolvedSemanticTaskWithAudit = async (
     knownParties: task.knownParties,
     knownClaims: task.knownClaims,
     knownJudgmentItems: task.knownJudgmentItems,
+  });
+  traceSemantic('audit', {
+    caseId: task.caseId,
+    decision: audit.decision,
+    reasonCodes: audit.reasonCodes,
   });
   return { result, audit };
 };
