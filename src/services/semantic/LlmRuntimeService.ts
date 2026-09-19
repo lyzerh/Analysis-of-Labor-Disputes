@@ -74,11 +74,14 @@ const buildSemanticTask = (record: AnalysisCaseRecord, rawDocument: RawDocument)
       ...(item.awardedAmount !== undefined ? { awardedAmount: item.awardedAmount, currency: 'CNY' as const } : {}),
     }))
   );
-  const unresolvedTargets = executableUnresolvedReferences(record).map((reference) => ({
-    type: 'claim_resolution' as const,
-    ...(reference.referencedClaimIds[0] ? { id: reference.referencedClaimIds[0] } : {}),
-    reasonCode: 'claim_judgment_match_unclear' as const,
-  }));
+  const unresolvedTargets = [...new Set(executableUnresolvedReferences(record)
+    .flatMap((reference) => reference.referencedClaimIds
+      .filter((claimId): claimId is string => typeof claimId === 'string' && claimId.trim().length > 0)))]
+    .map((claimId) => ({
+      type: 'claim_resolution' as const,
+      id: claimId,
+      reasonCode: 'claim_judgment_match_unclear' as const,
+    }));
 
   return {
     status: 'unresolved',

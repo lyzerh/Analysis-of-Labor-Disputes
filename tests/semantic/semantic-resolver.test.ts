@@ -20,6 +20,7 @@ const task: UnresolvedSemanticTask = {
   knownClaims: [{
     id: 'claim-1', claimantPartyIds: [], claimantRole: 'unknown', claimType: 'wage', claimText: '请求支付工资',
   }],
+  knownJudgmentItems: [{ id: 'judgment-1', text: '判决支付工资。' }],
 };
 
 const validResponse = (overrides: Partial<SemanticResolutionResult> = {}): SemanticResolutionResult => ({
@@ -28,7 +29,12 @@ const validResponse = (overrides: Partial<SemanticResolutionResult> = {}): Seman
   parties: [],
   claims: [],
   judgmentItems: [],
-  claimResolutions: [],
+  claimResolutions: [{
+    claimId: 'claim-1',
+    judgmentItemIds: ['judgment-1'],
+    outcome: 'supported',
+    confidence: 0.95,
+  }],
   applicantRole: 'unknown',
   applicantOutcome: 'unclear',
   employeeOutcome: 'unclear',
@@ -87,6 +93,23 @@ describe('Semantic Result resolver routing', () => {
     expect(result.employeeOutcome).toBe('unclear');
   });
 
+  it('rejects schema-valid target contract violations before audit', async () => {
+    const resolver: SemanticResultResolver = {
+      resolve: vi.fn().mockResolvedValue(validResponse({
+        claimResolutions: [
+          validResponse().claimResolutions[0],
+          validResponse().claimResolutions[0],
+        ],
+      })),
+    };
+    const result = await resolveUnresolvedSemanticTask(task, resolver);
+    expect(result).toMatchObject({
+      status: 'unresolved',
+      resolver: 'llm',
+      resolverErrorCode: 'validation_rejected',
+    });
+  });
+
   it('converts provider throws to safe unresolved without default outcomes', async () => {
     const resolver: SemanticResultResolver = { resolve: vi.fn().mockRejectedValue(new Error('provider down')) };
     const result = await resolveUnresolvedSemanticTask(task, resolver);
@@ -139,12 +162,16 @@ describe('Gemini Semantic Result adapter', () => {
     expect(prompt).toContain(task.caseId);
     expect(prompt).toContain(task.rawText);
     expect(prompt).toContain('claim_judgment_match_unclear');
+    expect(prompt).toContain('Supplied target count: 1');
+    expect(prompt).toContain('exactly one claimResolution');
     const request = client.models.generateContent.mock.calls[0][0];
     expect(request.config.systemInstruction).toBe(SEMANTIC_RESULT_SYSTEM_INSTRUCTION);
     expect(request.config.systemInstruction).toContain('"claimResolutions"');
     expect(request.config.systemInstruction).toContain('"sourceEvidence"');
     expect(request.config.systemInstruction).toContain('"resolver"');
     expect(request.config.systemInstruction).toContain('"llm"');
+    expect(request.config.systemInstruction).toContain('Do not create extra claim resolutions');
+    expect(request.config.systemInstruction).toContain('Return status "resolved" only when every supplied target has exactly one clear resolution');
   });
 
   it('rejects an ad-hoc provider object instead of adapting it into the formal result contract', async () => {

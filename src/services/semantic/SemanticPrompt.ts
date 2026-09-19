@@ -4,7 +4,7 @@ import type { UnresolvedSemanticTask } from './SemanticResult';
 
 export const SEMANTIC_PROMPT_VERSION = 'semantic-reference-v1';
 /** Version of the strict SemanticResolutionResult contract sent to the active provider. */
-export const SEMANTIC_RESULT_PROMPT_VERSION = 'semantic-result-contract-v1';
+export const SEMANTIC_RESULT_PROMPT_VERSION = 'semantic-result-contract-v2';
 /** Official competition BYOK provider and fixed model. */
 export const SEMANTIC_LLM_PROVIDER = 'deepseek' as const;
 export const SEMANTIC_LLM_MODEL = 'deepseek-flash' as const;
@@ -111,7 +111,16 @@ const semanticResultSchemaText = JSON.stringify(SEMANTIC_RESOLUTION_RESULT_JSON_
  */
 export const SEMANTIC_RESULT_SYSTEM_INSTRUCTION = `You are the semantic resolver for labor-dispute case analysis.
 Use only the supplied UnresolvedSemanticTask and its known parties, claims, judgmentItems, rawText, and context.
-Resolve only the listed unresolvedTargets. Do not create claims, parties, judgment items, amounts, outcomes, analytics, or legal advice.
+You are not re-parsing the entire case. Resolve only the listed unresolvedTargets and do not reinterpret already resolved fields unless required by a supplied target.
+Do not create unrelated claims, parties, judgment items, amounts, or case-level outcomes. Do not create extra claim resolutions.
+For every supplied target of type claim_resolution with an id, return exactly one ClaimResolution with claimId equal to that target id. Put multiple matched judgment item IDs in that one resolution; never emit duplicate objects for one claim ID. Do not return a resolution for any claim ID that is not a supplied claim_resolution target.
+Use only IDs already present in the supplied known parties, claims, and judgmentItems. Never invent or rename IDs.
+For claim_judgment_match_unclear, answer both which supplied judgmentItem IDs match and the court treatment using supported, partially_supported, not_supported, or unclear. If the evidence is insufficient, return status "unresolved", keep the target resolution unclear, and preserve that target's reasonCode in unresolvedReasonCodes.
+Return status "resolved" only when every supplied target has exactly one clear resolution. A resolved result must not contain a target resolution with outcome unclear, and a resolved claim_judgment_match_unclear target must have at least one matched judgmentItemId.
+Attach sourceEvidence with an exact or near-exact source excerpt for each non-unclear target resolution where available; do not paraphrase or translate the evidence.
+Calibrate confidence to the target evidence: direct dispositive text may be high, while genuine ambiguity should remain lower and unresolved. Do not use a fixed confidence placeholder for every target.
+Before emitting JSON, internally check: only supplied targets were resolved; one resolution exists per target; no duplicate claim IDs; no extra IDs; resolved targets are non-unclear; evidence and confidence reflect the supplied text. Do not output this checklist.
+Do not create legal advice or analytics.
 Return exactly one JSON object that follows the exact SemanticResolutionResult schema below.
 The schema is authoritative: resolver must be "llm"; status must be "resolved" or "unresolved"; outcomes must use only supported, partially_supported, not_supported, or unclear.
 All required top-level arrays and outcome fields must be present. sourceEvidence, when supplied, must be the nested object required by the schema; do not return an ad-hoc top-level sourceEvidence, target, resolution, caseId, or reasonCodes field.
@@ -121,5 +130,21 @@ Return JSON only. Do not include markdown fences, chain-of-thought, or explanato
 Exact JSON Schema:
 ${semanticResultSchemaText}`;
 
-export const buildSemanticResultPrompt = (task: UnresolvedSemanticTask): string =>
-  `Resolve the unresolved semantic targets in this task and return one SemanticResolutionResult object that validates against the exact schema in the system instruction.\n\nUnresolvedSemanticTask:\n${JSON.stringify(task)}`;
+export const buildSemanticResultPrompt = (task: UnresolvedSemanticTask): string => {
+  const targets = task.unresolvedTargets.map((target) => ({
+    type: target.type,
+    ...(target.id ? { id: target.id } : {}),
+    reasonCode: target.reasonCode,
+  }));
+  return `Resolve only the supplied unresolved targets in this task. Do not re-parse the entire case. Return one SemanticResolutionResult object that validates against the exact schema in the system instruction.
+
+Target contract:
+- Supplied target count: ${targets.length}
+- Supplied targets: ${JSON.stringify(targets)}
+- For each claim_resolution target with an id, return exactly one claimResolution for that id.
+- Do not return duplicate claimResolution objects or resolutions for non-target claim IDs.
+- If all supplied targets are not clearly resolved, use status "unresolved" and preserve the relevant unresolved reason code.
+
+UnresolvedSemanticTask:
+${JSON.stringify(task)}`;
+};

@@ -25,17 +25,17 @@ describe('pipeline processing stage presentation', () => {
   it('maps deterministic and semantic states to the three product stages', () => {
     expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'not_needed' }))).toBe('safe');
     expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'resolved' }))).toBe('review_pending');
-    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'pending', unresolvedReferences: [{ sourceText: '待对应' }] }))).toBe('awaiting_llm');
-    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'partially_resolved', unresolvedReferences: [{ sourceText: '待对应' }] }))).toBe('awaiting_llm');
+    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'pending', unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('awaiting_llm');
+    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'partially_resolved', unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('awaiting_llm');
     expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'processing' }))).toBe('llm_processing');
     expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'needs_review' }))).toBe('review_pending');
-    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'provider_unavailable', unresolvedReferences: [{ sourceText: '待对应' }] }))).toBe('awaiting_llm');
-    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionErrorCode: 'output_truncated', unresolvedReferences: [{ sourceText: '待对应' }] }))).toBe('awaiting_llm');
+    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'provider_unavailable', unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('awaiting_llm');
+    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionErrorCode: 'output_truncated', unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('awaiting_llm');
     expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'pending', reviewStatus: 'approved' }))).toBe('blocked');
   });
 
   it('does not admit an unresolved or failed result as safe', () => {
-    expect(mapAnalysisRecordToProcessingStage(record({ unresolvedReferences: [{ sourceText: '待对应' }] }))).toBe('awaiting_llm');
+    expect(mapAnalysisRecordToProcessingStage(record({ unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('awaiting_llm');
     expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionErrorCode: 'schema_invalid' }))).toBe('review_pending');
   });
 
@@ -51,7 +51,7 @@ describe('pipeline processing stage presentation', () => {
   });
 
   it('requires an executable task before using the awaiting-AI stage', () => {
-    const taskable = record({ semanticResolutionStatus: 'pending', unresolvedReferences: [{ sourceText: '待处理语义关联' }] });
+    const taskable = record({ semanticResolutionStatus: 'pending', unresolvedReferences: [{ sourceText: '待处理语义关联', referencedClaimIds: ['claim-1'] }] });
     const blocked = record({ semanticResolutionStatus: 'pending', unresolvedReferences: [] });
     expect(hasExecutableSemanticTask(taskable)).toBe(true);
     expect(mapAnalysisRecordToProcessingStage(taskable)).toBe('awaiting_llm');
@@ -84,7 +84,7 @@ describe('pipeline processing stage presentation', () => {
       semanticResolutionStatus: 'provider_unavailable',
       semanticResolutionErrorCode: 'network_error',
       humanReviewCandidates: [{ candidate: {} }],
-      unresolvedReferences: [{ sourceText: '待处理语义关联' }],
+      unresolvedReferences: [{ sourceText: '待处理语义关联', referencedClaimIds: ['claim-1'] }],
     }))).toBe('review_pending');
   });
 
@@ -101,7 +101,7 @@ describe('pipeline processing stage presentation', () => {
   it('counts the current analysis set without mutating records', () => {
     const records = [
       record({ semanticResolutionStatus: 'not_needed' }),
-      record({ semanticResolutionStatus: 'pending', unresolvedReferences: [{ sourceText: '待对应' }] }),
+      record({ semanticResolutionStatus: 'pending', unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }),
       record({ semanticResolutionStatus: 'needs_review' }),
     ];
     expect(getPipelineOverview(records)).toMatchObject({ total: 3, safe: 1, safeRate: 33, awaitingAi: 1, reviewPending: 1, llmProcessing: 0, blocked: 0 });

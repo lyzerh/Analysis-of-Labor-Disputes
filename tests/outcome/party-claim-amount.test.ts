@@ -298,11 +298,13 @@ describe('ReferenceResolver boundary', () => {
     ].join('');
     const result = LaborInfoParserAdapter.parseDetailed(rawDocument('unresolved-reference', text));
     expect(result.unresolvedReferences.length).toBeGreaterThan(0);
+    expect(result.unresolvedReferences).toHaveLength(2);
     expect(result.unresolvedReferences.every((item) =>
       item.resolutionMethod === 'unresolved'
       && item.needsSemanticResolution
-      && item.referencedClaimIds.length === 0
+      && item.referencedClaimIds.length === 1
     )).toBe(true);
+    expect(result.unresolvedReferences.map((item) => item.referencedClaimIds[0])).toEqual(['claim_1', 'claim_2']);
     expect(result.claims.every((item) => (item.judgmentItems || []).length === 0)).toBe(true);
   });
 });

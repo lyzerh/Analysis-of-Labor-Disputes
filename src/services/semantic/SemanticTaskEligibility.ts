@@ -10,6 +10,8 @@ export const isExecutableUnresolvedReference = (
 ): boolean => {
   if (!reference || typeof reference.sourceText !== 'string' || !reference.sourceText.trim()) return false;
   if (reference.resolutionMethod !== undefined && reference.resolutionMethod !== 'unresolved') return false;
+  if (!Array.isArray(reference.referencedClaimIds)
+    || !reference.referencedClaimIds.some((claimId) => typeof claimId === 'string' && claimId.trim().length > 0)) return false;
   return reference.needsSemanticResolution !== false;
 };
 

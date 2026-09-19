@@ -15,6 +15,7 @@ import {
   type SemanticReviewItem,
 } from './SemanticReviewQueue';
 import { parseSemanticResolutionResult } from './SemanticResultSchema';
+import { validateSemanticTaskContract } from './SemanticTaskContract';
 import type { SemanticResultResolver } from './SemanticResultResolver';
 import type { SemanticResolverErrorCode } from './types';
 import { traceSemantic } from './SemanticTracing';
@@ -48,7 +49,20 @@ const resolveAndValidate = async (
 ): Promise<SemanticResolutionResult> => {
   const result = await resolver.resolve(task);
   try {
-    return parseSemanticResolutionResult(result);
+    const parsed = parseSemanticResolutionResult(result);
+    const taskContract = validateSemanticTaskContract(task, parsed);
+    traceSemantic('taskContract', {
+      caseId: task.caseId,
+      passed: taskContract.valid,
+      reasonCodes: taskContract.reasonCodes,
+      targetCount: taskContract.targetCount,
+      resolutionCount: taskContract.resolutionCount,
+      duplicateTargetCount: taskContract.duplicateTargetCount,
+      extraResolutionCount: taskContract.extraResolutionCount,
+    });
+    return taskContract.valid
+      ? parsed
+      : createTechnicalUnresolvedResult(task, 'validation_rejected');
   } catch {
     return createTechnicalUnresolvedResult(task, 'schema_invalid');
   }

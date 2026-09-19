@@ -12,6 +12,7 @@ export * from './SemanticResultSchema';
 export * from './SemanticResultResolver';
 export * from './SemanticResolutionOrchestrator';
 export * from './SemanticResultFallback';
+export * from './SemanticTaskContract';
 export * from './GeminiSemanticResultResolver';
 export * from './SemanticResultAudit';
 export * from './SemanticReviewStorage';

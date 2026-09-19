@@ -71,7 +71,7 @@ export class LaborInfoParserAdapter {
 
     // 5. 提取诉求并识别支持状态
     const claims = this.extractClaimsWithSupport(text, sections, parties);
-    const unresolvedReferences = this.extractUnresolvedReferences(sections.decision || '');
+    const unresolvedReferences = this.extractUnresolvedReferences(sections.decision || '', claims);
 
     // 6. 企业抗辩识别
     const employerDefenses = this.extractEmployerDefenses(text, sections);
@@ -1174,7 +1174,25 @@ export class LaborInfoParserAdapter {
     )?.trim() || '';
   }
 
-  private static extractUnresolvedReferences(decisionText: string): ClaimReferenceCandidate[] {
+  private static extractUnresolvedReferences(
+    decisionText: string,
+    claims: LaborInfoClaimItem[],
+  ): ClaimReferenceCandidate[] {
+    const claimScopedReferences = claims
+      .filter((claim) => claim.supportStatus === 'unclear' && (claim.judgmentItems?.length ?? 0) === 0)
+      .filter((claim): claim is LaborInfoClaimItem & { id: string } => typeof claim.id === 'string' && claim.id.trim().length > 0)
+      .map((claim) => ({
+        sourceText: claim.sourceText || claim.claimName,
+        referencedClaimIds: [claim.id],
+        confidence: 0,
+        resolutionMethod: 'unresolved' as const,
+        needsSemanticResolution: true,
+      }));
+
+    if (claimScopedReferences.length > 0) return claimScopedReferences;
+
+    // Preserve genuinely targetless legacy references, but task eligibility
+    // will reject them before any provider call because they have no claim ID.
     return decisionText
       .split(/[。；;\n\r]+/)
       .map((part) => part.trim())

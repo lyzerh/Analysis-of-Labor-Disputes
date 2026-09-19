@@ -8,8 +8,22 @@ const record = (): AnalysisCaseRecord => ({
   court: '测试法院',
   date: '2023-01-01',
   parties: [],
-  claims: [],
-  unresolvedReferences: [{ referencedClaimIds: [], sourceText: '待分析片段' }],
+  claims: [{
+    id: 'claim-1',
+    claimName: '工资',
+    claimant: 'employee',
+    claimantRole: 'employee',
+    supportStatus: 'unclear',
+    judgmentItems: [],
+    sourceText: '待分析片段',
+  }],
+  unresolvedReferences: [{
+    referencedClaimIds: ['claim-1'],
+    sourceText: '待分析片段',
+    resolutionMethod: 'unresolved',
+    needsSemanticResolution: true,
+    confidence: 0,
+  }],
   courtReasoning: '',
 } as unknown as AnalysisCaseRecord);
 
@@ -35,6 +49,57 @@ describe('single-case browser semantic runtime', () => {
       message: '当前案例没有可执行的待分析语义任务。',
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not call the provider for a targetless unresolved reference', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const targetless = {
+      ...record(),
+      unresolvedReferences: [{
+        referencedClaimIds: [],
+        sourceText: '待分析片段',
+        resolutionMethod: 'unresolved' as const,
+        needsSemanticResolution: true,
+        confidence: 0,
+      }],
+    };
+    await expect(runSingleCaseSemanticAnalysis(targetless, rawDocument, { enabled: true, apiKey: 'test-key' })).resolves.toMatchObject({
+      status: 'blocked',
+      message: '当前案例没有可执行的待分析语义任务。',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fans out one provider target per referenced claim id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{
+        message: { content: null },
+        finish_reason: 'length',
+        native_finish_reason: 'length',
+      }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const multiClaim = {
+      ...record(),
+      claims: [
+        record().claims[0],
+        { ...record().claims[0], id: 'claim-2', claimName: '补偿金' },
+      ],
+      unresolvedReferences: [{
+        referencedClaimIds: ['claim-1', 'claim-2'],
+        sourceText: '待分析片段',
+        resolutionMethod: 'unresolved' as const,
+        needsSemanticResolution: true,
+        confidence: 0,
+      }],
+    };
+    await runSingleCaseSemanticAnalysis(multiClaim, rawDocument, { enabled: true, apiKey: 'test-key' });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const prompt = body.messages[1].content as string;
+    expect(prompt).toContain('"id":"claim-1"');
+    expect(prompt).toContain('"id":"claim-2"');
+    expect(prompt).not.toContain('"id":""');
   });
 
   it('keeps provider failures awaiting without creating a review item', async () => {
