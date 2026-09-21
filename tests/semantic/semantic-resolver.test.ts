@@ -144,6 +144,50 @@ describe('Semantic Result resolver routing', () => {
     expect(audited.audit.decision).toBe('fail');
     expect(audited.audit.reasonCodes).toContain('unresolved_result');
   });
+
+  it('propagates target claim IDs into the target-scoped audit', async () => {
+    const targetScopedTask: UnresolvedSemanticTask = {
+      ...task,
+      knownParties: [{
+        id: 'employee-1', name: '张某', laborRole: 'employee', proceduralRoles: ['plaintiff'],
+      }],
+      knownClaims: [
+        {
+          ...task.knownClaims![0],
+          claimantPartyIds: ['employee-1'],
+          claimantRole: 'employee',
+        },
+        {
+          ...task.knownClaims![0],
+          id: 'claim-2',
+          claimType: 'bonus',
+          claimText: '请求支付奖金1000元',
+          claimantPartyIds: ['employee-1'],
+          claimantRole: 'employee',
+        },
+      ],
+    };
+    const result = validResponse({
+      parties: targetScopedTask.knownParties,
+      claims: targetScopedTask.knownClaims,
+      judgmentItems: [{ id: 'judgment-1', text: '判决支付工资。' }],
+      claimResolutions: [{
+        claimId: 'claim-1', judgmentItemIds: ['judgment-1'], outcome: 'supported', confidence: 0.95,
+      }],
+      applicantRole: 'employee',
+      applicantOutcome: 'supported',
+      employeeOutcome: 'supported',
+      employerOutcome: 'not_supported',
+      confidence: 0.95,
+    });
+    const audited = await resolveUnresolvedSemanticTaskWithAudit(
+      targetScopedTask,
+      { resolve: vi.fn().mockResolvedValue(result) },
+    );
+
+    expect(audited.audit.reasonCodes).not.toContain('required_relationship_missing');
+    expect(audited.audit.decision).toBe('pass');
+  });
 });
 
 describe('Gemini Semantic Result adapter', () => {
@@ -172,6 +216,22 @@ describe('Gemini Semantic Result adapter', () => {
     expect(request.config.systemInstruction).toContain('"llm"');
     expect(request.config.systemInstruction).toContain('Do not create extra claim resolutions');
     expect(request.config.systemInstruction).toContain('Return status "resolved" only when every supplied target has exactly one clear resolution');
+  });
+
+  it('includes calibrated target-scoped mapping policy without relaxing uncertainty boundaries', async () => {
+    const client = jsonClient(validResponse());
+    const resolver = new GeminiSemanticResultResolver({ apiKey: '', client });
+    await resolver.resolve(task);
+    const instruction = client.models.generateContent.mock.calls[0][0].config.systemInstruction as string;
+
+    expect(instruction).toContain('When a supplied judgment item clearly addresses a supplied target claim');
+    expect(instruction).toContain('Global wording is not ambiguity by itself');
+    expect(instruction).toContain('all claims are dismissed');
+    expect(instruction).toContain('other claims are dismissed');
+    expect(instruction).toContain('One judgment item may resolve multiple supplied claim targets');
+    expect(instruction).toContain('confirming that the claim amount and judgment amount refer to the same target matter');
+    expect(instruction).toContain('Amount mismatch alone is not enough to establish the mapping');
+    expect(instruction).toContain('Use unresolved only when scope is unclear');
   });
 
   it('rejects an ad-hoc provider object instead of adapting it into the formal result contract', async () => {

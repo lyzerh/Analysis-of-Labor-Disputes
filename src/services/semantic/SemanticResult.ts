@@ -39,6 +39,15 @@ export interface SemanticClaim {
   sourceEvidence?: SourceEvidence;
 }
 
+/**
+ * Input-only claim context supplied to the semantic resolver.  The resolver
+ * needs the canonical label and the original excerpt as separate fields;
+ * this type is deliberately not used to widen the strict result schema.
+ */
+export interface SemanticTaskClaim extends SemanticClaim {
+  claimLabel?: string;
+}
+
 export interface SemanticJudgmentItem {
   id: string;
   text: string;
@@ -80,6 +89,13 @@ export interface SemanticTarget {
   reasonCode: SemanticReasonCode;
 }
 
+/** Existing procedural metadata passed through unchanged for context only. */
+export interface SemanticProceduralMetadata {
+  caseLevel?: string;
+  court?: string;
+  date?: string;
+}
+
 export interface SemanticFactSet {
   parties: SemanticParty[];
   claims: SemanticClaim[];
@@ -102,8 +118,12 @@ export interface UnresolvedSemanticTask {
   reasonCodes: SemanticReasonCode[];
   rawText: string;
   knownParties?: SemanticParty[];
-  knownClaims?: SemanticClaim[];
+  knownClaims?: SemanticTaskClaim[];
   knownJudgmentItems?: SemanticJudgmentItem[];
+  /** Original structured LaborInfo sections; no semantic interpretation. */
+  judgmentDispositionText?: string;
+  judgmentReasoningText?: string;
+  proceduralMetadata?: SemanticProceduralMetadata;
   unresolvedTargets: SemanticTarget[];
   context?: string;
 }

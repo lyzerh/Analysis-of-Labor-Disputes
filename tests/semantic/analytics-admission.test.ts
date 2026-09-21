@@ -156,6 +156,72 @@ describe('Analytics Gate admission contract', () => {
     });
   });
 
+  it('projects the accepted human semantic value into the analytics view without mutating the source record', () => {
+    const pending = reviewItem(semanticResult({
+      applicantOutcome: 'supported',
+      employeeOutcome: 'supported',
+      employerOutcome: 'not_supported',
+    }));
+    pending.status = 'reviewed';
+    pending.reviewedAt = '2026-09-17T01:30:00.000Z';
+    pending.reviewedResult = {
+      source: 'human_review',
+      reviewStatus: 'approved',
+      reviewedAt: pending.reviewedAt,
+      reviewAction: 'edit',
+      originalCandidate: semanticResult({ employerOutcome: 'supported' }),
+      finalValue: semanticResult({ employerOutcome: 'not_supported' }),
+      reviewedResult: semanticResult({ employerOutcome: 'not_supported' }),
+    };
+    const source = analysisRecord('case-human', 'supported', {
+      applicantOutcome: 'not_supported',
+      employeeOutcome: 'not_supported',
+      overallResult: 'not_supported',
+      claims: [{ id: 'claim-1', claimName: '工资', claimant: 'employee', supportStatus: 'not_supported' }],
+    });
+    const filtered = filterAnalyticsEligibleRecords([source], { reviewItems: [pending] });
+    expect(filtered.eligibleRecords).toHaveLength(1);
+    const projected = filtered.eligibleRecords[0];
+    expect(projected).toMatchObject({
+      caseId: 'case-human',
+      rawDocumentId: source.rawDocumentId,
+      employeeOutcome: 'supported',
+      employerOutcome: 'not_supported',
+      applicantOutcome: 'supported',
+      overallResult: 'supported',
+    });
+    expect(projected.claims[0]).toMatchObject({ id: 'claim-1', supportStatus: 'supported' });
+    expect(source.employeeOutcome).toBe('not_supported');
+    expect(source.claims[0].supportStatus).toBe('not_supported');
+    const report = LaborDisputeAnalyticsEngine.generateReport([source], { reviewItems: [pending] });
+    expect(report.overall.includedCases).toBe(1);
+    expect(report.targetCities.find((city) => city.city === '深圳')?.employeeOutcome.supported).toBe(1);
+  });
+
+  it('keeps a human-marked unresolved result blocked after review is completed', () => {
+    const pending = reviewItem(semanticResult());
+    pending.status = 'reviewed';
+    pending.reviewedAt = '2026-09-17T01:40:00.000Z';
+    pending.reviewedResult = {
+      source: 'human_review',
+      reviewStatus: 'approved',
+      reviewedAt: pending.reviewedAt,
+      reviewAction: 'unresolved',
+      originalCandidate: semanticResult(),
+      finalValue: semanticResult({ status: 'unresolved', unresolvedReasonCodes: ['outcome_unclear'] }),
+      reviewedResult: semanticResult({ status: 'unresolved', unresolvedReasonCodes: ['outcome_unclear'] }),
+    };
+    const admission = evaluateAnalyticsAdmission({
+      record: analysisRecord('case-human', 'supported'),
+      semanticResult: semanticResult({ employerOutcome: 'supported' }),
+      audit: audit('pass'),
+      reviewItems: [pending],
+    });
+    expect(admission.status).toBe('blocked');
+    expect(admission.reasonCodes).toContain('semantic_unresolved');
+    expect(filterAnalyticsEligibleRecords([analysisRecord('case-human', 'supported')], { reviewItems: [pending] }).eligibleRecords).toHaveLength(0);
+  });
+
   it('blocks technical resolver failures', () => {
     const result = evaluateAnalyticsAdmission({
       record: analysisRecord('technical-case', 'supported'),
@@ -270,6 +336,16 @@ describe('Analytics Gate admission contract', () => {
         semanticResolutionStatus: 'provider_unavailable',
       }),
     });
+    expect(result.reasonCodes).toContain('technical_failure');
+  });
+
+  it('blocks explicit technical-failure records without treating them as review conclusions', () => {
+    const result = evaluateAnalyticsAdmission({
+      record: analysisRecord('technical-state', 'supported', {
+        semanticResolutionStatus: 'technical_failure',
+      }),
+    });
+    expect(result.status).toBe('blocked');
     expect(result.reasonCodes).toContain('technical_failure');
   });
 

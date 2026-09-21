@@ -13,6 +13,10 @@ describe('Semantic human review workspace contract', () => {
     expect(workspaceSource).toContain('可核对的原文依据');
     expect(workspaceSource).toContain('相关上下文');
     expect(workspaceSource).toContain('保存人工复核结果');
+    expect(workspaceSource).toContain('接受 AI 候选');
+    expect(workspaceSource).toContain('保存编辑结果');
+    expect(workspaceSource).toContain('标记无法确定');
+    expect(workspaceSource).toContain('整体置信度');
   });
 
   it('only exposes human-fact review actions, not technical routing controls', () => {
@@ -21,6 +25,14 @@ describe('Semantic human review workspace contract', () => {
     expect(workspaceSource).not.toContain('完善规则库');
     expect(workspaceSource).not.toContain('忽略');
     expect(workspaceSource).toContain('语义人工复核');
+  });
+
+  it('keeps review filters, queue navigation, and an explicit processed empty state', () => {
+    expect(workspaceSource).toContain('低置信度');
+    expect(workspaceSource).toContain('证据问题');
+    expect(workspaceSource).toContain('上一项');
+    expect(workspaceSource).toContain('下一项');
+    expect(workspaceSource).toContain('当前没有需要人工复核的案例');
   });
 
   it('is reachable from data management as a dedicated review workspace', () => {

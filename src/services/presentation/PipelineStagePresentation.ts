@@ -1,9 +1,10 @@
 import type { AnalysisCaseRecord } from '../../types';
 import { evaluateAnalyticsAdmission } from '../analytics/AnalyticsAdmission';
 import { executableUnresolvedReferences, hasExecutableSemanticTask } from '../semantic/SemanticTaskEligibility';
+import { isTechnicalResolverError, isTechnicalSemanticStatus } from '../semantic/SemanticWorkflowState';
 
 /** User-facing processing stages for the deterministic → semantic → human pipeline. */
-export type ProcessingStage = 'safe' | 'awaiting_llm' | 'llm_processing' | 'review_pending' | 'blocked';
+export type ProcessingStage = 'safe' | 'awaiting_llm' | 'llm_processing' | 'review_pending' | 'technical_failure' | 'blocked';
 
 export interface PipelineOverview {
   total: number;
@@ -11,6 +12,7 @@ export interface PipelineOverview {
   awaitingAi: number;
   llmProcessing: number;
   reviewPending: number;
+  technicalFailure: number;
   blocked: number;
   safeRate: number;
 }
@@ -24,17 +26,9 @@ export interface PipelineProcessingStats {
 
 type PipelineRecord = AnalysisCaseRecord;
 
-const TRANSIENT_SEMANTIC_ERROR_CODES = new Set([
-  'timeout',
-  'network_error',
-  'rate_limited',
-  'provider_error',
-  'output_truncated',
-]);
-
-const isTransientSemanticFailure = (record: PipelineRecord): boolean => (
-  record.semanticResolutionStatus === 'provider_unavailable'
-  || TRANSIENT_SEMANTIC_ERROR_CODES.has(record.semanticResolutionErrorCode || '')
+const isTechnicalSemanticFailure = (record: PipelineRecord): boolean => (
+  isTechnicalSemanticStatus(record.semanticResolutionStatus)
+  || isTechnicalResolverError(record.semanticResolutionErrorCode)
 );
 
 /**
@@ -56,14 +50,12 @@ export function mapAnalysisRecordToProcessingStage(record: PipelineRecord): Proc
     return 'review_pending';
   }
 
-  // Provider/runtime failures are retryable semantic work, not an accepted
-  // result and not a human conclusion. A pending human review takes priority
-  // above so a review item cannot be hidden in the retry queue.
-  if (isTransientSemanticFailure(record) && executableTask) return 'awaiting_llm';
-
-  // A non-transient technical failure is reviewable, but a transient failure
-  // without an executable task remains an explicit non-LLM blockage below.
-  if (reasons.has('technical_failure') && !isTransientSemanticFailure(record)) return 'review_pending';
+  // A pending human review takes priority above so an existing review item
+  // cannot be hidden behind a technical retry state.
+  // A provider/JSON/schema/contract failure has no semantic candidate for a
+  // reviewer to judge. Keep it separate from needs-review and from the LLM
+  // work queue, regardless of whether an old unresolved reference remains.
+  if (isTechnicalSemanticFailure(record) || reasons.has('technical_failure')) return 'technical_failure';
 
   // Only records with an executable unresolved task may enter the LLM queue.
   // A Gate-blocked record without one is a non-LLM/data blockage.
@@ -76,6 +68,7 @@ export function processingStageLabel(stage: ProcessingStage): string {
     case 'awaiting_llm': return '待 AI 语义分析';
     case 'llm_processing': return 'AI 语义分析中';
     case 'review_pending': return '人工复核';
+    case 'technical_failure': return '技术失败';
     case 'blocked': return '无法生成语义任务';
     default: return '待处理';
   }
@@ -87,6 +80,7 @@ export function processingStageDescription(stage: ProcessingStage): string {
     case 'awaiting_llm': return '规则解析留下了需要语义对应的事实、诉求或裁判项。';
     case 'llm_processing': return '正在按当前分析集逐案处理，结果尚未进入统计。';
     case 'review_pending': return '自动核验未通过，需要人工确认后再进入安全结果。';
+    case 'technical_failure': return '语义处理发生技术异常，尚未生成可供人工判断的候选结果；修复配置或重试后再继续。';
     case 'blocked': return '当前结果未满足准入条件，且没有可执行的 LLM 语义任务。';
     default: return '等待流水线继续处理。';
   }
@@ -104,6 +98,9 @@ export function processingStageReason(record: PipelineRecord): string {
     return record.semanticResolutionErrorCode
       ? '语义处理未能可靠完成，结果已转入人工复核。'
       : '自动核验未通过，结果已转入人工复核。';
+  }
+  if (stage === 'technical_failure') {
+    return '语义处理未完成（技术失败），未创建人工法律复核项。';
   }
   if (stage === 'awaiting_llm') {
     const count = executableUnresolvedReferences(record).length;
@@ -133,6 +130,7 @@ export function getPipelineOverview(records: readonly PipelineRecord[]): Pipelin
     awaiting_llm: 0,
     llm_processing: 0,
     review_pending: 0,
+    technical_failure: 0,
     blocked: 0,
   } as Record<ProcessingStage, number>);
 
@@ -143,6 +141,7 @@ export function getPipelineOverview(records: readonly PipelineRecord[]): Pipelin
     awaitingAi: counts.awaiting_llm,
     llmProcessing: counts.llm_processing,
     reviewPending: counts.review_pending,
+    technicalFailure: counts.technical_failure,
     blocked: counts.blocked,
     safeRate: total === 0 ? 0 : Math.round((counts.safe / total) * 100),
   };
@@ -154,6 +153,6 @@ export function getPipelineProcessingStats(records: readonly PipelineRecord[]): 
     pending: overview.awaitingAi,
     processing: overview.llmProcessing,
     completed: overview.safe,
-    failed: overview.reviewPending,
+    failed: overview.reviewPending + overview.technicalFailure,
   };
 }

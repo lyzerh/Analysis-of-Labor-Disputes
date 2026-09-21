@@ -29,14 +29,14 @@ describe('pipeline processing stage presentation', () => {
     expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'partially_resolved', unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('awaiting_llm');
     expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'processing' }))).toBe('llm_processing');
     expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'needs_review' }))).toBe('review_pending');
-    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'provider_unavailable', unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('awaiting_llm');
-    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionErrorCode: 'output_truncated', unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('awaiting_llm');
+    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'provider_unavailable', unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('technical_failure');
+    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionErrorCode: 'output_truncated', unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('technical_failure');
     expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionStatus: 'pending', reviewStatus: 'approved' }))).toBe('blocked');
   });
 
   it('does not admit an unresolved or failed result as safe', () => {
     expect(mapAnalysisRecordToProcessingStage(record({ unresolvedReferences: [{ sourceText: '待对应', referencedClaimIds: ['claim-1'] }] }))).toBe('awaiting_llm');
-    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionErrorCode: 'schema_invalid' }))).toBe('review_pending');
+    expect(mapAnalysisRecordToProcessingStage(record({ semanticResolutionErrorCode: 'schema_invalid' }))).toBe('technical_failure');
   });
 
   it('blocks a legacy-included record when critical outcomes or claims remain unclear', () => {
@@ -108,6 +108,7 @@ describe('pipeline processing stage presentation', () => {
     expect(processingStageLabel('safe')).toBe('可安全入库');
     expect(processingStageLabel('awaiting_llm')).toBe('待 AI 语义分析');
     expect(processingStageLabel('review_pending')).toBe('人工复核');
+    expect(processingStageLabel('technical_failure')).toBe('技术失败');
     expect(processingStageLabel('blocked')).toBe('无法生成语义任务');
   });
 
@@ -133,7 +134,9 @@ describe('pipeline workspace UI contract', () => {
     expect(workspaceSource).toMatch(/可安全入库/);
     expect(workspaceSource).toMatch(/待 AI 语义分析/);
     expect(workspaceSource).toMatch(/无法生成语义任务/);
+    expect(workspaceSource).toMatch(/技术失败/);
     expect(workspaceSource).toMatch(/人工复核工作台/);
+    expect(workspaceSource).toMatch(/技术失败不会创建法律复核项/);
     expect(workspaceSource).toMatch(/AI 语义分析工作台/);
     expect(workspaceSource).toMatch(/开始处理全部/);
     expect(workspaceSource).toMatch(/分析此案例/);

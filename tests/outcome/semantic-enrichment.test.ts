@@ -131,6 +131,7 @@ describe('SemanticEnrichmentService pipeline', () => {
     });
     expect(rejected.claims).toEqual(original.claims);
     expect(rejected.unresolvedReferences).toEqual(original.unresolvedReferences);
+    expect(rejected.semanticResolutionStatus).toBe('needs_review');
 
     const fallback = await SemanticEnrichmentService.enrich(original, {
       semanticResolver: new MockSemanticResolver({ errorCode: 'provider_error' }),

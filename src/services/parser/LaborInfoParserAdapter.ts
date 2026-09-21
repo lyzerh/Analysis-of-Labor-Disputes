@@ -56,6 +56,13 @@ export class LaborInfoParserAdapter {
     const startTime = performance.now();
     const text = (rawDoc.rawText || '').trim();
     const meta = rawDoc.sourceMetadata || {};
+    // LaborInfo keeps structured sections in sourceMetadata for historical
+    // records; prefer explicit RawDocument fields when newer imports provide
+    // them. Values are copied verbatim and are never semantically interpreted.
+    const judgmentDispositionText = rawDoc.judgmentDispositionText
+      ?? (typeof meta.cpjg === 'string' && meta.cpjg.length > 0 ? meta.cpjg : undefined);
+    const judgmentReasoningText = rawDoc.judgmentReasoningText
+      ?? (typeof meta.fxgc === 'string' && meta.fxgc.length > 0 ? meta.fxgc : undefined);
 
     // 1. 基础信息解析
     const baseInfo = this.extractBaseInfo(rawDoc, text, meta);
@@ -210,6 +217,8 @@ export class LaborInfoParserAdapter {
       evidence,
       courtReasoning,
       keyLegalPoints,
+      judgmentDispositionText,
+      judgmentReasoningText,
       applicantOutcome: outcomes.overallResult,
       employeeOutcome: outcomes.employeeOutcome,
       employerOutcome: outcomes.employerOutcome,

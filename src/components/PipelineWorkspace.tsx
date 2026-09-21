@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Clock3, FileSearch, ShieldAlert, Sparkles, UserRoundCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, FileSearch, ShieldAlert, Sparkles, UserRoundCheck } from 'lucide-react';
 import type { AnalysisCaseRecord, OutcomeReviewItem } from '../types';
 import { getOutcomePresentation } from '../services/outcome/OutcomePresentation';
 import { outcomeReviewEvidenceFields, outcomeReviewReasonLabels } from '../services/outcome/OutcomeReviewQueue';
@@ -30,12 +30,14 @@ const stageCardStyles = {
   safe: 'border-emerald-200 bg-emerald-50/70 text-emerald-950',
   awaiting_llm: 'border-indigo-200 bg-indigo-50/70 text-indigo-950',
   review_pending: 'border-amber-200 bg-amber-50/70 text-amber-950',
+  technical_failure: 'border-orange-200 bg-orange-50/70 text-orange-950',
   blocked: 'border-rose-200 bg-rose-50/70 text-rose-950',
 } as const;
 
-const StageIcon: React.FC<{ stage: 'safe' | 'awaiting_llm' | 'review_pending' | 'blocked' }> = ({ stage }) => {
+const StageIcon: React.FC<{ stage: 'safe' | 'awaiting_llm' | 'review_pending' | 'technical_failure' | 'blocked' }> = ({ stage }) => {
   if (stage === 'safe') return <CheckCircle2 className="h-4 w-4" />;
   if (stage === 'awaiting_llm') return <Sparkles className="h-4 w-4" />;
+  if (stage === 'technical_failure') return <AlertTriangle className="h-4 w-4" />;
   if (stage === 'blocked') return <ShieldAlert className="h-4 w-4" />;
   return <UserRoundCheck className="h-4 w-4" />;
 };
@@ -50,7 +52,7 @@ const PipelineStat: React.FC<{ label: string; value: number; tone: string; detai
 
 const RecordStageList: React.FC<{
   records: AnalysisCaseRecord[];
-  stage: 'safe' | 'awaiting_llm' | 'blocked';
+  stage: 'safe' | 'awaiting_llm' | 'technical_failure' | 'blocked';
   llmAvailable: boolean;
   runningCaseId: string | null;
   onRunSingleCase?: (record: AnalysisCaseRecord) => void;
@@ -155,7 +157,8 @@ export const PipelineWorkspace: React.FC<PipelineWorkspaceProps> = ({ records, r
           <PipelineStat label="全部案例" value={overview.total} tone="border-slate-200 bg-slate-50 text-slate-900" />
           <PipelineStat label="可安全入库" value={overview.safe} tone={stageCardStyles.safe} detail={`安全入库率 ${overview.safeRate}%`} />
           <PipelineStat label="待 AI 语义分析" value={overview.awaitingAi} tone={stageCardStyles.awaiting_llm} />
-          <PipelineStat label="人工复核" value={overview.reviewPending} tone={stageCardStyles.review_pending} />
+          <PipelineStat label="需要人工复核" value={overview.reviewPending} tone={stageCardStyles.review_pending} />
+          <PipelineStat label="技术失败" value={overview.technicalFailure} tone={stageCardStyles.technical_failure} />
           <PipelineStat label="无法生成语义任务" value={overview.blocked} tone={stageCardStyles.blocked} />
         </div>
       </section>
@@ -175,6 +178,11 @@ export const PipelineWorkspace: React.FC<PipelineWorkspaceProps> = ({ records, r
           <div className="flex items-center gap-2 text-sm font-bold"><StageIcon stage="blocked" />无法生成语义任务 <span className="text-xs font-normal opacity-75">{overview.blocked} 个</span></div>
           <p className="mt-1 text-[11px] opacity-80">{processingStageDescription('blocked')}</p>
           <RecordStageList records={records} stage="blocked" llmAvailable={llmAvailable} runningCaseId={runningCaseId} />
+        </div>
+        <div className={`rounded-xl border p-4 ${stageCardStyles.technical_failure}`}>
+          <div className="flex items-center gap-2 text-sm font-bold"><StageIcon stage="technical_failure" />技术失败 <span className="text-xs font-normal opacity-75">{overview.technicalFailure} 个</span></div>
+          <p className="mt-1 text-[11px] opacity-80">{processingStageDescription('technical_failure')}</p>
+          <RecordStageList records={records} stage="technical_failure" llmAvailable={llmAvailable} runningCaseId={runningCaseId} />
         </div>
       </section>
 
@@ -199,8 +207,8 @@ export const PipelineWorkspace: React.FC<PipelineWorkspaceProps> = ({ records, r
       </section>
 
       <section aria-label="人工复核工作台" className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-        <div className="flex items-start gap-2"><ShieldAlert className="mt-0.5 h-4 w-4 text-amber-700" /><div><h3 className="text-sm font-bold text-amber-950">人工复核工作台</h3><p className="mt-1 text-[11px] text-amber-900/75">自动核验未通过的语义结果会进入这里；人工确认后才会进入安全结果。</p></div></div>
-        <div className="mt-3 min-h-[320px] overflow-hidden rounded-lg border border-amber-200/80 bg-white/60"><SemanticReviewWorkspace /></div>
+        <div className="flex items-start gap-2"><ShieldAlert className="mt-0.5 h-4 w-4 text-amber-700" /><div><h3 className="text-sm font-bold text-amber-950">人工复核工作台</h3><p className="mt-1 text-[11px] text-amber-900/75">自动核验未通过且具备候选语义结果、需要确认的项目会进入这里；技术失败不会创建法律复核项。</p></div></div>
+        <div className="mt-3 h-[min(75vh,720px)] min-h-[520px] overflow-hidden rounded-lg border border-amber-200/80 bg-white/60"><SemanticReviewWorkspace /></div>
         <div className="mt-4 border-t border-amber-200/80 pt-3"><div className="flex items-center gap-2 text-xs font-semibold text-amber-950"><Clock3 className="h-3.5 w-3.5" />裁判结果诊断线索 <span className="font-normal text-amber-800/75">{reviewItems.length} 项</span></div><LegacyDiagnosticList items={reviewItems} onSelectCase={onSelectCase} /></div>
       </section>
     </div>

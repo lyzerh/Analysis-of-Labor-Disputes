@@ -98,8 +98,11 @@ const semanticStatus = (
   unresolvedCount: number,
   appliedCount: number,
   humanReviewCount: number,
+  rejectedCount: number,
 ): SemanticResolutionStatus => {
-  if (humanReviewCount > 0) return 'needs_review';
+  // A validator-rejected candidate is a semantic candidate that needs a
+  // human decision, not a provider/runtime failure and not fresh LLM work.
+  if (humanReviewCount > 0 || rejectedCount > 0) return 'needs_review';
   if (unresolvedCount === 0) return 'resolved';
   if (appliedCount > 0) return 'partially_resolved';
   return 'pending';
@@ -216,6 +219,7 @@ export class SemanticEnrichmentService {
         unresolvedReferences.length,
         result.accepted.length,
         result.humanReview.length,
+        result.rejected.length,
       ),
       semanticResolutionErrorCode: undefined,
       applicantOutcome,

@@ -114,11 +114,15 @@ export const resolveUnresolvedSemanticTaskWithAudit = async (
   resolver: SemanticResultResolver,
 ): Promise<AuditedSemanticResolution> => {
   const result = await resolveUnresolvedSemanticTask(task, resolver);
+  const requiredClaimResolutionIds = task.unresolvedTargets
+    .filter((target) => target.type === 'claim_resolution' && Boolean(target.id))
+    .map((target) => target.id as string);
   const audit = auditSemanticResolutionResult(result, {
     rawText: task.rawText,
     knownParties: task.knownParties,
     knownClaims: task.knownClaims,
     knownJudgmentItems: task.knownJudgmentItems,
+    requiredClaimResolutionIds,
   });
   traceSemantic('audit', {
     caseId: task.caseId,
@@ -129,8 +133,9 @@ export const resolveUnresolvedSemanticTaskWithAudit = async (
 };
 
 /**
- * Adds the mandatory human-review handoff to the schema/audit path. Passing
- * results never create a queue item; failures are persisted as pending items.
+ * Adds the human-review handoff to the schema/audit path. Passing results and
+ * technical failures never create a queue item; only valid-but-uncertain
+ * semantic candidates are persisted for human review.
  */
 export const resolveUnresolvedSemanticTaskWithReview = async (
   task: UnresolvedSemanticTask,

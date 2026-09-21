@@ -287,6 +287,12 @@ export class LaborCaseDatasetBuilder {
       semanticResolutionErrorCode: parsed.semanticResolutionErrorCode,
       courtReasoning,
       keyLegalPoints,
+      judgmentDispositionText: parsed.judgmentDispositionText
+        ?? rawDoc.judgmentDispositionText
+        ?? (typeof rawDoc.sourceMetadata?.cpjg === 'string' ? rawDoc.sourceMetadata.cpjg : undefined),
+      judgmentReasoningText: parsed.judgmentReasoningText
+        ?? rawDoc.judgmentReasoningText
+        ?? (typeof rawDoc.sourceMetadata?.fxgc === 'string' ? rawDoc.sourceMetadata.fxgc : undefined),
 
       applicantOutcome,
       employeeOutcome,

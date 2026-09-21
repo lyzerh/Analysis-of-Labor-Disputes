@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runSingleCaseSemanticAnalysis } from '../../src/services/semantic/LlmRuntimeService';
+import { buildSemanticTask, runSingleCaseSemanticAnalysis } from '../../src/services/semantic/LlmRuntimeService';
+import { createTechnicalUnresolvedResult } from '../../src/services/semantic/SemanticResultFallback';
 import type { AnalysisCaseRecord, RawDocument } from '../../src/types';
 
 const record = (): AnalysisCaseRecord => ({
@@ -31,6 +32,39 @@ const rawDocument = { rawText: '待分析片段' } as RawDocument;
 
 describe('single-case browser semantic runtime', () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it('preserves canonical claim identity while exposing original text and all existing judgment candidates', () => {
+    const input = {
+      ...record(),
+      claims: [
+        { ...record().claims[0], claimName: '加班工资', claimType: 'overtime_pay', sourceText: '2019年度年终奖及工资事实', judgmentItems: [] },
+        { ...record().claims[0], id: 'claim-2', claimName: '经济补偿金', claimType: 'termination_compensation', sourceText: '请求支付经济补偿金', judgmentItems: [{ id: 'judgment-2', action: 'pay' as const, targetPartyRole: 'plaintiff' as const, sourceText: '判决支付经济补偿金。' }] },
+      ],
+      judgmentItems: [{ id: 'judgment-case-1', action: 'reject' as const, targetPartyRole: 'plaintiff' as const, sourceText: '驳回原告的其他诉讼请求。' }],
+    };
+    const task = buildSemanticTask(input, { rawText: '原始裁判文书全文' } as RawDocument);
+    expect(task.rawText).toBe('原始裁判文书全文');
+    expect(task.knownClaims?.[0]).toMatchObject({
+      claimType: 'overtime_pay',
+      claimLabel: '加班工资',
+      claimText: '2019年度年终奖及工资事实',
+    });
+    expect(task.knownJudgmentItems).toEqual([
+      { id: 'judgment-case-1', text: '驳回原告的其他诉讼请求。' },
+      { id: 'judgment-2', text: '判决支付经济补偿金。' },
+    ]);
+    expect(task.knownJudgmentItems?.some((item) => item.id === 'invented-judgment')).toBe(false);
+  });
+
+  it('does not leak task-only claim labels into technical fallback results', () => {
+    const task = buildSemanticTask({
+      ...record(),
+      claims: [{ ...record().claims[0], claimName: '加班工资', claimType: 'overtime_pay', sourceText: '年终奖事实' }],
+    }, rawDocument);
+    const result = createTechnicalUnresolvedResult(task, 'provider_error');
+    expect(result.claims[0]).not.toHaveProperty('claimLabel');
+    expect(result.claims[0]).toMatchObject({ claimType: 'overtime_pay', claimText: '年终奖事实' });
+  });
 
   it('keeps unresolved cases awaiting when AI is disabled or the key is missing', async () => {
     const fetchMock = vi.fn();
@@ -102,17 +136,17 @@ describe('single-case browser semantic runtime', () => {
     expect(prompt).not.toContain('"id":""');
   });
 
-  it('keeps provider failures awaiting without creating a review item', async () => {
+  it('classifies provider failures as technical without creating a review item', async () => {
     const input = record();
     const before = JSON.stringify(input);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { message: 'unavailable' } }), { status: 503 })));
     await expect(runSingleCaseSemanticAnalysis(input, rawDocument, { enabled: true, apiKey: 'test-key' })).resolves.toMatchObject({
-      status: 'awaiting_llm',
+      status: 'technical_failure',
     });
     expect(JSON.stringify(input)).toBe(before);
   });
 
-  it('keeps an output-truncated DeepSeek response awaiting and uses the 8192 token budget', async () => {
+  it('classifies an output-truncated DeepSeek response as technical and uses the 8192 token budget', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{
         message: { content: null },
@@ -126,18 +160,18 @@ describe('single-case browser semantic runtime', () => {
       enabled: true,
       apiKey: 'test-key',
     })).resolves.toMatchObject({
-      status: 'awaiting_llm',
+      status: 'technical_failure',
       message: expect.stringContaining('未创建人工复核项'),
     });
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ max_tokens: 8192, model: 'deepseek-flash' });
   });
 
-  it('keeps schema/JSON technical failures awaiting without creating human review', async () => {
+  it('classifies schema/JSON failures as technical without creating human review', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       candidates: [{ content: { parts: [{ text: '{not-json' }] } }],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     await expect(runSingleCaseSemanticAnalysis(record(), rawDocument, { enabled: true, apiKey: 'test-key' })).resolves.toMatchObject({
-      status: 'awaiting_llm',
+      status: 'technical_failure',
     });
   });
 });

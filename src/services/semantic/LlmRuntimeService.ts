@@ -10,34 +10,23 @@ import {
   resolveUnresolvedSemanticTaskWithAudit,
 } from './SemanticResolutionOrchestrator';
 import type {
-  SemanticClaim,
   SemanticJudgmentItem,
   SemanticParty,
+  SemanticTaskClaim,
   UnresolvedSemanticTask,
 } from './SemanticResult';
 import { SEMANTIC_LLM_MODEL, SEMANTIC_LLM_TIMEOUT_MS, SEMANTIC_MAX_OUTPUT_TOKENS } from './SemanticPrompt';
 import { executableUnresolvedReferences, hasExecutableSemanticTask } from './SemanticTaskEligibility';
 import { traceSemantic } from './SemanticTracing';
+import { TECHNICAL_RESOLVER_ERROR_CODES } from './SemanticWorkflowState';
 
-export type SingleCaseSemanticRunStatus = 'safe' | 'review' | 'awaiting_llm' | 'blocked';
+export type SingleCaseSemanticRunStatus = 'safe' | 'review' | 'technical_failure' | 'awaiting_llm' | 'blocked';
 
 export interface SingleCaseSemanticRunResult {
   status: SingleCaseSemanticRunStatus;
   message: string;
   auditReasonCodes?: string[];
 }
-
-const TRANSIENT_PROVIDER_ERROR_CODES = new Set([
-  'timeout',
-  'network_error',
-  'rate_limited',
-  'provider_error',
-  'output_truncated',
-  'invalid_json',
-  'schema_invalid',
-  'empty_response',
-  'validation_rejected',
-]);
 
 const claimIdOf = (claim: AnalysisCaseRecord['claims'][number], index: number): string =>
   claim.id || `${claim.claimName || 'claim'}-${index + 1}`;
@@ -52,28 +41,45 @@ const partyIdForClaim = (
     .map((party) => party.id);
 };
 
-const buildSemanticTask = (record: AnalysisCaseRecord, rawDocument: RawDocument): UnresolvedSemanticTask => {
+const collectKnownJudgmentItems = (record: AnalysisCaseRecord): SemanticJudgmentItem[] => {
+  const candidates = [
+    ...(record.judgmentItems ?? []).map((item, itemIndex) => ({ item, id: item.id || `judgment-case-${itemIndex + 1}` })),
+    ...record.claims.flatMap((claim, claimIndex) =>
+      (claim.judgmentItems || []).map((item, itemIndex) => ({
+        item,
+        id: item.id || `judgment-claim-${claimIndex + 1}-${itemIndex + 1}`,
+      }))
+    ),
+  ];
+  const seen = new Set<string>();
+  return candidates.flatMap(({ item, id }) => {
+    if (seen.has(id)) return [];
+    seen.add(id);
+    return [{
+      id,
+      text: item.sourceText,
+      ...(item.awardedAmount !== undefined ? { awardedAmount: item.awardedAmount, currency: 'CNY' as const } : {}),
+    }];
+  });
+};
+
+export const buildSemanticTask = (record: AnalysisCaseRecord, rawDocument: RawDocument): UnresolvedSemanticTask => {
   const parties: SemanticParty[] = record.parties.map((party) => ({
     id: party.id,
     name: party.name,
     laborRole: party.laborRole,
     proceduralRoles: party.proceduralRoles,
   }));
-  const claims: SemanticClaim[] = record.claims.map((claim, index) => ({
+  const claims: SemanticTaskClaim[] = record.claims.map((claim, index) => ({
     id: claimIdOf(claim, index),
     claimantPartyIds: partyIdForClaim(claim, parties),
     claimantRole: claim.claimantRole || claim.claimant,
     claimType: claim.claimType || claim.claimName,
+    claimLabel: claim.claimName,
     claimText: claim.sourceText || claim.claimName,
     ...(claim.requestedAmount !== undefined ? { requestedAmount: claim.requestedAmount, currency: 'CNY' as const } : {}),
   }));
-  const judgmentItems: SemanticJudgmentItem[] = record.claims.flatMap((claim, claimIndex) =>
-    (claim.judgmentItems || []).map((item, itemIndex) => ({
-      id: item.id || `judgment-${claimIndex + 1}-${itemIndex + 1}`,
-      text: item.sourceText,
-      ...(item.awardedAmount !== undefined ? { awardedAmount: item.awardedAmount, currency: 'CNY' as const } : {}),
-    }))
-  );
+  const judgmentItems = collectKnownJudgmentItems(record);
   const unresolvedTargets = [...new Set(executableUnresolvedReferences(record)
     .flatMap((reference) => reference.referencedClaimIds
       .filter((claimId): claimId is string => typeof claimId === 'string' && claimId.trim().length > 0)))]
@@ -82,6 +88,13 @@ const buildSemanticTask = (record: AnalysisCaseRecord, rawDocument: RawDocument)
       id: claimId,
       reasonCode: 'claim_judgment_match_unclear' as const,
     }));
+
+  const judgmentDispositionText = record.judgmentDispositionText
+    ?? rawDocument.judgmentDispositionText
+    ?? (typeof rawDocument.sourceMetadata?.cpjg === 'string' ? rawDocument.sourceMetadata.cpjg : undefined);
+  const judgmentReasoningText = record.judgmentReasoningText
+    ?? rawDocument.judgmentReasoningText
+    ?? (typeof rawDocument.sourceMetadata?.fxgc === 'string' ? rawDocument.sourceMetadata.fxgc : undefined);
 
   return {
     status: 'unresolved',
@@ -92,6 +105,13 @@ const buildSemanticTask = (record: AnalysisCaseRecord, rawDocument: RawDocument)
     knownParties: parties,
     knownClaims: claims,
     knownJudgmentItems: judgmentItems,
+    ...(judgmentDispositionText ? { judgmentDispositionText } : {}),
+    ...(judgmentReasoningText ? { judgmentReasoningText } : {}),
+    proceduralMetadata: {
+      ...(record.caseLevel ? { caseLevel: record.caseLevel } : {}),
+      ...(record.court ? { court: record.court } : {}),
+      ...(record.date ? { date: record.date } : {}),
+    },
     unresolvedTargets,
   };
 };
@@ -118,6 +138,20 @@ export const runSingleCaseSemanticAnalysis = async (
   }
 
   const task = buildSemanticTask(record, rawDocument);
+  traceSemantic('taskContext', {
+    caseId: record.caseId,
+    targetCount: task.unresolvedTargets.length,
+    targets: task.unresolvedTargets.map((target) => ({ type: target.type, id: target.id, reasonCode: target.reasonCode })),
+    claims: (task.knownClaims ?? []).map((claim) => ({
+      id: claim.id,
+      claimType: claim.claimType,
+      claimLabelPresent: Boolean(claim.claimLabel?.trim()),
+      claimTextPresent: Boolean(claim.claimText?.trim()),
+    })),
+    candidateJudgmentCount: task.knownJudgmentItems?.length ?? 0,
+    candidateJudgmentTextPresent: (task.knownJudgmentItems ?? []).every((item) => Boolean(item.text.trim())),
+    rawTextLength: task.rawText.length,
+  });
   const resolver = new GeminiSemanticResultResolver({
     apiKey: settings.apiKey,
     modelName: SEMANTIC_LLM_MODEL,
@@ -127,17 +161,17 @@ export const runSingleCaseSemanticAnalysis = async (
   });
   const audited = await resolveUnresolvedSemanticTaskWithAudit(task, resolver);
 
-  if (audited.result.resolverErrorCode && TRANSIENT_PROVIDER_ERROR_CODES.has(audited.result.resolverErrorCode)) {
+  if (audited.result.resolverErrorCode && TECHNICAL_RESOLVER_ERROR_CODES.includes(audited.result.resolverErrorCode)) {
     traceSemantic('finalRouting', {
       caseId: record.caseId,
-      status: 'awaiting_llm',
+      status: 'technical_failure',
       resolverErrorCode: audited.result.resolverErrorCode,
       auditDecision: audited.audit.decision,
       auditReasonCodes: audited.audit.reasonCodes,
     });
     return {
-      status: 'awaiting_llm',
-      message: 'DeepSeek 调用失败，案例保持待 AI 语义分析；未创建人工复核项。',
+      status: 'technical_failure',
+      message: '语义分析技术失败，未生成可供人工判断的候选结果；未创建人工复核项。',
       auditReasonCodes: audited.audit.reasonCodes,
     };
   }

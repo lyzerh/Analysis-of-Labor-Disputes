@@ -69,6 +69,48 @@ export interface AnalyticsAdmissionFilterResult {
   admissions: Map<string, AnalyticsAdmissionResult>;
 }
 
+/**
+ * Projects the accepted semantic value onto the analytics view of a record.
+ * The persisted AnalysisCaseRecord remains immutable; this is only the
+ * in-memory row passed to deterministic analytics. Human-reviewed values are
+ * authoritative and therefore must not be lost after the Gate admits them.
+ */
+export const applyAcceptedSemanticResultToRecord = (
+  record: AnalysisCaseRecord,
+  accepted?: AcceptedSemanticResult,
+): AnalysisCaseRecord => {
+  if (!accepted || accepted.source !== 'human_review') return record;
+  const result = accepted.result;
+  const resolutions = new Map(result.claimResolutions.map((resolution) => [resolution.claimId, resolution]));
+  const semanticClaims = new Map(result.claims.map((claim) => [claim.id, claim]));
+  const claims = record.claims.map((claim) => {
+    if (!claim.id) return claim;
+    const semanticClaim = semanticClaims.get(claim.id);
+    const resolution = resolutions.get(claim.id);
+    if (!semanticClaim && !resolution) return claim;
+    return {
+      ...claim,
+      ...(semanticClaim?.claimantRole && semanticClaim.claimantRole !== 'unknown'
+        ? { claimant: semanticClaim.claimantRole, claimantRole: semanticClaim.claimantRole }
+        : {}),
+      ...(semanticClaim?.requestedAmount !== undefined ? { requestedAmount: semanticClaim.requestedAmount } : {}),
+      ...(resolution ? {
+        supportStatus: resolution.outcome,
+        ...(resolution.awardedAmount !== undefined ? { awardedAmount: resolution.awardedAmount } : {}),
+      } : {}),
+    };
+  });
+  return {
+    ...record,
+    claims,
+    applicantRole: result.applicantRole,
+    applicantOutcome: result.applicantOutcome,
+    employeeOutcome: result.employeeOutcome,
+    employerOutcome: result.employerOutcome,
+    overallResult: result.applicantOutcome,
+  };
+};
+
 const addReason = (
   reasons: Set<AnalyticsAdmissionReasonCode>,
   reason: AnalyticsAdmissionReasonCode,
@@ -137,6 +179,16 @@ const humanReviewResult = (
   }
 };
 
+const latestHumanReview = (
+  items: readonly SemanticReviewItem[],
+): AcceptedSemanticResult | undefined => items
+  .filter((item) => item.status === 'reviewed')
+  .map((item) => ({ item, accepted: humanReviewResult(item) }))
+  .filter((entry): entry is { item: SemanticReviewItem; accepted: AcceptedSemanticResult } => entry.accepted !== undefined)
+  .sort((left, right) => (left.item.reviewedAt || left.item.createdAt).localeCompare(right.item.reviewedAt || right.item.createdAt)
+    || left.item.id.localeCompare(right.item.id))
+  .at(-1)?.accepted;
+
 /**
  * Resolves the trusted semantic source in the required order. This helper is
  * deliberately side-effect free and does not modify provenance or records.
@@ -145,10 +197,10 @@ export const resolveAcceptedSemanticResult = (
   input: AnalyticsAdmissionInput,
 ): AcceptedSemanticResult | undefined => {
   const reviews = reviewCandidates(input);
-  const reviewed = reviews
-    .filter((item) => item.status === 'reviewed')
-    .map(humanReviewResult)
-    .find((item): item is AcceptedSemanticResult => item !== undefined);
+  if (reviews.some((item) => item.status === 'pending')) return undefined;
+  const reviewedItems = reviews.filter((item) => item.status === 'reviewed');
+  if (reviewedItems.some((item) => !humanReviewResult(item))) return undefined;
+  const reviewed = latestHumanReview(reviewedItems);
   if (reviewed) return reviewed;
 
   if (input.semanticResult?.status === 'resolved'
@@ -191,13 +243,14 @@ const hasReviewPendingState = (record: AnalysisCaseRecord): boolean => (
 
 const hasTechnicalFailureState = (record: AnalysisCaseRecord): boolean => (
   Boolean(record.semanticResolutionErrorCode)
+  || record.semanticResolutionStatus === 'technical_failure'
   || record.semanticResolutionStatus === 'provider_unavailable'
 );
 
 const hasUnknownSemanticState = (record: AnalysisCaseRecord): boolean => {
   const status = record.semanticResolutionStatus as string | undefined;
   return Boolean(status && ![
-    'not_needed', 'pending', 'partially_resolved', 'resolved', 'needs_review', 'provider_unavailable',
+    'not_needed', 'pending', 'partially_resolved', 'resolved', 'needs_review', 'technical_failure', 'provider_unavailable',
   ].includes(status));
 };
 
@@ -211,23 +264,31 @@ export const evaluateAnalyticsAdmission = (
 ): AnalyticsAdmissionResult => {
   const reasons = new Set<AnalyticsAdmissionReasonCode>();
   const reviews = reviewCandidates(input);
+  // An explicit pending queue item always blocks the case. Do not let a
+  // previously approved item for the same case hide work still awaiting review.
+  if (reviews.some((item) => item.status === 'pending')) {
+    return { status: 'blocked', reasonCodes: ['review_pending'] };
+  }
   const reviewedItems = reviews.filter((item) => item.status === 'reviewed');
   const hasMalformedReviewedItem = reviewedItems.some((item) => !humanReviewResult(item));
-  const reviewed = reviewedItems
+  const reviewedResults = reviewedItems
     .map(humanReviewResult)
-    .find((item): item is AcceptedSemanticResult => item !== undefined);
+    .filter((item): item is AcceptedSemanticResult => item !== undefined);
+  const reviewed = latestHumanReview(reviewedItems);
 
   // Human review is the highest-priority source. Do not fall through to an
   // older LLM or rule result when an approved review is malformed.
   if (reviewed || hasMalformedReviewedItem) {
     if (!reviewed) {
       addReason(reasons, 'technical_failure');
-    } else if (reviewed.result.status === 'unresolved') {
+    }
+    if (reviewedResults.some((item) => item.result.status === 'unresolved')) {
       addReason(reasons, 'semantic_unresolved');
-    } else if (semanticResultHasCriticalUnclear(reviewed.result)) {
+    }
+    if (reviewedResults.some((item) => semanticResultHasCriticalUnclear(item.result))) {
       addReason(reasons, 'critical_outcome_unclear');
     }
-    if (reviewed && 'resolverErrorCode' in reviewed.result && reviewed.result.resolverErrorCode) {
+    if (reviewedResults.some((item) => 'resolverErrorCode' in item.result && item.result.resolverErrorCode)) {
       addReason(reasons, 'technical_failure');
     }
     if (reasons.size === 0) {
@@ -341,7 +402,9 @@ export const filterAnalyticsEligibleRecords = (
       reasonCodes: admission.reasonCodes,
     });
     admissions.set(record.caseId, admission);
-    if (admission.status === 'eligible') eligibleRecords.push(record);
+    if (admission.status === 'eligible') {
+      eligibleRecords.push(applyAcceptedSemanticResultToRecord(record, admission.acceptedSemanticResult));
+    }
     else blockedRecords.push(record);
   });
 

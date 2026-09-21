@@ -148,6 +148,7 @@ export type SemanticResolutionStatus =
   | 'partially_resolved'
   | 'resolved'
   | 'needs_review'
+  | 'technical_failure'
   | 'provider_unavailable';
 
 export type AppliedSemanticRelation = ReviewableSemanticResolutionCandidate;

@@ -74,6 +74,10 @@ export interface RawDocument {
   contentType: DocumentContentType;
   rawHtml?: string;
   rawText: string;
+  /** Original LaborInfo structured judgment disposition text when supplied. */
+  judgmentDispositionText?: string;
+  /** Original LaborInfo structured court reasoning text when supplied. */
+  judgmentReasoningText?: string;
   contentHash: string; // SHA-256 计算的内容摘要
   duplicateOf?: string | null; // 若重复，指向首次入库的 RawDocument id
   fileSize?: number;
@@ -972,6 +976,9 @@ export interface LaborInfoParsedResult {
   // 裁判理由与核心要点
   courtReasoning: string;
   keyLegalPoints: string[];
+  /** Original structured source sections; plumbing only, no semantic interpretation. */
+  judgmentDispositionText?: string;
+  judgmentReasoningText?: string;
 
   // 结果四分类
   applicantOutcome: LegalOutcomeType;
@@ -1133,6 +1140,9 @@ export interface AnalysisCaseRecord {
   // 裁判理由与核心要点
   courtReasoning: string;
   keyLegalPoints: string[];
+  /** Original structured source sections; plumbing only, no semantic interpretation. */
+  judgmentDispositionText?: string;
+  judgmentReasoningText?: string;
 
   // 企业策略与抗辩 (Employer Strategy)
   employerDefenses: EmployerDefenseItem[];
@@ -1140,6 +1150,8 @@ export interface AnalysisCaseRecord {
 
   // 诉求清单 (Claims)
   claims: LaborInfoClaimItem[];
+  /** Optional case-level candidate actions when an upstream source provides them. */
+  judgmentItems?: JudgmentActionItem[];
   outcomeDiagnostics?: OutcomeResolutionDiagnostic[];
   unresolvedReferences: ClaimReferenceCandidate[];
   semanticRelations?: AppliedSemanticRelation[];

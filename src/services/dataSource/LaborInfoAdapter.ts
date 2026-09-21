@@ -298,6 +298,14 @@ export class LaborInfoAdapter {
       contentType: 'json',
       rawHtml: undefined,
       rawText,
+      // Preserve the provider's structured sections verbatim. These fields
+      // are source plumbing only; semantic interpretation remains downstream.
+      ...(typeof docData?.cpjg === 'string' && docData.cpjg.length > 0
+        ? { judgmentDispositionText: docData.cpjg }
+        : {}),
+      ...(typeof docData?.fxgc === 'string' && docData.fxgc.length > 0
+        ? { judgmentReasoningText: docData.fxgc }
+        : {}),
       contentHash,
       duplicateOf: null,
       fileSize: rawText.length,

@@ -54,6 +54,13 @@ export interface SemanticAuditContext {
   knownParties?: readonly SemanticParty[];
   knownClaims?: readonly SemanticClaim[];
   knownJudgmentItems?: readonly SemanticJudgmentItem[];
+  /**
+   * Claim-resolution targets required by the current semantic task.  A
+   * resolved result is target-scoped, so non-target claims are not required
+   * to have a ClaimResolution.  Omitted keeps the legacy all-claims default
+   * for direct callers; production orchestration always supplies this list.
+   */
+  requiredClaimResolutionIds?: readonly string[];
   admissionConfidenceThreshold?: number;
 }
 
@@ -114,6 +121,8 @@ export const auditSemanticResolutionResult = (
   const knownPartyIds = context.knownParties ? ids(context.knownParties) : undefined;
   const knownClaimIds = context.knownClaims ? ids(context.knownClaims) : undefined;
   const knownJudgmentItemIds = context.knownJudgmentItems ? ids(context.knownJudgmentItems) : undefined;
+  const requiredClaimResolutionIds = context.requiredClaimResolutionIds
+    ?? result.claims.map((claim) => claim.id);
 
   if (hasDuplicateIds(result.parties)) addReason(reasons, 'duplicate_party_id');
   if (hasDuplicateIds(result.claims)) addReason(reasons, 'duplicate_claim_id');
@@ -168,6 +177,8 @@ export const auditSemanticResolutionResult = (
   }
 
   if (result.status === 'resolved') {
+    // "resolved" closes the supplied semantic task, not every claim in the
+    // case. Coverage therefore follows the explicit task target scope below.
     if (result.applicantRole === 'unknown'
       || result.applicantOutcome === 'unclear'
       || result.employeeOutcome === 'unclear'
@@ -177,10 +188,22 @@ export const auditSemanticResolutionResult = (
       addReason(reasons, 'resolved_contains_unclear');
     }
     if (result.claims.some((claim) => claim.claimantRole === 'unknown'
-      || claim.claimantPartyIds.length === 0
-      || !result.claimResolutions.some((item) => item.claimId === claim.id))) {
+      || claim.claimantPartyIds.length === 0)) {
       addReason(reasons, 'required_relationship_missing');
     }
+
+    const resolutionCounts = new Map<string, number>();
+    result.claimResolutions.forEach((resolution) => {
+      resolutionCounts.set(resolution.claimId, (resolutionCounts.get(resolution.claimId) ?? 0) + 1);
+    });
+    [...new Set(requiredClaimResolutionIds)].forEach((claimId) => {
+      if (!claimIds.has(claimId)) {
+        addReason(reasons, 'claim_id_not_found');
+        addReason(reasons, 'required_relationship_missing');
+      } else if (resolutionCounts.get(claimId) !== 1) {
+        addReason(reasons, 'required_relationship_missing');
+      }
+    });
   } else {
     addReason(reasons, 'unresolved_result');
   }

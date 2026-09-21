@@ -17,6 +17,7 @@ import { parseSemanticResolutionResult } from './SemanticResultSchema';
 import { saveSemanticReviewItem } from './SemanticReviewStorage';
 
 export type SemanticReviewStatus = 'pending' | 'reviewed';
+export type SemanticReviewAction = 'accept' | 'edit' | 'unresolved';
 
 export interface SemanticReviewItem {
   id: string;
@@ -40,6 +41,16 @@ export interface ReviewedSemanticResult {
   reviewedResult: SemanticResolutionResult;
   reviewStatus: 'approved';
   reviewedAt: string;
+  /** Human action metadata; optional for backwards-compatible persisted items. */
+  reviewAction?: SemanticReviewAction;
+  /** Immutable snapshot of the AI candidate shown before editing. */
+  originalCandidate?: SemanticResolutionResult;
+  /** Immutable snapshot of the value saved by the reviewer. */
+  finalValue?: SemanticResolutionResult;
+}
+
+export interface SemanticReviewActionOptions {
+  reviewAction?: SemanticReviewAction;
 }
 
 export interface SemanticReviewCorrection {
@@ -125,9 +136,11 @@ export function validateSemanticReviewItem(value: unknown): value is SemanticRev
 export function createSemanticReviewItemFromAudit(
   input: CreateSemanticReviewItemInput,
 ): SemanticReviewItem | null {
-  // A provider that exhausts its output budget has no semantic conclusion to
-  // review. Keep it retryable instead of creating a misleading human-review item.
-  if (input.audit.decision !== 'fail' || input.result.resolverErrorCode === 'output_truncated') return null;
+  // Technical failures have no semantic candidate for a reviewer to judge.
+  // Keep them retryable and distinct from a valid-but-uncertain candidate.
+  if (input.audit.decision !== 'fail'
+    || input.result.resolverErrorCode
+    || input.audit.reasonCodes.includes('technical_resolution_failure')) return null;
   const targets = input.unresolvedTargets || [];
   return {
     id: input.id?.trim() || semanticReviewItemId(input.caseId, input.audit, targets),
@@ -198,13 +211,26 @@ export function reviewSemanticReviewItem(
   item: SemanticReviewItem,
   correction: SemanticReviewCorrection,
   reviewedAt: string,
+  options: SemanticReviewActionOptions = {},
 ): SemanticReviewItem {
-  const reviewedResult = applySemanticReviewCorrection(item.semanticResult, correction);
+  let reviewedResult = applySemanticReviewCorrection(item.semanticResult, correction);
+  if (options.reviewAction === 'unresolved') {
+    reviewedResult = parseSemanticResolutionResult({
+      ...reviewedResult,
+      status: 'unresolved',
+      unresolvedReasonCodes: reviewedResult.unresolvedReasonCodes?.length
+        ? reviewedResult.unresolvedReasonCodes
+        : ['outcome_unclear'],
+    });
+  }
   const reviewed: ReviewedSemanticResult = {
     source: 'human_review',
     reviewedResult,
     reviewStatus: 'approved',
     reviewedAt,
+    reviewAction: options.reviewAction || 'edit',
+    originalCandidate: cloneResult(item.semanticResult),
+    finalValue: cloneResult(reviewedResult),
   };
   return {
     ...item,
@@ -228,8 +254,9 @@ export function saveReviewedSemanticReviewItem(
   correction: SemanticReviewCorrection,
   reviewedAt: string,
   storage?: Storage,
+  options: SemanticReviewActionOptions = {},
 ): SemanticReviewItem {
-  const reviewed = reviewSemanticReviewItem(item, correction, reviewedAt);
+  const reviewed = reviewSemanticReviewItem(item, correction, reviewedAt, options);
   enqueueSemanticReviewItem(reviewed, storage);
   return reviewed;
 }

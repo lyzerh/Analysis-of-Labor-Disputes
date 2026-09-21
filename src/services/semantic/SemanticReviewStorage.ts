@@ -21,6 +21,10 @@ function isPersistedSemanticReviewItem(value: unknown): value is SemanticReviewI
         || item.reviewedResult.source !== 'human_review'
         || item.reviewedResult.reviewStatus !== 'approved') return false;
       parseSemanticResolutionResult(item.reviewedResult.reviewedResult);
+      if (item.reviewedResult.reviewAction
+        && !['accept', 'edit', 'unresolved'].includes(item.reviewedResult.reviewAction)) return false;
+      if (item.reviewedResult.originalCandidate) parseSemanticResolutionResult(item.reviewedResult.originalCandidate);
+      if (item.reviewedResult.finalValue) parseSemanticResolutionResult(item.reviewedResult.finalValue);
     }
   } catch {
     return false;

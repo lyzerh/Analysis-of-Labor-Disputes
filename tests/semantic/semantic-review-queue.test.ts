@@ -60,15 +60,27 @@ describe('Semantic human review queue', () => {
     expect(item?.unresolvedTargets).toHaveLength(1);
   });
 
-  it('technical failure remains reviewable without inventing a conclusion', () => {
+  it('routes a valid but low-confidence candidate to Needs Review', () => {
+    const item = createSemanticReviewItemFromAudit({
+      ...input,
+      result: result({ status: 'resolved', confidence: 0.72 }),
+      audit: { ...audit, reasonCodes: ['confidence_below_admission_threshold'] },
+    });
+    expect(item).toMatchObject({ status: 'pending', semanticResult: { status: 'resolved', confidence: 0.72 } });
+  });
+
+  it('technical failure does not create a misleading human-review item', () => {
     const technical = createSemanticReviewItemFromAudit({
       ...input,
       result: result({ resolverErrorCode: 'timeout' }),
       audit: { ...audit, reasonCodes: ['technical_resolution_failure', 'unresolved_result'] },
     });
-    expect(technical?.status).toBe('pending');
-    expect(technical?.semanticResult.employeeOutcome).toBe('unclear');
+    expect(technical).toBeNull();
     expect(getAuditReasonLabel('technical_resolution_failure')).toContain('未能可靠');
+    expect(createSemanticReviewItemFromAudit({
+      ...input,
+      audit: { ...audit, reasonCodes: ['technical_resolution_failure'] },
+    })).toBeNull();
   });
 
   it('persists pending and reviewed items with a stable local storage contract', () => {
@@ -108,6 +120,21 @@ describe('Semantic human review queue', () => {
     const reviewed = reviewSemanticReviewItem(item, { employeeOutcome: 'supported' }, '2026-09-17T02:00:00.000Z');
     expect(reviewed).toMatchObject({ status: 'reviewed', reviewedResult: { source: 'human_review', reviewStatus: 'approved' } });
     expect(reviewed.reviewedResult?.reviewedAt).toBe('2026-09-17T02:00:00.000Z');
+    expect(reviewed.reviewedResult?.reviewAction).toBe('edit');
+    expect(reviewed.reviewedResult?.originalCandidate).toEqual(item.semanticResult);
+    expect(reviewed.reviewedResult?.finalValue).toEqual(reviewed.reviewedResult?.reviewedResult);
+  });
+
+  it('preserves the AI candidate on accept and keeps unresolved action blocked', () => {
+    const item = createSemanticReviewItemFromAudit({ ...input, result: result({ status: 'resolved', confidence: 0.72 }) })!;
+    const accepted = reviewSemanticReviewItem(item, {}, '2026-09-17T05:00:00.000Z', { reviewAction: 'accept' });
+    expect(accepted.reviewedResult?.reviewAction).toBe('accept');
+    expect(accepted.reviewedResult?.originalCandidate).toEqual(item.semanticResult);
+    expect(accepted.reviewedResult?.reviewedResult.status).toBe('resolved');
+    const unresolved = reviewSemanticReviewItem(item, {}, '2026-09-17T06:00:00.000Z', { reviewAction: 'unresolved' });
+    expect(unresolved.reviewedResult?.reviewAction).toBe('unresolved');
+    expect(unresolved.reviewedResult?.reviewedResult.status).toBe('unresolved');
+    expect(unresolved.reviewedResult?.reviewedResult.unresolvedReasonCodes).toContain('outcome_unclear');
   });
 
   it('automatically enqueues only audit failures in the orchestration wrapper', async () => {
