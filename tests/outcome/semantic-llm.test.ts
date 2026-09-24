@@ -113,14 +113,15 @@ describe('MockSemanticResolver orchestration', () => {
     expect(result.unresolvedFragments).toHaveLength(0);
   });
 
-  it('keeps a 0.80 candidate for human review and unresolved', async () => {
+  it('auto-accepts a candidate at the centralized 0.80 boundary', async () => {
     const candidate = candidateFor(input, { confidence: 0.8 });
     candidate.provenance.confidence = 0.8;
     const result = await resolveAndValidateSemanticReferences(
       new MockSemanticResolver({ candidates: [candidate] }), input,
     );
-    expect(result.humanReview).toHaveLength(1);
-    expect(result.unresolvedFragments).toEqual(input.unresolvedFragments);
+    expect(result.accepted).toHaveLength(1);
+    expect(result.humanReview).toHaveLength(0);
+    expect(result.unresolvedFragments).toHaveLength(0);
   });
 
   it('rejects a 0.50 candidate and keeps unresolved', async () => {

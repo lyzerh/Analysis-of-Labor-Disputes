@@ -5,7 +5,10 @@ export interface LlmRuntimeSettings {
   apiKey: string | null;
 }
 
-export const LLM_RUNTIME_SETTINGS_STORAGE_KEY = 'labor-analysis-llm-runtime-settings-v1';
+/** Formal competition runtime key. Historical DeepSeek settings are not migrated. */
+export const XAI_RUNTIME_SETTINGS_STORAGE_KEY = 'labor-analysis-xai-settings-v1';
+/** Compatibility export for callers/tests that use the generic runtime name. */
+export const LLM_RUNTIME_SETTINGS_STORAGE_KEY = XAI_RUNTIME_SETTINGS_STORAGE_KEY;
 const SETTINGS_EVENT = 'labor-analysis-llm-runtime-settings-changed';
 const DEFAULT_SETTINGS: LlmRuntimeSettings = { enabled: false, apiKey: null };
 let memorySettings: LlmRuntimeSettings = { ...DEFAULT_SETTINGS };

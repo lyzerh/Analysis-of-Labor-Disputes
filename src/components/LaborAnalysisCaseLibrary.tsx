@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, MapPin, Calendar, FileText, Briefcase, Database, X, Eye, ExternalLink, RefreshCw, XCircle, Scale } from 'lucide-react';
+import { Search, MapPin, Calendar, FileText, Briefcase, X, Eye, ExternalLink, RefreshCw, XCircle, Scale } from 'lucide-react';
 import { AnalysisCaseRecord } from '../types';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { DataService } from '../services/data/dataService';
 import { getCaseEntityOutcomeLabel, getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
-import { filterAnalysisCaseRecords } from '../services/case/CaseLibraryFilter';
+import { filterAnalysisCaseRecords, getAvailableDisputeTypes } from '../services/case/CaseLibraryFilter';
 import { createCaseSummaryPresentation, formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
+import { createCaseLibraryCoverage } from '../services/presentation/CaseLibraryCoverage';
 
 export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => void, onNavigateToReview?: () => void, onNavigateToAnalytics?: () => void, onNavigateToDefense?: () => void }> = () => {
   const [loading, setLoading] = useState(true);
@@ -59,22 +60,13 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
   }, []);
 
   const stats = useMemo(() => {
-    const gz = (Array.isArray(records) ? records : []).filter(r => r.city?.includes('广州')).length;
-    const sz = (Array.isArray(records) ? records : []).filter(r => r.city?.includes('深圳')).length;
-    const dg = (Array.isArray(records) ? records : []).filter(r => r.city?.includes('东莞')).length;
-    
-    const years = new Set(records.map(r => r.year).filter(Boolean));
-    const yearRange = years.size > 0 ? `${Math.min(...Array.from(years).map(Number))} - ${Math.max(...Array.from(years).map(Number))}` : '-';
-
-    return { total: records.length, gz, sz, dg, yearRange };
+    return createCaseLibraryCoverage(Array.isArray(records) ? records : []);
   }, [records]);
 
   const availableCities = useMemo(() => Array.from(new Set(records.map(r => r.city).filter(Boolean))).sort(), [records]);
   const availableYears = useMemo(() => Array.from(new Set(records.map(r => r.year).filter(Boolean))).sort().reverse(), [records]);
   const availableDisputes = useMemo(() => {
-    const set = new Set<string>();
-    (Array.isArray(records) ? records : []).forEach(r => r.disputeTypes?.forEach(d => set.add(d)));
-    return Array.from(set).sort();
+    return getAvailableDisputeTypes(Array.isArray(records) ? records : []);
   }, [records]);
 
   const filteredRecords = useMemo(() => {
@@ -96,13 +88,12 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
     : null;
 
   return (
-    <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <Database className="w-6 h-6 text-blue-600" />
-          劳动争议案例库
+    <div className="min-h-full bg-slate-50/80 p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
+      <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+          案例库
         </h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-slate-500 mt-2 max-w-2xl leading-6">
           本库收录了经过结构化清洗和标准化的劳动争议历史裁决案例，支持多维过滤检索与案情溯源。
         </p>
       </div>
@@ -110,7 +101,7 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
 
       <div className="flex flex-col gap-4">
         {/* 数据一致性与操作栏 */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="bg-white/80 border border-white/80 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-6 text-sm">
             <div className="flex flex-col">
               <span className="text-slate-500 text-xs">原始文书</span>
@@ -125,7 +116,7 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
               <span className="font-bold text-amber-700 text-lg">{pipelineStats.pendingCount}</span>
             </div>
             <div className="flex flex-col border-l border-slate-200 pl-6">
-              <span className="text-rose-600 text-xs font-semibold">解析失败</span>
+              <span className="text-rose-600 text-xs font-semibold">数据处理失败</span>
               <span className="font-bold text-rose-700 text-lg">{pipelineStats.failedCount}</span>
             </div>
           </div>
@@ -146,36 +137,29 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
           </button>
         </div>
 
-        {/* 覆盖统计 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm text-center">
+        {/* 覆盖统计：描述整个案例库，不随下方浏览筛选变化 */}
+          <div className="grid grid-cols-2 gap-4">
+          <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm text-center">
             <div className="text-xs font-semibold text-slate-500 mb-1">覆盖年份</div>
-            <div className="text-2xl font-bold text-slate-900">{stats.yearRange}</div>
+            <div className="text-2xl font-bold text-slate-900">{stats.yearLabel}</div>
           </div>
-          <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm text-center">
-            <div className="text-xs font-semibold text-slate-500 mb-1">广州案例数</div>
-            <div className="text-2xl font-bold text-slate-900">{stats.gz}</div>
-          </div>
-          <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm text-center">
-            <div className="text-xs font-semibold text-slate-500 mb-1">深圳案例数</div>
-            <div className="text-2xl font-bold text-slate-900">{stats.sz}</div>
-          </div>
-          <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm text-center">
-            <div className="text-xs font-semibold text-slate-500 mb-1">东莞案例数</div>
-            <div className="text-2xl font-bold text-slate-900">{stats.dg}</div>
+          <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm text-center">
+            <div className="text-xs font-semibold text-slate-500 mb-1">覆盖城市</div>
+            <div className="text-2xl font-bold text-slate-900">{stats.cityCount}</div>
           </div>
         </div>
       </div>
 
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <div className="bg-white/80 border border-white/80 rounded-[24px] p-5 shadow-sm space-y-4">
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索案件标题、案号、法院..."
+            placeholder="搜索案件名称 / 当事人 / Case ID"
+            aria-label="搜索案件名称、当事人或 Case ID"
             className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           />
         </div>
@@ -202,7 +186,7 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-[24px] shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-slate-500 text-sm">正在加载案例数据...</div>
         ) : (

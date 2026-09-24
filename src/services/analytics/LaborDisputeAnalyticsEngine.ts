@@ -13,18 +13,12 @@ import {
   filterAnalyticsEligibleRecords,
   type AnalyticsAdmissionFilterOptions,
 } from './AnalyticsAdmission';
-
-/**
- * 目标城市白名单配置 (广州、深圳、东莞)
- */
-export const TARGET_CITIES_CONFIG: {
-  city: '广州' | '深圳' | '东莞';
-  aliases: string[];
-}[] = [
-  { city: '广州', aliases: ['广州', '广州市', '穗'] },
-  { city: '深圳', aliases: ['深圳', '深圳市', '深'] },
-  { city: '东莞', aliases: ['东莞', '东莞市', '莞'] },
-];
+import {
+  PEARL_RIVER_DELTA_CITIES,
+  normalizeResearchCity,
+  normalizeResearchGeographicScope,
+  type ResearchGeographicScope,
+} from '../research/ResearchGeographicScope';
 
 /**
  * 重点标准争议类型清单
@@ -64,11 +58,11 @@ export const KEY_EVIDENCE_TYPES = [
 ] as const;
 
 /**
- * 广深莞劳动争议基础统计分析引擎 (LaborDisputeAnalyticsEngine)
+ * 研究地域劳动争议基础统计分析引擎 (LaborDisputeAnalyticsEngine)
  * 职责：
  * 1. 严格基于 isIncludedInAnalysisSet === true 的有效分析集
  * 2. 排除待优化池与未准入案件
- * 3. 统计广深莞三市案件分布与胜诉率
+ * 3. 统计冻结研究地域内的案件分布与结果比例
  * 4. 统计争议类型、企业抗辩、证据关联分布
  * 5. 全指标支持 caseId 溯源
  * 6. 绝不调用任何 AI 或生成自然语言推断，恪守零污染与纯结构化统计
@@ -80,6 +74,7 @@ export class LaborDisputeAnalyticsEngine {
   public static generateReport(
     allRecords: AnalysisCaseRecord[],
     admissionOptions: AnalyticsAdmissionFilterOptions = {},
+    geographicScope?: ResearchGeographicScope,
   ): LaborDisputeReport {
     const totalCases = admissionOptions.totalInputCount ?? allRecords.length;
 
@@ -97,8 +92,8 @@ export class LaborDisputeAnalyticsEngine {
     const modifiedReviewCount = includedRecords.filter((r) => r.reviewStatus === 'modified').length;
     const pendingReviewCount = includedRecords.filter((r) => r.reviewStatus === 'pending').length;
 
-    // 3. 城市维度分析 (仅限广州、深圳、东莞)
-    const targetCities = this.analyzeTargetCities(includedRecords);
+    // 3. 城市维度分析：只使用当前 AnalysisRun 已冻结的地域范围与输入记录。
+    const targetCities = this.analyzeTargetCities(includedRecords, geographicScope);
 
     // 4. 争议类型分析
     const disputeTypes = this.analyzeDisputeTypes(includedRecords);
@@ -128,14 +123,34 @@ export class LaborDisputeAnalyticsEngine {
   }
 
   /**
-   * 目标城市分析 (广州、深圳、东莞)
+   * 根据冻结研究范围确定城市集合。旧 AnalysisRun 没有 scope 时按全部已纳入记录展示。
    */
-  private static analyzeTargetCities(records: AnalysisCaseRecord[]): CityAnalyticsSummary[] {
-    return TARGET_CITIES_CONFIG.map(({ city, aliases }) => {
-      // 筛选属于该城市的记录
-      const cityRecords = records.filter((r) => {
-        return aliases.some((alias) => r.city.includes(alias));
-      });
+  private static analyzeTargetCities(
+    records: AnalysisCaseRecord[],
+    geographicScope?: ResearchGeographicScope,
+  ): CityAnalyticsSummary[] {
+    const scope = normalizeResearchGeographicScope(geographicScope);
+    const normalizedRecordCities = new Map<string, AnalysisCaseRecord[]>();
+    records.forEach((record) => {
+      const city = normalizeResearchCity(record.city);
+      if (!city) return;
+      const cityRecords = normalizedRecordCities.get(city) ?? [];
+      cityRecords.push(record);
+      normalizedRecordCities.set(city, cityRecords);
+    });
+
+    let cities: string[];
+    if (scope?.mode === 'pearl_river_delta') {
+      cities = [...PEARL_RIVER_DELTA_CITIES];
+    } else if (scope?.mode === 'custom_cities') {
+      cities = [...(scope.cities ?? [])];
+    } else {
+      // province/all（以及 legacy run）只展示当前 AnalysisRun 实际出现的城市。
+      cities = [...normalizedRecordCities.keys()].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    }
+
+    return cities.map((city) => {
+      const cityRecords = normalizedRecordCities.get(city) ?? [];
 
       const caseIds = cityRecords.map((r) => r.caseId);
       const employeeOutcome = this.computeOutcomeStats(cityRecords, 'employeeOutcome');
@@ -145,17 +160,17 @@ export class LaborDisputeAnalyticsEngine {
       const validEmployerTotal = employerOutcome.supported + employerOutcome.partially_supported + employerOutcome.not_supported;
       const employerWinRate = validEmployerTotal > 0
         ? Number(((employerOutcome.supported / validEmployerTotal) * 100).toFixed(1))
-        : 0;
+        : null;
 
       const employerPartialRate = validEmployerTotal > 0
         ? Number(((employerOutcome.partially_supported / validEmployerTotal) * 100).toFixed(1))
-        : 0;
+        : null;
 
       // 劳动者胜诉率
       const validEmployeeTotal = employeeOutcome.supported + employeeOutcome.partially_supported + employeeOutcome.not_supported;
       const employeeWinRate = validEmployeeTotal > 0
         ? Number(((employeeOutcome.supported / validEmployeeTotal) * 100).toFixed(1))
-        : 0;
+        : null;
 
       return {
         city,
@@ -174,6 +189,7 @@ export class LaborDisputeAnalyticsEngine {
    * 争议类型分析
    */
   private static analyzeDisputeTypes(records: AnalysisCaseRecord[]): DisputeTypeAnalyticsItem[] {
+    const isProceduralDisputeLabel = (value: string) => value.trim() === 'procedural_appeal' || value.trim() === '程序性上诉请求';
     // 收集出现的所有争议类型标签
     const typeSet = new Set<string>();
     KEY_DISPUTE_TYPES.forEach((t) => typeSet.add(t));
@@ -181,7 +197,7 @@ export class LaborDisputeAnalyticsEngine {
     records.forEach((r) => {
       if (Array.isArray(r.disputeType)) {
         r.disputeType.forEach((dt) => {
-          if (dt && dt.trim()) {
+          if (dt && dt.trim() && !isProceduralDisputeLabel(dt)) {
             typeSet.add(dt.trim());
           }
         });
@@ -409,7 +425,10 @@ export class LaborDisputeAnalyticsEngine {
 
     records.forEach((r) => {
       // 只统计由目标角色提出的相关请求；不得把另一方请求结果反转成目标角色结果。
-      const relevantClaims = r.claims?.filter(c => {
+      const claims = r.claims || [];
+      const hasSubstantiveClaims = claims.some((claim) => claim.claimType !== 'procedural_appeal');
+      const relevantClaims = claims.filter(c => {
+        if (c.claimType === 'procedural_appeal') return false;
         if (c.claimant !== role) return false;
         const cName = c.claimName || '';
         // 映射逻辑
@@ -442,7 +461,7 @@ export class LaborDisputeAnalyticsEngine {
         } else if (hasReject) {
            outcome = 'not_supported';
         }
-      } else {
+      } else if (hasSubstantiveClaims || claims.length === 0) {
         // 退回整体 outcome
         outcome = role === 'employee' ? r.employeeOutcome : r.employerOutcome;
       }

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  BarChart3,
   Building2,
   MapPin,
   Tag,
@@ -40,7 +39,6 @@ import {
 } from '../types';
 import {
   LaborDisputeAnalyticsEngine,
-  TARGET_CITIES_CONFIG,
   KEY_DISPUTE_TYPES,
   KEY_EMPLOYER_DEFENSES,
   KEY_EVIDENCE_TYPES,
@@ -53,6 +51,8 @@ import {
   type ResearchAnalyticsMetadata,
 } from '../services/analysis/ResearchAnalysisService';
 import { filterAnalyticsEligibleRecords } from '../services/analytics/AnalyticsAdmission';
+import { geographicScopeLabel } from '../services/research/ResearchGeographicScope';
+import { formatRateWithDenominator } from '../services/presentation/MetricPresentation';
 import { ResearchAnalysisHeader } from './ResearchAnalysisHeader';
 
 const researchAnalysisService = new ResearchAnalysisService();
@@ -108,7 +108,11 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
     try {
       const execution = await researchAnalysisService.executeResearchAnalysis(
         selectedAnalysisRunId,
-        (records, admissionOptions) => LaborDisputeAnalyticsEngine.generateReport(records, admissionOptions),
+        (records, admissionOptions, analysisRun) => LaborDisputeAnalyticsEngine.generateReport(
+          records,
+          admissionOptions,
+          analysisRun?.geographicScope,
+        ),
       );
       setResearchContext(execution.context);
       setAllRecords(execution.context.records);
@@ -157,25 +161,20 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="min-h-full bg-slate-50/80 p-6 lg:p-8 max-w-7xl mx-auto space-y-8" data-testid="labor-analytics-workspace">
       {/* 顶部标题与说明 */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+      <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
-              <BarChart3 className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex flex-wrap items-center gap-3">
                 劳动争议基础统计分析
-                <span className="px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+                <span className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
                   正式分析集统计
                 </span>
               </h1>
-              <p className="text-sm text-slate-500 mt-0.5">
-                只分析所选 AnalysisRun 的冻结输入，并显示 corpus/sample 范围、N、质量警告与 provenance
+              <p className="text-sm text-slate-500 mt-2 max-w-2xl leading-6">
+                基于当前选定的分析集，对案件结果、争议类型及其他结构化数据进行统计。
               </p>
-            </div>
           </div>
 
         </div>
@@ -201,8 +200,8 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
         </div>
 
         {/* 统计规范与原则说明条 */}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-2.5 text-slate-700">
+        <div className="mt-7 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div className="p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex items-start gap-3 text-slate-700 leading-5">
             <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
               <span className="font-semibold text-slate-900">数据范围：</span>
@@ -210,11 +209,11 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
             </div>
           </div>
 
-          <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-emerald-950">
+          <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-start gap-3 text-emerald-950 leading-5">
             <Percent className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold">客观统计与胜诉率定义：</span>
-              胜负计算分母<strong>严格排除 unclear</strong>；部分支持独立统计，不直接算作胜诉；证据统计仅反映关联出现频次，不作因果推断。
+              <span className="font-semibold">客观统计与结果比例定义：</span>
+              结果比例分母<strong>严格排除结果不明确</strong>；部分支持独立统计，不直接计入结果偏有利；证据统计仅反映关联出现频次，不作因果推断。
             </div>
           </div>
         </div>
@@ -226,7 +225,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-slate-500 font-semibold uppercase flex items-center gap-1">
               <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
-              案件总量 (Total Cases)
+              案例总量
             </div>
             <div className="text-2xl font-bold font-mono text-slate-800 mt-1">
               {report.overall.totalCases}
@@ -287,15 +286,15 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
         </div>
       )}
 
-      {/* 二、城市排行与对比 (广州、深圳、东莞) */}
+      {/* 二、研究地域裁判结果统计 */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <Building2 className="w-4 h-4 text-indigo-600" />
-            <h2 className="text-sm font-bold text-slate-900">二、广深莞目标城市裁判结果统计</h2>
+            <h2 className="text-sm font-bold text-slate-900">二、研究地域裁判结果统计</h2>
           </div>
           <span className="text-2xs text-slate-400 font-mono">
-            限定范围: 广州市、深圳市、东莞市 (其他城市数据保留但不计入)
+            研究范围：{geographicScopeLabel(researchContext?.analysisRun.geographicScope)}
           </span>
         </div>
 
@@ -319,63 +318,63 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                       onClick={() =>
                         handleOpenDrilldown(
                           `${citySummary.city} - 全部有效分析案件`,
-                          `共检索到 ${citySummary.caseCount} 篇入集案件`,
+                          `共检索到 ${citySummary.caseCount} 个入集案例`,
                           citySummary.caseIds
                         )
                       }
                       className="px-2 py-0.5 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-indigo-700 rounded-md text-2xs font-mono font-semibold transition-colors cursor-pointer"
                     >
-                      {citySummary.caseCount} 案 ↗
+                      {citySummary.caseCount} 个案例 ↗
                     </button>
                   </div>
 
                   {hasCases ? (
                     <>
-                      {/* 胜诉率大卡片 */}
+                      {/* 结果比例大卡片 */}
                       <div className="grid grid-cols-2 gap-2 text-center">
                         <div
                           onClick={() =>
                             handleOpenDrilldown(
-                              `${citySummary.city} - 企业胜诉 (Supported) 案件`,
-                              `企业诉求或抗辩获得完全支持`,
+                              `${citySummary.city} - 企业结果偏有利案例`,
+                              `企业结果归一化为偏有利`,
                               citySummary.employerOutcome.caseIds.supported
                             )
                           }
                           className="bg-white p-2.5 rounded-lg border border-slate-200 hover:border-emerald-300 transition-all cursor-pointer group"
                         >
-                          <div className="text-3xs text-slate-500 font-semibold uppercase">企业支持率</div>
+                          <div className="text-3xs text-slate-500 font-semibold uppercase">企业结果偏有利比例</div>
                           <div className="text-lg font-bold font-mono text-emerald-600 group-hover:text-emerald-700">
-                            {citySummary.employerWinRate}%
+                            {citySummary.employerWinRate === null ? '当前样本不足' : `${citySummary.employerWinRate}%`}
                           </div>
                           <div className="text-3xs text-slate-400 font-mono">
                             {citySummary.employerOutcome.supported} /{' '}
                             {citySummary.employerOutcome.supported +
                               citySummary.employerOutcome.partially_supported +
                               citySummary.employerOutcome.not_supported}{' '}
-                            案
+                            个案例
                           </div>
                         </div>
 
                         <div
                           onClick={() =>
                             handleOpenDrilldown(
-                              `${citySummary.city} - 劳动者胜诉 (Supported) 案件`,
-                              `劳动者诉求获得完全支持`,
+                              `${citySummary.city} - 劳动者结果偏有利案例`,
+                              `劳动者结果归一化为偏有利`,
                               citySummary.employeeOutcome.caseIds.supported
                             )
                           }
                           className="bg-white p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300 transition-all cursor-pointer group"
                         >
-                          <div className="text-3xs text-slate-500 font-semibold uppercase">员工支持率</div>
+                          <div className="text-3xs text-slate-500 font-semibold uppercase">员工结果偏有利比例</div>
                           <div className="text-lg font-bold font-mono text-indigo-600 group-hover:text-indigo-700">
-                            {citySummary.employeeWinRate}%
+                            {citySummary.employeeWinRate === null ? '当前样本不足' : `${citySummary.employeeWinRate}%`}
                           </div>
                           <div className="text-3xs text-slate-400 font-mono">
                             {citySummary.employeeOutcome.supported} /{' '}
                             {citySummary.employeeOutcome.supported +
                               citySummary.employeeOutcome.partially_supported +
                               citySummary.employeeOutcome.not_supported}{' '}
-                            案
+                            个案例
                           </div>
                         </div>
                       </div>
@@ -387,23 +386,23 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-600">全额支持 (Supported):</span>
+                          <span className="text-slate-600">获得支持:</span>
                           <button
                             onClick={() =>
                               handleOpenDrilldown(
-                                `${citySummary.city} - 企业全额支持案件`,
-                                '企业获得完全支持',
+                                `${citySummary.city} - 企业结果获得支持案例`,
+                                '企业结果获得支持',
                                 citySummary.employerOutcome.caseIds.supported
                               )
                             }
                             className="font-mono font-semibold text-emerald-700 hover:underline cursor-pointer"
                           >
-                            {citySummary.employerOutcome.supported} 案
+                            {citySummary.employerOutcome.supported} 个案例
                           </button>
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-600">部分支持 (Partially):</span>
+                          <span className="text-slate-600">部分支持:</span>
                           <button
                             onClick={() =>
                               handleOpenDrilldown(
@@ -414,30 +413,32 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                             }
                             className="font-mono font-semibold text-amber-700 hover:underline cursor-pointer"
                           >
-                            {citySummary.employerOutcome.partially_supported} 案 ({citySummary.employerPartialRate}%)
+                            {citySummary.employerOutcome.partially_supported} 个案例（
+                              {citySummary.employerPartialRate === null ? '当前样本不足' : `${citySummary.employerPartialRate}%`}
+                            ）
                           </button>
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-600">全部驳回 (Not Supported):</span>
+                          <span className="text-slate-600">未获支持:</span>
                           <button
                             onClick={() =>
                               handleOpenDrilldown(
-                                `${citySummary.city} - 企业结果不支持案件`,
-                                '企业案件结果为不支持；不据此推断具体抗辩是否获法院采纳',
+                                `${citySummary.city} - 企业结果未获支持案例`,
+                                '企业案件结果未获支持；不据此推断具体抗辩是否获法院采纳',
                                 citySummary.employerOutcome.caseIds.not_supported
                               )
                             }
                             className="font-mono font-semibold text-rose-700 hover:underline cursor-pointer"
                           >
-                            {citySummary.employerOutcome.not_supported} 案
+                            {citySummary.employerOutcome.not_supported} 个案例
                           </button>
                         </div>
 
                         {citySummary.employerOutcome.unclear > 0 && (
                           <div className="flex items-center justify-between text-slate-400">
-                            <span>未明确结果 (Unclear):</span>
-                            <span className="font-mono">{citySummary.employerOutcome.unclear} 案 (已剔除)</span>
+                            <span>结果不明确:</span>
+                            <span className="font-mono">{citySummary.employerOutcome.unclear} 个案例 (已剔除)</span>
                           </div>
                         )}
                       </div>
@@ -461,10 +462,10 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <Tag className="w-4 h-4 text-purple-600" />
-            <h2 className="text-sm font-bold text-slate-900">三、重点争议类型胜诉率与案量排行</h2>
+            <h2 className="text-sm font-bold text-slate-900">三、重点争议类型结果比例与案例量排行</h2>
           </div>
           <span className="text-2xs text-slate-400 font-mono">
-            点击任意案件数或支持率钻取案件列表
+            点击任意案例量或结果比例钻取案例列表
           </span>
         </div>
 
@@ -475,8 +476,8 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                 <tr className="border-b border-slate-200 text-2xs text-slate-500 uppercase bg-slate-50">
                   <th className="py-2.5 px-3 font-semibold">争议类型标签</th>
                   <th className="py-2.5 px-3 font-semibold text-center">入集案件量</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">企业支持率 (排除unclear)</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">员工支持率</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">企业结果有利率（排除结果不明确）</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">员工结果偏有利比例</th>
                   <th className="py-2.5 px-3 font-semibold text-center">部分支持</th>
                   <th className="py-2.5 px-3 font-semibold text-right">操作溯源</th>
                 </tr>
@@ -505,13 +506,13 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                           onClick={() =>
                             handleOpenDrilldown(
                               `争议类型: ${dt.disputeType} - 全部案件`,
-                              `共 ${dt.caseCount} 篇案件`,
+                              `共 ${dt.caseCount} 个案例`,
                               dt.caseIds
                             )
                           }
                           className="hover:text-indigo-600 hover:underline cursor-pointer"
                         >
-                          {dt.caseCount} 案
+                          {dt.caseCount} 个案例
                         </button>
                       </td>
 
@@ -526,7 +527,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                           }
                           className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 cursor-pointer"
                         >
-                          {dt.employerWinRate}% ({dt.employerOutcome.supported}/{employerKnownN})
+                          {formatRateWithDenominator(dt.employerWinRate, dt.employerOutcome.supported, employerKnownN)}
                         </button>
                       </td>
 
@@ -541,7 +542,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                           }
                           className="hover:underline cursor-pointer"
                         >
-                          {dt.employeeWinRate}% ({dt.employeeOutcome.supported}/{employeeKnownN})
+                          {formatRateWithDenominator(dt.employeeWinRate, dt.employeeOutcome.supported, employeeKnownN)}
                         </button>
                       </td>
 
@@ -556,7 +557,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                           }
                           className="hover:underline cursor-pointer"
                         >
-                          {dt.employerOutcome.partially_supported} 案
+                          {dt.employerOutcome.partially_supported} 个案例
                         </button>
                       </td>
 
@@ -565,7 +566,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                           onClick={() =>
                             handleOpenDrilldown(
                               `争议类型: ${dt.disputeType}`,
-                              `查看涉及 ${dt.disputeType} 的全部 ${dt.caseCount} 篇案件`,
+                              `查看涉及 ${dt.disputeType} 的全部 ${dt.caseCount} 个案例`,
                               dt.caseIds
                             )
                           }
@@ -594,7 +595,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
             <h2 className="text-sm font-bold text-slate-900">四、企业抗辩与案件结果共现排行</h2>
           </div>
           <span className="text-2xs text-slate-400 font-mono">
-            有利结果共现率 = 企业 supported / (supported + partially + not supported)，排除 unclear
+             企业结果有利共现率 = 获得支持 /（获得支持 + 部分支持 + 未获支持），排除结果不明确
           </span>
         </div>
 
@@ -606,7 +607,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                   <th className="py-2.5 px-3 font-semibold">抗辩事由</th>
                   <th className="py-2.5 px-3 font-semibold text-center">出现总频次</th>
                   <th className="py-2.5 px-3 font-semibold text-center">涉及案件数</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">企业胜诉支持</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">企业结果获得支持</th>
                   <th className="py-2.5 px-3 font-semibold text-center">部分支持</th>
                   <th className="py-2.5 px-3 font-semibold text-center">企业未获支持</th>
                   <th className="py-2.5 px-3 font-semibold text-center">有利结果共现率</th>
@@ -639,13 +640,13 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                           onClick={() =>
                             handleOpenDrilldown(
                               `抗辩事由: ${def.defenseType} - 涉及案件`,
-                              `共 ${def.caseCount} 篇案件提出该抗辩`,
+                              `共 ${def.caseCount} 个案例提出该抗辩`,
                               def.caseIds
                             )
                           }
                           className="hover:text-indigo-600 hover:underline cursor-pointer"
                         >
-                          {def.caseCount} 案
+                          {def.caseCount} 个案例
                         </button>
                       </td>
 
@@ -653,14 +654,14 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <button
                           onClick={() =>
                             handleOpenDrilldown(
-                              `抗辩事由: ${def.defenseType} - 企业胜诉案件`,
+                              `抗辩事由: ${def.defenseType} - 企业结果偏有利案例`,
                               `提出该抗辩且企业获支持`,
                               def.employerSupportedCaseIds
                             )
                           }
                           className="font-mono font-bold text-emerald-700 hover:underline cursor-pointer"
                         >
-                          {def.employerSupportedCount} 案
+                          {def.employerSupportedCount} 个案例
                         </button>
                       </td>
 
@@ -675,7 +676,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                           }
                           className="font-mono text-amber-700 hover:underline cursor-pointer"
                         >
-                          {def.employerPartialCount} 案
+                          {def.employerPartialCount} 个案例
                         </button>
                       </td>
 
@@ -690,7 +691,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                           }
                           className="font-mono text-rose-700 hover:underline cursor-pointer"
                         >
-                          {def.employerNotSupportedCount} 案
+                          {def.employerNotSupportedCount} 个案例
                         </button>
                       </td>
 
@@ -704,7 +705,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                               : 'bg-rose-50 text-rose-800 border border-rose-200'
                           }`}
                         >
-                          {def.supportRate}% ({def.employerSupportedCount}/{knownOutcomeN})
+                          {formatRateWithDenominator(def.supportRate, def.employerSupportedCount, knownOutcomeN)}
                         </span>
                       </td>
                     </tr>
@@ -767,7 +768,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         }
                         className="font-bold font-mono text-slate-800 hover:text-indigo-600 hover:underline cursor-pointer"
                       >
-                        {ev.caseCount} 案
+                        {ev.caseCount} 个案例
                       </button>
                     </div>
 
@@ -783,14 +784,14 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         }
                         className="font-bold font-mono text-emerald-700 hover:underline cursor-pointer"
                       >
-                        {ev.appearanceInEmployerSupportedCount} 案
+                        {ev.appearanceInEmployerSupportedCount} 个案例
                       </button>
                     </div>
                   </div>
 
                   <div className="text-3xs text-slate-500 bg-emerald-50/60 border border-emerald-100 p-2 rounded-lg flex items-center justify-between font-mono">
                     <span>企业获支持案件中的出现率:</span>
-                    <strong className="text-emerald-800">{ev.rateInEmployerSupported}% ({ev.appearanceInEmployerSupportedCount}/{ev.employerSupportedDenominator})</strong>
+                    <strong className="text-emerald-800">{formatRateWithDenominator(ev.rateInEmployerSupported, ev.appearanceInEmployerSupportedCount, ev.employerSupportedDenominator)}</strong>
                   </div>
                 </div>
               );
@@ -813,7 +814,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                   {drilldownTitle}
                 </h3>
                 <p className="text-2xs text-slate-500 mt-0.5">
-                  {drilldownDescription} (共 {drilldownCases.length} 篇有效案件)
+                  {drilldownDescription}（共 {drilldownCases.length} 个有效案例）
                 </p>
               </div>
 

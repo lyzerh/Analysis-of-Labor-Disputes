@@ -1,7 +1,9 @@
 import type { AnalysisCaseRecord } from '../../types';
 import { evaluateAnalyticsAdmission } from '../analytics/AnalyticsAdmission';
+import type { SemanticReviewItem } from '../semantic/SemanticReviewQueue';
 import { executableUnresolvedReferences, hasExecutableSemanticTask } from '../semantic/SemanticTaskEligibility';
 import { isTechnicalResolverError, isTechnicalSemanticStatus } from '../semantic/SemanticWorkflowState';
+import { getWorkflowDisplayPresentation } from './WorkflowPresentation';
 
 /** User-facing processing stages for the deterministic → semantic → human pipeline. */
 export type ProcessingStage = 'safe' | 'awaiting_llm' | 'llm_processing' | 'review_pending' | 'technical_failure' | 'blocked';
@@ -31,14 +33,27 @@ const isTechnicalSemanticFailure = (record: PipelineRecord): boolean => (
   || isTechnicalResolverError(record.semanticResolutionErrorCode)
 );
 
+const hasCompletedHumanReview = (
+  record: PipelineRecord,
+  reviewItems?: readonly SemanticReviewItem[],
+): boolean => reviewItems?.some((item) => (
+  item.caseId === record.caseId
+  && item.status === 'reviewed'
+  && item.reviewedResult?.source === 'human_review'
+  && item.reviewedResult.reviewStatus === 'approved'
+)) ?? false;
+
 /**
  * Map persisted record metadata to a presentation stage. This is intentionally
  * read-only: it does not infer or rewrite parser/outcome fields.
  */
-export function mapAnalysisRecordToProcessingStage(record: PipelineRecord): ProcessingStage {
+export function mapAnalysisRecordToProcessingStage(
+  record: PipelineRecord,
+  reviewItems?: readonly SemanticReviewItem[],
+): ProcessingStage {
   const status = record.semanticResolutionStatus as string | undefined;
   if (status === 'processing' || status === 'running') return 'llm_processing';
-  const admission = evaluateAnalyticsAdmission({ record });
+  const admission = evaluateAnalyticsAdmission({ record, ...(reviewItems ? { reviewItems } : {}) });
   if (admission.status === 'eligible') return 'safe';
   const executableTask = hasExecutableSemanticTask(record);
   const reasons = new Set(admission.reasonCodes);
@@ -47,6 +62,15 @@ export function mapAnalysisRecordToProcessingStage(record: PipelineRecord): Proc
     || reasons.has('missing_accepted_semantic_result')
     || status === 'needs_review'
     || (record.humanReviewCandidates?.length ?? 0) > 0) {
+    return 'review_pending';
+  }
+
+  // A completed human result is now the current semantic authority. The
+  // technical failure remains provenance/history, but must not keep the case
+  // in the retryable technical stage after review (even when the human result
+  // remains Gate-blocked as unclear or incomplete).
+  if (hasCompletedHumanReview(record, reviewItems)
+    && (isTechnicalSemanticFailure(record) || reasons.has('technical_failure'))) {
     return 'review_pending';
   }
 
@@ -63,25 +87,25 @@ export function mapAnalysisRecordToProcessingStage(record: PipelineRecord): Proc
 }
 
 export function processingStageLabel(stage: ProcessingStage): string {
+  if (stage === 'safe') return '可安全入库';
+  if (stage === 'review_pending') return getWorkflowDisplayPresentation('needs_review').label;
+  if (stage === 'awaiting_llm') return '待 AI 语义分析';
+  if (stage === 'technical_failure') return getWorkflowDisplayPresentation('technical_failure').label;
+  if (stage === 'blocked') return getWorkflowDisplayPresentation('blocked').label;
+  if (stage === 'llm_processing') return 'AI 语义分析中';
   switch (stage) {
-    case 'safe': return '可安全入库';
-    case 'awaiting_llm': return '待 AI 语义分析';
-    case 'llm_processing': return 'AI 语义分析中';
-    case 'review_pending': return '人工复核';
-    case 'technical_failure': return '技术失败';
-    case 'blocked': return '无法生成语义任务';
     default: return '待处理';
   }
 }
 
 export function processingStageDescription(stage: ProcessingStage): string {
+  if (stage === 'safe') return '规则解析或已完成语义核验，当前结果可用于分析。';
+  if (stage === 'review_pending') return getWorkflowDisplayPresentation('needs_review').description;
+  if (stage === 'awaiting_llm') return getWorkflowDisplayPresentation('awaiting_llm').description;
+  if (stage === 'technical_failure') return getWorkflowDisplayPresentation('technical_failure').description;
+  if (stage === 'blocked') return getWorkflowDisplayPresentation('blocked').description;
+  if (stage === 'llm_processing') return '正在按当前分析集逐案处理，结果尚未进入统计。';
   switch (stage) {
-    case 'safe': return '规则解析或已完成语义核验，当前结果可用于分析。';
-    case 'awaiting_llm': return '规则解析留下了需要语义对应的事实、诉求或裁判项。';
-    case 'llm_processing': return '正在按当前分析集逐案处理，结果尚未进入统计。';
-    case 'review_pending': return '自动核验未通过，需要人工确认后再进入安全结果。';
-    case 'technical_failure': return '语义处理发生技术异常，尚未生成可供人工判断的候选结果；修复配置或重试后再继续。';
-    case 'blocked': return '当前结果未满足准入条件，且没有可执行的 LLM 语义任务。';
     default: return '等待流水线继续处理。';
   }
 }
@@ -92,21 +116,19 @@ export function processingProvenanceLabel(record: PipelineRecord): string {
   return '规则解析';
 }
 
-export function processingStageReason(record: PipelineRecord): string {
-  const stage = mapAnalysisRecordToProcessingStage(record);
+export function processingStageReason(record: PipelineRecord, reviewItems?: readonly SemanticReviewItem[]): string {
+  const stage = mapAnalysisRecordToProcessingStage(record, reviewItems);
   if (stage === 'review_pending') {
-    return record.semanticResolutionErrorCode
-      ? '语义处理未能可靠完成，结果已转入人工复核。'
-      : '自动核验未通过，结果已转入人工复核。';
+    return getWorkflowDisplayPresentation('needs_review').description;
   }
   if (stage === 'technical_failure') {
-    return '语义处理未完成（技术失败），未创建人工法律复核项。';
+    return '语义处理未完成（技术失败），可重新尝试 AI 或直接进入人工复核。';
   }
   if (stage === 'awaiting_llm') {
     const count = executableUnresolvedReferences(record).length;
     return count > 0 ? `待处理语义关联 ${count} 项。` : '等待语义分析。';
   }
-  if (stage === 'blocked') return '当前没有可执行的待分析语义任务，请检查原始文书或解析状态。';
+  if (stage === 'blocked') return '缺少可执行语义输入。';
   return processingStageDescription(stage);
 }
 
@@ -120,9 +142,12 @@ export function cleanPipelineDiagnosticMessage(message: string | undefined, fall
   return cleaned || fallback;
 }
 
-export function getPipelineOverview(records: readonly PipelineRecord[]): PipelineOverview {
+export function getPipelineOverview(
+  records: readonly PipelineRecord[],
+  reviewItems?: readonly SemanticReviewItem[],
+): PipelineOverview {
   const counts = records.reduce((summary, record) => {
-    const stage = mapAnalysisRecordToProcessingStage(record);
+    const stage = mapAnalysisRecordToProcessingStage(record, reviewItems);
     summary[stage] += 1;
     return summary;
   }, {
@@ -147,12 +172,19 @@ export function getPipelineOverview(records: readonly PipelineRecord[]): Pipelin
   };
 }
 
-export function getPipelineProcessingStats(records: readonly PipelineRecord[]): PipelineProcessingStats {
-  const overview = getPipelineOverview(records);
+export function getPipelineProcessingStats(
+  records: readonly PipelineRecord[],
+  reviewItems?: readonly SemanticReviewItem[],
+): PipelineProcessingStats {
+  const overview = getPipelineOverview(records, reviewItems);
   return {
     pending: overview.awaitingAi,
     processing: overview.llmProcessing,
     completed: overview.safe,
-    failed: overview.reviewPending + overview.technicalFailure,
+    // Keep technical job failures distinct from valid semantic candidates
+    // waiting for human review. The workbench's technical-failure count must
+    // match the formal workflow card instead of treating review as a failed AI
+    // job.
+    failed: overview.technicalFailure,
   };
 }

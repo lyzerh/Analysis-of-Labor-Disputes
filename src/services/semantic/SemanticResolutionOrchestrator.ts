@@ -12,9 +12,15 @@ import {
 import {
   createSemanticReviewItemFromAudit,
   enqueueSemanticReviewItem,
+  type SemanticReviewAuditContext,
   type SemanticReviewItem,
 } from './SemanticReviewQueue';
 import { parseSemanticResolutionResult } from './SemanticResultSchema';
+import { SemanticSchemaError } from './SemanticResolutionSchema';
+import {
+  collectSemanticSchemaValidationErrors,
+  ensureSemanticSchemaValidationErrors,
+} from './SemanticSchemaDiagnostics';
 import { validateSemanticTaskContract } from './SemanticTaskContract';
 import type { SemanticResultResolver } from './SemanticResultResolver';
 import type { SemanticResolverErrorCode } from './types';
@@ -48,24 +54,72 @@ const resolveAndValidate = async (
   resolver: SemanticResultResolver,
 ): Promise<SemanticResolutionResult> => {
   const result = await resolver.resolve(task);
+  // Resolver-level technical diagnostics (including bounded schema previews)
+  // must survive the orchestration boundary.  They are non-contract metadata
+  // and are never persisted to production review/technical-failure stores by
+  // the benchmark path.
+  if (result.resolverErrorCode) return result;
+  let parsed: SemanticResolutionResult;
   try {
-    const parsed = parseSemanticResolutionResult(result);
-    const taskContract = validateSemanticTaskContract(task, parsed);
-    traceSemantic('taskContract', {
+    parsed = parseSemanticResolutionResult(result);
+  } catch (error) {
+    const validatorIssues = error instanceof SemanticSchemaError ? error.issues : [];
+    const schemaValidationErrors = ensureSemanticSchemaValidationErrors(
+      collectSemanticSchemaValidationErrors(result),
+      validatorIssues,
+    );
+    const hasValidatorErrors = validatorIssues.length > 0 || schemaValidationErrors.length > 0;
+    const failureCode = hasValidatorErrors ? 'schema_invalid' : 'unknown_schema_failure';
+    const resolverCode: SemanticResolverErrorCode = hasValidatorErrors ? 'schema_invalid' : 'provider_error';
+    traceSemantic('schemaValidation', {
       caseId: task.caseId,
-      passed: taskContract.valid,
-      reasonCodes: taskContract.reasonCodes,
-      targetCount: taskContract.targetCount,
-      resolutionCount: taskContract.resolutionCount,
-      duplicateTargetCount: taskContract.duplicateTargetCount,
-      extraResolutionCount: taskContract.extraResolutionCount,
+      passed: false,
+      errorCode: failureCode,
+      schemaFailureOrigin: 'semantic_result_schema',
+      validatorName: 'parseSemanticResolutionResult',
+      validatorPassed: false,
+      validatorErrorCount: validatorIssues.length,
+      errorCount: schemaValidationErrors.length,
     });
-    return taskContract.valid
-      ? parsed
-      : createTechnicalUnresolvedResult(task, 'validation_rejected');
-  } catch {
-    return createTechnicalUnresolvedResult(task, 'schema_invalid');
+    return createTechnicalUnresolvedResult(task, resolverCode, 'semantic result failed the local schema validator', undefined, {
+      failureStage: 'schema',
+      failureCode,
+      schemaFailureOrigin: 'semantic_result_schema',
+      validatorName: 'parseSemanticResolutionResult',
+      validatorPassed: false,
+      validatorErrors: validatorIssues,
+      providerRawParsed: true,
+      semanticSchemaPassed: false,
+      normalizationPassed: false,
+      contractPassed: false,
+      auditRan: false,
+      schemaValidationErrors,
+    });
   }
+
+  const taskContract = validateSemanticTaskContract(task, parsed);
+  traceSemantic('taskContract', {
+    caseId: task.caseId,
+    passed: taskContract.valid,
+    reasonCodes: taskContract.reasonCodes,
+    targetCount: taskContract.targetCount,
+    resolutionCount: taskContract.resolutionCount,
+    duplicateTargetCount: taskContract.duplicateTargetCount,
+    extraResolutionCount: taskContract.extraResolutionCount,
+  });
+  return taskContract.valid
+    ? parsed
+    : createTechnicalUnresolvedResult(task, 'validation_rejected', 'semantic task contract validation failed', undefined, {
+      failureStage: 'contract',
+      failureCode: 'contract_mismatch',
+      schemaFailureOrigin: 'contract_bridge',
+      providerRawParsed: true,
+      semanticSchemaPassed: true,
+      normalizationPassed: true,
+      contractPassed: false,
+      auditRan: false,
+      contractReasonCodes: taskContract.reasonCodes,
+    });
 };
 
 /**
@@ -85,6 +139,7 @@ export const resolveSemanticRuleResult = async (
       ruleResult,
       resolverErrorCode(error),
       error instanceof Error ? error.message : undefined,
+      typeof (error as { status?: unknown })?.status === 'number' ? (error as { status: number }).status : undefined,
     );
   }
 };
@@ -100,6 +155,7 @@ export const resolveUnresolvedSemanticTask = async (
       task,
       resolverErrorCode(error),
       error instanceof Error ? error.message : undefined,
+      typeof (error as { status?: unknown })?.status === 'number' ? (error as { status: number }).status : undefined,
     );
   }
 };
@@ -124,6 +180,13 @@ export const resolveUnresolvedSemanticTaskWithAudit = async (
     knownJudgmentItems: task.knownJudgmentItems,
     requiredClaimResolutionIds,
   });
+  if (result.resolverErrorDetails) {
+    Object.defineProperty(result, 'resolverErrorDetails', {
+      value: { ...result.resolverErrorDetails, auditRan: true },
+      enumerable: false,
+      configurable: true,
+    });
+  }
   traceSemantic('audit', {
     caseId: task.caseId,
     decision: audit.decision,
@@ -149,6 +212,9 @@ export const resolveUnresolvedSemanticTaskWithReview = async (
   },
 ): Promise<SemanticResolutionReviewPipelineResult> => {
   const audited = await resolveUnresolvedSemanticTaskWithAudit(task, resolver);
+  const requiredClaimResolutionIds = task.unresolvedTargets
+    .filter((target) => target.type === 'claim_resolution' && Boolean(target.id))
+    .map((target) => target.id as string);
   const reviewItem = createSemanticReviewItemFromAudit({
     caseId: task.caseId,
     caseTitle: options.caseTitle,
@@ -156,6 +222,13 @@ export const resolveUnresolvedSemanticTaskWithReview = async (
     date: options.date,
     result: audited.result,
     audit: audited.audit,
+    auditContext: {
+      rawText: task.rawText,
+      ...(task.knownParties ? { knownParties: task.knownParties } : {}),
+      ...(task.knownClaims ? { knownClaims: task.knownClaims } : {}),
+      ...(task.knownJudgmentItems ? { knownJudgmentItems: task.knownJudgmentItems } : {}),
+      requiredClaimResolutionIds,
+    } satisfies SemanticReviewAuditContext,
     unresolvedTargets: task.unresolvedTargets,
     context: task.context || task.rawText,
     createdAt: options.createdAt,

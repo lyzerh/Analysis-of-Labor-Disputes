@@ -33,7 +33,17 @@ interface ClaimPatternDefinition {
   name: string;
   keywords: string[];
   decisionKeywords: { support: string[]; reject: string[] };
+  /** Generic aliases are only valid when a nearby work-injury context exists. */
+  contextKeywords?: string[];
+  /** New vocabulary must not create a claim from disposition/reasoning alone. */
+  requiresRequestSource?: boolean;
   extractAmountRegex?: RegExp;
+}
+
+interface ClaimSourceResolution {
+  text: string;
+  kind: LaborInfoClaimItem['claimSourceKind'];
+  field: LaborInfoClaimItem['claimSourceField'];
 }
 
 /**
@@ -77,7 +87,11 @@ export class LaborInfoParserAdapter {
     const sections = this.segmentText(text);
 
     // 5. 提取诉求并识别支持状态
-    const claims = this.extractClaimsWithSupport(text, sections, parties);
+    const claims = this.extractClaimsWithSupport(text, {
+      ...sections,
+      requestSourceText: typeof meta.ssjl === 'string' && meta.ssjl.trim() ? meta.ssjl : undefined,
+      requestSourceField: typeof meta.ssjl === 'string' && meta.ssjl.trim() ? 'ssjl' as const : undefined,
+    }, parties);
     const unresolvedReferences = this.extractUnresolvedReferences(sections.decision || '', claims);
 
     // 6. 企业抗辩识别
@@ -652,8 +666,11 @@ export class LaborInfoParserAdapter {
     } = {};
 
     // 诉称
-    const appArgsMatch = text.match(/(?:(?:原告|申请人|上诉人)(?:提出)?(?:诉称|称|上诉称|主张)|申请仲裁称|原告向本院提出诉讼请求：)[，：:\s]+([\s\S]*?)(?=(?:(?:被告|被上诉人|被申请人)(?:辩称|答辩|称|主张)|经审理查明|本院经审理查明|查明|本案相关情况|仲裁庭查明|法院查明|本院认为))/);
-    if (appArgsMatch) sections.applicantArgs = appArgsMatch[1].trim().slice(0, 1500);
+    const appArgsMatch = text.match(/(?:(?:原告|申请人|上诉人)(?:向[^：:。]{0,30})?(?:提出)?(?:诉讼请求|上诉请求|请求|诉称|称|上诉称|主张)|申请仲裁称|原告向本院提出诉讼请求)[，：:\s]+([\s\S]*?)(?=(?:(?:被告|被上诉人|被申请人)(?:辩称|答辩|称|主张)|经审理查明|本院经审理查明|查明|本案相关情况|仲裁庭查明|法院查明|本院认为|判决如下|裁决如下))/);
+    // Keep the request-intent heading with the extracted fragment.  The
+    // heading is provenance, not legal content, but retaining it prevents a
+    // bare claim keyword from being mistaken for a request after sectioning.
+    if (appArgsMatch) sections.applicantArgs = appArgsMatch[0].trim().slice(0, 1500);
 
     // 答辩
     const respArgsMatch = text.match(/(?:(?:被告|被上诉人|被申请人|公司|用人单位)(?:辩称|答辩称|答辩|称|主张))[，：:\s]+([\s\S]*?)(?=(?:经审理查明|本院经审理查明|查明|本案相关情况|仲裁庭查明|法院查明|本院认为|仲裁庭认为|本院经审理认为|本庭认为))/);
@@ -685,7 +702,14 @@ export class LaborInfoParserAdapter {
    */
   public static extractClaimsWithSupport(
     text: string,
-    sections: { decision?: string; reasoning?: string },
+    sections: {
+      decision?: string;
+      reasoning?: string;
+      applicantArgs?: string;
+      respondentArgs?: string;
+      requestSourceText?: string;
+      requestSourceField?: LaborInfoClaimItem['claimSourceField'];
+    },
     parties: PartyRecognitionResult
   ): LaborInfoClaimItem[] {
     const claims: LaborInfoClaimItem[] = [];
@@ -758,6 +782,96 @@ export class LaborInfoParserAdapter {
         },
       },
       {
+        name: '一次性伤残补助金',
+        keywords: ['一次性伤残补助金', '伤残补助金'],
+        decisionKeywords: {
+          support: ['支付一次性伤残补助金', '支付伤残补助金'],
+          reject: ['驳回一次性伤残补助金', '不予支持伤残补助金', '无需支付伤残补助金'],
+        },
+        contextKeywords: ['工伤', '伤残', '伤残等级', '劳动能力鉴定', '工伤保险待遇'],
+        requiresRequestSource: true,
+      },
+      {
+        name: '一次性工伤医疗补助金',
+        keywords: ['一次性工伤医疗补助金', '工伤医疗补助金'],
+        decisionKeywords: {
+          support: ['支付一次性工伤医疗补助金', '支付工伤医疗补助金'],
+          reject: ['驳回工伤医疗补助金', '不予支持工伤医疗补助金'],
+        },
+        contextKeywords: ['工伤', '伤残', '伤残等级', '劳动能力鉴定', '工伤保险待遇'],
+        requiresRequestSource: true,
+      },
+      {
+        name: '一次性伤残就业补助金',
+        keywords: ['一次性伤残就业补助金', '伤残就业补助金'],
+        decisionKeywords: {
+          support: ['支付一次性伤残就业补助金', '支付伤残就业补助金'],
+          reject: ['驳回伤残就业补助金', '不予支持伤残就业补助金'],
+        },
+        contextKeywords: ['工伤', '伤残', '伤残等级', '劳动能力鉴定', '工伤保险待遇'],
+        requiresRequestSource: true,
+      },
+      {
+        name: '劳动能力鉴定费',
+        keywords: ['劳动能力鉴定费', '鉴定费'],
+        decisionKeywords: {
+          support: ['支付劳动能力鉴定费', '支付鉴定费'],
+          reject: ['驳回劳动能力鉴定费', '不予支持鉴定费'],
+        },
+        contextKeywords: ['工伤', '劳动能力鉴定', '伤残等级', '工伤保险待遇'],
+        requiresRequestSource: true,
+      },
+      {
+        name: '工伤医疗费',
+        keywords: ['工伤医疗费', '工伤医疗费用', '医疗费'],
+        decisionKeywords: {
+          support: ['支付工伤医疗费', '支付医疗费'],
+          reject: ['驳回工伤医疗费', '不予支持医疗费'],
+        },
+        contextKeywords: ['工伤', '工伤待遇', '工伤保险待遇', '伤残', '劳动能力鉴定'],
+        requiresRequestSource: true,
+      },
+      {
+        name: '停工留薪期待遇',
+        keywords: ['停工留薪期待遇', '停工留薪期工资', '停工留薪期'],
+        decisionKeywords: {
+          support: ['支付停工留薪期工资', '支付停工留薪期待遇'],
+          reject: ['驳回停工留薪期', '不予支持停工留薪期'],
+        },
+        contextKeywords: ['工伤', '停工留薪'],
+        requiresRequestSource: true,
+      },
+      {
+        name: '护理费',
+        keywords: ['护理费'],
+        decisionKeywords: {
+          support: ['支付护理费'],
+          reject: ['驳回护理费', '不予支持护理费'],
+        },
+        contextKeywords: ['工伤', '伤残', '住院', '工伤保险待遇', '劳动能力鉴定'],
+        requiresRequestSource: true,
+      },
+      {
+        name: '住院伙食补助费',
+        keywords: ['住院伙食补助费', '伙食补助费'],
+        decisionKeywords: {
+          support: ['支付住院伙食补助费', '支付伙食补助费'],
+          reject: ['驳回伙食补助费', '不予支持伙食补助费'],
+        },
+        contextKeywords: ['工伤', '住院', '工伤保险待遇'],
+        requiresRequestSource: true,
+      },
+      {
+        name: '交通食宿费',
+        keywords: ['交通食宿费', '交通费', '食宿费'],
+        decisionKeywords: {
+          support: ['支付交通费', '支付食宿费', '支付交通食宿费'],
+          reject: ['驳回交通费', '驳回食宿费', '不予支持交通费', '不予支持食宿费'],
+        },
+        contextKeywords: ['工伤', '工伤治疗', '住院', '工伤保险待遇', '劳动能力鉴定'],
+        requiresRequestSource: true,
+      },
+      {
         name: '拖欠/未付劳动报酬',
         keywords: ['工资差额', '支付工资', '拖欠工资', '克扣工资', '补发工资', '劳动报酬', '业务提成', '业务费用', '停工工资', '停业工资', '疫情期间停业工资', '被查封期间工资', '封控工资'],
         decisionKeywords: {
@@ -776,11 +890,15 @@ export class LaborInfoParserAdapter {
     ];
 
     const judgmentActions = this.extractJudgmentActions(decisionText, claimPatterns, parties);
+    const hasEmployerAppealContext = parties.applicantRole === 'employer'
+      || (parties.parties || []).some((party) => party.laborRole === 'employer' && party.proceduralRoles.includes('appellant'));
 
     // 按顺序匹配，且移除已匹配文本，避免互相干扰
     let remainingText = text;
     for (const pat of claimPatterns) {
-      const isClaimed = pat.keywords.some((kw) => remainingText.includes(kw));
+      const requestScopeText = this.textBeforeDisposition(text, decisionText);
+      const isClaimed = this.matchesClaimPattern(remainingText, pat)
+        && (!pat.requiresRequestSource || this.matchesClaimPattern(requestScopeText, pat));
       if (!isClaimed) continue;
       
       // 移除干扰项，比如 '未依法缴纳社会保险经济补偿金' 被匹配后，不再让 '经济补偿金' 匹配
@@ -791,8 +909,33 @@ export class LaborInfoParserAdapter {
       let status: ClaimSupportStatus = 'unclear';
       const claimType = this.normalizeClaimType(pat.name);
       const claimId = `claim_${claims.length + 1}`;
-      const sourceText = this.findClaimSourceText(text, decisionText, pat.keywords);
-      const claimantMetadata = this.resolveClaimantMetadata(sourceText, parties);
+      const resolvedSource = this.findClaimSourceText(text, decisionText, pat.keywords, sections, pat.contextKeywords);
+      const appealSource = hasEmployerAppealContext
+        ? this.findAppealClaimSourceText(sections.applicantArgs, pat.keywords, pat.contextKeywords, parties, this.textBeforeDisposition(text, decisionText))
+        : { text: '', kind: 'unknown' as const, field: 'unknown' as const };
+      const hasAppealClaimMention = hasEmployerAppealContext
+        && this.hasExplicitAppealClaimMention(this.textBeforeDisposition(text, decisionText), pat.keywords, parties);
+      const source = resolvedSource.kind === 'appeal_request' && hasEmployerAppealContext
+        ? this.findUnderlyingClaimSourceText(text, decisionText, pat.keywords, {
+          requestSourceText: sections.requestSourceText,
+          requestSourceField: sections.requestSourceField,
+        }, pat.contextKeywords)
+        : resolvedSource;
+      // If no reliable underlying request exists, retain the appeal source as
+      // the only claim rather than copying its text onto an employee identity.
+      const primarySource = source.text ? source : resolvedSource;
+      const sourceText = primarySource.text;
+      const claimantMetadata = this.resolveClaimantMetadata(primarySource.text, parties);
+      // In a second-instance judgment the structured claim text may still be
+      // the employee's original arbitration request while the document's
+      // applicant is the employer. Preserve that request's claimant instead
+      // of binding it to the appellant merely because of document metadata.
+      if (hasEmployerAppealContext
+        && primarySource.kind === 'arbitration_request'
+        && claimantMetadata.proceduralBasis === 'original_claim') {
+        claimantMetadata.claimantRole = 'employee';
+        claimantMetadata.claimantPartyId = this.findPartyId(parties, 'employee', ['plaintiff', 'appellee', 'defendant']);
+      }
       const localActions = judgmentActions.filter((item) => item.targetClaimType === claimType);
       const genericApplicantActions = judgmentActions.filter((item) =>
         !item.targetClaimType
@@ -879,12 +1022,38 @@ export class LaborInfoParserAdapter {
         claimantPartyId: claimantMetadata.claimantPartyId,
         proceduralBasis: claimantMetadata.proceduralBasis,
         supportStatus: status,
+        claimSourceKind: primarySource.kind,
+        claimSourceField: primarySource.field,
         requestedAmount,
         awardedAmount,
         sourceText,
         judgmentItems,
       };
       claims.push(repairReliableAmountSupport(claimRecord, parties.parties || []));
+
+      // Keep an explicitly stated employer appeal as a separate identity.  It
+      // is never allowed to reuse the employee's underlying request text.
+      if ((appealSource.text || hasAppealClaimMention)
+        && appealSource.text !== primarySource.text
+        && claimantMetadata.claimantRole !== 'employer') {
+        const appealClaimId = `claim_${claims.length + 1}`;
+        const appealClaimantId = this.findPartyId(parties, 'employer', ['appellant', 'plaintiff', 'applicant']);
+        claims.push({
+          ...claimRecord,
+          id: appealClaimId,
+          claimant: 'employer',
+          claimantRole: 'employer',
+          claimantPartyId: appealClaimantId,
+          proceduralBasis: 'appeal_request',
+          claimSourceKind: 'appeal_request',
+          claimSourceField: appealSource.field,
+          sourceText: appealSource.text,
+          requestedAmount: appealSource.text ? AmountResolver.extractAmountNearAliases(appealSource.text, pat.keywords) : undefined,
+          awardedAmount: undefined,
+          supportStatus: 'unclear',
+          judgmentItems: [],
+        });
+      }
     }
 
     if (claims.length === 0) {
@@ -894,6 +1063,7 @@ export class LaborInfoParserAdapter {
       );
       const hasApplicantSupport = applicantActions.some((item) => item.action === 'support');
       const hasApplicantReject = applicantActions.some((item) => item.action === 'reject');
+      const proceduralSource = this.findProceduralRequestSource(text);
       claims.push({
         id: 'claim_1',
         claimName: '劳动争议综合请求 (报酬/补偿)',
@@ -909,13 +1079,16 @@ export class LaborInfoParserAdapter {
             : hasApplicantReject
               ? 'not_supported'
               : 'unclear',
-        sourceText: this.findProceduralRequestSource(text),
+        sourceText: proceduralSource,
+        claimSourceKind: proceduralSource ? (/上诉/.test(proceduralSource) ? 'appeal_request' : 'inferred') : 'unknown',
+        claimSourceField: proceduralSource ? 'fbqw' : 'unknown',
       });
     }
 
     // 上诉请求是独立的程序性请求；不得把“驳回上诉”当作劳动者实体请求的驳回。
     if (/上诉人|上诉请求/.test(text) && !claims.some((claim) => claim.proceduralBasis === 'appeal_request')) {
       const appealAction = judgmentActions.find((item) => item.targetPartyRole === 'appellant' && item.action === 'reject');
+      const proceduralSource = this.findProceduralRequestSource(text);
       claims.push({
         id: `claim_${claims.length + 1}`,
         claimName: '上诉请求（撤销原判）',
@@ -925,7 +1098,9 @@ export class LaborInfoParserAdapter {
         claimantPartyId: this.findPartyId(parties, parties.applicantRole, ['appellant', 'plaintiff', 'applicant']),
         proceduralBasis: 'appeal_request',
         supportStatus: appealAction ? 'not_supported' : 'unclear',
-        sourceText: this.findProceduralRequestSource(text),
+        sourceText: proceduralSource,
+        claimSourceKind: proceduralSource ? 'appeal_request' : 'unknown',
+        claimSourceField: proceduralSource ? 'fbqw' : 'unknown',
         judgmentItems: appealAction ? [appealAction] : [],
       });
     }
@@ -1064,7 +1239,7 @@ export class LaborInfoParserAdapter {
 
         // 只有主文片段明确出现请求别名时才绑定 claim；“驳回原告”等通用措辞保持无具体 claim。
         const matchedPattern = claimPatterns.find((pat) =>
-          pat.keywords.some((keyword) => sourceText.includes(keyword))
+          this.matchesClaimPattern(sourceText, pat)
           || (pat.name === '劳动关系解除确认' && /确认[^。；，,]*(?:劳动关系|劳动合同关系)(?:于[^。；，,]*)?(?:已经|已)?解除/.test(sourceText))
         );
 
@@ -1116,16 +1291,235 @@ export class LaborInfoParserAdapter {
       未签书面劳动合同二倍工资差额: 'double_wage_difference',
       '拖欠/未付劳动报酬': 'unpaid_remuneration',
       劳动关系解除确认: 'employment_termination_confirmation',
+      一次性伤残补助金: 'disability_allowance',
+      一次性工伤医疗补助金: 'work_injury_medical_subsidy',
+      一次性伤残就业补助金: 'disability_employment_subsidy',
+      劳动能力鉴定费: 'labor_capacity_assessment_fee',
+      工伤医疗费: 'work_injury_medical_expense',
+      停工留薪期待遇: 'work_injury_allowance',
+      护理费: 'nursing_fee',
+      住院伙食补助费: 'hospital_food_subsidy',
+      交通食宿费: 'transportation_accommodation_fee',
     };
     return types[claimName] || claimName;
   }
 
-  private static findClaimSourceText(text: string, decisionText: string, aliases: string[]): string {
-    const decisionIndex = decisionText ? text.indexOf(decisionText) : -1;
+  private static matchesClaimPattern(text: string, pattern: ClaimPatternDefinition): boolean {
+    const aliases = pattern.keywords.filter((keyword) => text.includes(keyword));
+    if (aliases.length === 0) return false;
+    if (!pattern.contextKeywords?.length) return true;
+
+    return this.hasClaimContext(text, aliases, pattern.contextKeywords);
+  }
+
+  private static hasClaimContext(text: string, aliases: string[], contextKeywords: string[]): boolean {
+    // Context guards apply to every alias occurrence, so generic terms such as
+    // “鉴定费” and “医疗费” cannot create work-injury claims on their own.
+    return aliases.some((alias) => {
+      let start = text.indexOf(alias);
+      while (start >= 0) {
+        const windowStart = Math.max(0, start - 100);
+        const windowEnd = Math.min(text.length, start + alias.length + 100);
+        const localContext = text.slice(windowStart, windowEnd);
+        if (contextKeywords.some((keyword) => localContext.includes(keyword))) return true;
+        start = text.indexOf(alias, start + alias.length);
+      }
+      return false;
+    });
+  }
+
+  private static findClaimSourceText(
+    text: string,
+    decisionText: string,
+    aliases: string[],
+    sections: {
+      applicantArgs?: string;
+      respondentArgs?: string;
+      requestSourceText?: string;
+      requestSourceField?: LaborInfoClaimItem['claimSourceField'];
+    } = {},
+    contextKeywords: string[] = [],
+  ): ClaimSourceResolution {
+    const reasoningMarkers = /本院认为|法院认为|经审理查明|本院查明|本院认定|争议焦点|裁判理由|裁判主文|裁判结果|判决如下|裁决如下|本院不予支持|不予支持|不予采纳/;
+    const candidateSections: Array<{ text?: string; field: LaborInfoClaimItem['claimSourceField']; kind: LaborInfoClaimItem['claimSourceKind'] }> = [
+      { text: sections.requestSourceText, field: sections.requestSourceField || 'ssjl', kind: 'litigation_request' },
+      { text: sections.applicantArgs, field: 'fbqw', kind: /上诉请求|上诉人/.test(sections.applicantArgs || '') ? 'appeal_request' : /仲裁请求|申请仲裁/.test(sections.applicantArgs || '') ? 'arbitration_request' : 'litigation_request' },
+      { text: sections.respondentArgs, field: 'fbqw', kind: 'party_statement' },
+    ];
+
+    for (const candidate of candidateSections) {
+      if (!candidate.text?.trim()) continue;
+      const fragments = candidate.text.split(/[。；;\n\r]+/).map((part) => part.trim()).filter(Boolean);
+      const contextMatched = !contextKeywords.length
+        || this.hasClaimContext(candidate.text, aliases, contextKeywords);
+      const matches = fragments.filter((fragment) => aliases.some((alias) => fragment.includes(alias))
+        && contextMatched);
+      const safe = matches.find((fragment) => this.isReliableClaimRequestFragment(fragment, aliases) && !reasoningMarkers.test(fragment));
+      if (safe) return {
+        text: safe,
+        // A mixed applicant section can contain both the employee's original
+        // arbitration request and the employer's appeal argument. Classify
+        // the selected fragment itself, not the whole section heading.
+        kind: /仲裁请求|申请仲裁|仲裁时/.test(safe)
+          ? 'arbitration_request'
+          : /上诉请求|上诉人|撤销原判|改判/.test(safe)
+            ? 'appeal_request'
+            : candidate.kind === 'appeal_request' && /(?:请求|主张|要求)/.test(safe)
+              ? 'appeal_request'
+              : candidate.kind,
+        field: candidate.field,
+      };
+    }
+
+    // Full-text fallback is deliberately conservative: a reasoning/facts
+    // sentence must never become a party request merely because it contains a
+    // claim keyword. Only explicit request language before the disposition is
+    // eligible, and it is marked as inferred provenance.
+    // A dispositive sentence can repeat the request wording; use the final
+    // occurrence so the request-side occurrence is not mistaken for the start
+    // of the judgment section.
+    const decisionIndex = decisionText ? text.lastIndexOf(decisionText) : -1;
     const requestText = decisionIndex >= 0 ? text.slice(0, decisionIndex) : text;
     const fragments = requestText.split(/[。；;\n\r]+/).map((part) => part.trim()).filter(Boolean);
-    const matches = fragments.filter((fragment) => aliases.some((alias) => fragment.includes(alias)));
-    return matches.find((fragment) => /请求|主张|要求|反诉|诉请/.test(fragment)) || matches[0] || '';
+    const contextMatched = !contextKeywords.length
+      || this.hasClaimContext(requestText, aliases, contextKeywords);
+    const matches = fragments.filter((fragment) => aliases.some((alias) => fragment.includes(alias))
+      && contextMatched);
+    const safe = matches.find((fragment) => this.isReliableClaimRequestFragment(fragment, aliases) && !reasoningMarkers.test(fragment));
+    return safe
+      ? { text: safe, kind: /仲裁/.test(safe) ? 'arbitration_request' : /上诉/.test(safe) ? 'appeal_request' : 'litigation_request', field: 'fbqw' }
+      : { text: '', kind: 'unknown', field: 'unknown' };
+  }
+
+  /**
+   * Locate a substantive request made by the appellant.  This is deliberately
+   * limited to explicit request fragments; a general “驳回上诉，维持原判”
+   * disposition never creates an employer claim by itself.
+   */
+  private static hasExplicitAppealClaimMention(
+    text: string,
+    aliases: string[],
+    parties?: PartyRecognitionResult,
+  ): boolean {
+    const fragments = text.split(/[。；;\n\r]+/).map((part) => part.trim()).filter(Boolean);
+    return fragments.some((fragment) =>
+      /上诉人[^。；;\n\r]{0,60}(?:主张|认为|请求|要求|改判|撤销原判)/.test(fragment)
+      && aliases.some((alias) => fragment.includes(alias))
+      && (!parties?.employerParty || fragment.includes(parties.employerParty))
+      && !/本院认为|原审判决认定|缺乏理据|不予支持/.test(fragment),
+    );
+  }
+
+  private static findAppealClaimSourceText(
+    applicantArgs: string | undefined,
+    aliases: string[],
+    contextKeywords: string[] = [],
+    parties?: PartyRecognitionResult,
+    fallbackText?: string,
+  ): ClaimSourceResolution {
+    const candidateText = applicantArgs?.trim() || fallbackText?.trim();
+    if (!candidateText) return { text: '', kind: 'unknown', field: 'unknown' };
+    const fragments = candidateText.split(/[。；;\n\r]+/).map((part) => part.trim()).filter(Boolean);
+    const contextMatched = !contextKeywords.length || this.hasClaimContext(candidateText, aliases, contextKeywords);
+    const candidates = fragments.filter((fragment) =>
+      /上诉请求|上诉人[^。；;\n\r]{0,60}(?:请求|主张|要求|改判|撤销原判)/.test(fragment)
+      && aliases.some((alias) => fragment.includes(alias))
+      && contextMatched
+      && this.isReliableClaimRequestFragment(fragment, aliases),
+    );
+    const safe = candidates.find((fragment) =>
+      parties?.employerParty
+      && fragment.includes(parties.employerParty)
+      && !fragment.includes(parties.employeeParty || ''),
+    ) || candidates[0];
+    return safe ? { text: safe, kind: 'appeal_request', field: 'fbqw' } : { text: '', kind: 'unknown', field: 'unknown' };
+  }
+
+  /**
+   * When a mixed second-instance section was selected as the first source,
+   * recover the underlying employee request only from an explicit structured
+   * request section or a non-appeal request fragment.  No text is rewritten.
+   */
+  private static findUnderlyingClaimSourceText(
+    text: string,
+    decisionText: string,
+    aliases: string[],
+    sections: {
+      requestSourceText?: string;
+      requestSourceField?: LaborInfoClaimItem['claimSourceField'];
+    },
+    contextKeywords: string[] = [],
+  ): ClaimSourceResolution {
+    const structured = sections.requestSourceText?.trim();
+    if (structured) {
+      const fragments = structured.split(/[。；;\n\r]+/).map((part) => part.trim()).filter(Boolean);
+      const contextMatched = !contextKeywords.length || this.hasClaimContext(structured, aliases, contextKeywords);
+      const safe = fragments.find((fragment) =>
+        aliases.some((alias) => fragment.includes(alias))
+        && !/上诉人|上诉请求|撤销原判|改判/.test(fragment)
+        && contextMatched
+        && this.isReliableClaimRequestFragment(fragment, aliases),
+      );
+      if (safe) return {
+        text: safe,
+        kind: /仲裁请求|申请仲裁|仲裁时/.test(safe) ? 'arbitration_request' : 'litigation_request',
+        field: sections.requestSourceField || 'ssjl',
+      };
+    }
+
+    const requestText = this.textBeforeDisposition(text, decisionText);
+    const fragments = requestText.split(/[。；;\n\r]+/).map((part) => part.trim()).filter(Boolean);
+    const contextMatched = !contextKeywords.length || this.hasClaimContext(requestText, aliases, contextKeywords);
+    const safe = fragments.find((fragment) =>
+      aliases.some((alias) => fragment.includes(alias))
+      && !/上诉人|上诉请求|撤销原判|改判/.test(fragment)
+      && contextMatched
+      && this.isReliableClaimRequestFragment(fragment, aliases),
+    );
+    return safe
+      ? { text: safe, kind: /仲裁请求|申请仲裁|仲裁时/.test(safe) ? 'arbitration_request' : 'litigation_request', field: 'fbqw' }
+      : { text: '', kind: 'unknown', field: 'unknown' };
+  }
+
+  /** Keep a typed claim when it appears outside the disposition, even if its
+   * request sentence cannot be located. A disposition-only mention must not
+   * manufacture a claim. */
+  private static textBeforeDisposition(text: string, decisionText: string): string {
+    const decisionIndex = decisionText ? text.lastIndexOf(decisionText) : -1;
+    const headingMatch = text.match(/(?:裁判主文|裁判结果|判决如下|裁决如下|裁定如下)[：:\s]*/);
+    const headingIndex = headingMatch?.index ?? -1;
+    const boundary = [decisionIndex, headingIndex].filter((index) => index >= 0);
+    if (boundary.length === 0) return text;
+    return text.slice(0, Math.min(...boundary));
+  }
+
+  /**
+   * Only explicit request-intent text is allowed to become claimText.
+   * A claim keyword in a defence, argument, or court evaluation is evidence,
+   * not a party request. This guard intentionally errs toward an empty source.
+   */
+  private static isReliableClaimRequestFragment(fragment: string, aliases: string[] = []): boolean {
+    const normalized = fragment.replace(/\s+/g, ' ').trim();
+    if (!normalized) return false;
+
+    const defenceOrEvaluation = /辩称|答辩称|答辩|抗辩|没有主张|未主张|不主张|认为对方请求无依据|请求无依据|请求不成立|关于(?:原告|被告|对方)[^。；;\n]{0,80}(?:主张|请求)|关于[^。；;\n]{0,80}(?:主张|请求)(?:[^。；;\n]{0,30}(?:不予|无依据|不成立|意见|辩称|答辩))|对(?:原告|被告|对方)?[^。；;\n]{0,50}(?:诉讼请求|请求)(?:[^。；;\n]{0,30}(?:发表意见|辩称|答辩))|(?:仲裁|本院|法院)(?:认定|裁决|判决|裁定|结论)|本院不予支持|不予支持|不予采纳/;
+    if (defenceOrEvaluation.test(normalized)) return false;
+
+    // Do not accept bare “主张/请求/要求” mentions. They must express an
+    // actionable request or an explicit request-section heading.
+    const requestIntent = /(?:诉讼请求|上诉请求|仲裁请求|向[^。；;\n]{0,40}提出(?:诉讼|上诉|仲裁)?请求|请求(?:判令|裁决|支付|确认|撤销|解除|补缴|赔偿|给付)|要求(?:支付|确认|撤销|解除|补缴|赔偿|给付)|主张(?:支付|确认|撤销|解除|补缴|赔偿|给付)|(?:请求\s*)?判令(?:[^。；;\n]{0,30}(?:支付|确认|撤销|解除|补缴|赔偿|给付)))/;
+    if (requestIntent.test(normalized)) return true;
+
+    // Section segmentation may intentionally remove the heading, leaving a
+    // compact payload such as “加班工资30000元”.  Accept it only when the
+    // same fragment still has an explicit request verb immediately before the
+    // known claim alias; arbitrary argument text remains rejected.
+    return aliases.some((alias) => {
+      const aliasIndex = normalized.indexOf(alias);
+      if (aliasIndex < 0) return false;
+      const prefix = normalized.slice(0, aliasIndex);
+      return /(?:诉讼请求|上诉请求|仲裁请求|反诉请求|请求|主张|要求)[^。；;\n]{0,40}$/.test(prefix);
+    });
   }
 
   private static resolveClaimantMetadata(
@@ -1136,12 +1530,16 @@ export class LaborInfoParserAdapter {
     claimantPartyId?: string;
     proceduralBasis: ClaimProceduralBasis;
   } {
-    const isCounterclaim = /(?:^|[。；;\n\r])\s*(?:被告|被申请人|被上诉人)[^。；;\n\r]*(?:反诉|请求|主张)/.test(sourceText);
+    const isCounterclaim = /(?:反诉原告|反诉人|反诉请求)/.test(sourceText)
+      || /(?:^|[。；;\n\r])\s*(?:被告|被申请人|被上诉人)[^。；;\n\r]*(?:反诉|请求|主张)/.test(sourceText);
     const isAppealRequest = /上诉人|上诉请求|撤销原判/.test(sourceText);
     const isApplication = /申请人/.test(sourceText) && !isCounterclaim;
     let claimantRole: LaborRole = parties.applicantRole;
     let proceduralBasis: ClaimProceduralBasis = 'original_claim';
     let targetRoles: CaseParty['proceduralRoles'] = ['plaintiff'];
+
+    const mentionsEmployee = Boolean(parties.employeeParty && sourceText.includes(parties.employeeParty));
+    const mentionsEmployer = Boolean(parties.employerParty && sourceText.includes(parties.employerParty));
 
     if (isCounterclaim) {
       claimantRole = parties.applicantRole === 'employee'
@@ -1152,11 +1550,24 @@ export class LaborInfoParserAdapter {
       proceduralBasis = 'counterclaim';
       targetRoles = ['counterclaimant', 'defendant', 'respondent', 'appellee'];
     } else if (isAppealRequest) {
+      // A document may list both parties as appellants.  Bind the appeal to
+      // the named appellant in this fragment rather than the document-level
+      // applicant, which is only a case-level default.
+      if (mentionsEmployee !== mentionsEmployer) {
+        claimantRole = mentionsEmployee ? 'employee' : 'employer';
+      }
       proceduralBasis = 'appeal_request';
       targetRoles = ['appellant'];
     } else if (isApplication) {
       proceduralBasis = 'application';
       targetRoles = ['applicant'];
+    }
+
+    if (!isCounterclaim && !isAppealRequest && mentionsEmployee !== mentionsEmployer) {
+      // A structured original-request fragment can name the employee even
+      // when the document-level applicant is the employer.  Keep the request
+      // perspective independent from that case-level default.
+      claimantRole = mentionsEmployee ? 'employee' : 'employer';
     }
 
     return {
@@ -1171,15 +1582,21 @@ export class LaborInfoParserAdapter {
     laborRole: LaborRole,
     proceduralRoles: CaseParty['proceduralRoles'],
   ): string | undefined {
-    return parties.parties?.find((party) =>
+    const roleAndProcedureMatch = parties.parties?.find((party) =>
       party.laborRole === laborRole
       && proceduralRoles.some((role) => party.proceduralRoles.includes(role))
     )?.id;
+    // Some judgments assign the same procedural label to both appeal parties
+    // (or omit a counterclaim label in a short excerpt).  The labor-role
+    // fallback preserves claimant identity without inventing a procedural
+    // role; the existing role metadata remains the source of context.
+    return roleAndProcedureMatch || parties.parties?.find((party) => party.laborRole === laborRole)?.id;
   }
 
   private static findProceduralRequestSource(text: string): string {
     return text.split(/[。；;\n\r]+/).find((fragment) =>
       /上诉人|上诉请求|撤销原判|申请人|反诉/.test(fragment)
+      && this.isReliableClaimRequestFragment(fragment)
     )?.trim() || '';
   }
 

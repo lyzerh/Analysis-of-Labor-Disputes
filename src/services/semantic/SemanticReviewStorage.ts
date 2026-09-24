@@ -29,6 +29,10 @@ function isPersistedSemanticReviewItem(value: unknown): value is SemanticReviewI
   } catch {
     return false;
   }
+  if (item.candidateStatus !== undefined
+    && item.candidateStatus !== 'ai_candidate'
+    && item.candidateStatus !== 'no_candidate') return false;
+  if (item.technicalFailureHistory !== undefined && !Array.isArray(item.technicalFailureHistory)) return false;
   return item.context === undefined || typeof item.context === 'string';
 }
 

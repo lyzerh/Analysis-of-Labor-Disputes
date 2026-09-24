@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
   filterAnalysisCaseRecords,
+  getAvailableDisputeTypes,
   normalizeCaseLevel,
   normalizeYearFilter,
 } from '../../src/services/case/CaseLibraryFilter';
@@ -14,6 +15,8 @@ import {
   createCaseListScopeLabel,
   createReviewQueueScopeLabel,
 } from '../../src/services/presentation/CaseAnalysisScopePresentation';
+import { formatRateWithDenominator } from '../../src/services/presentation/MetricPresentation';
+import { createCaseLibraryCoverage } from '../../src/services/presentation/CaseLibraryCoverage';
 
 const records = [
   analysisRecord('gz-2023-first', 'supported', { city: '广州', year: 2023, caseLevel: '一审' }),
@@ -23,6 +26,11 @@ const records = [
 ];
 
 describe('Case Library filter contract', () => {
+  it('does not present an empty denominator as 0%', () => {
+    expect(formatRateWithDenominator(0, 0, 0)).toBe('当前样本不足');
+    expect(formatRateWithDenominator(50, 1, 2)).toBe('50% (1/2)');
+  });
+
   it('normalizes selector year strings to the numeric domain type', () => {
     expect(normalizeYearFilter('2023')).toBe(2023);
     expect(normalizeYearFilter('all')).toBeNull();
@@ -70,6 +78,86 @@ describe('Case Library filter contract', () => {
       .toEqual(['gz-2023-second']);
     expect(filterAnalysisCaseRecords(records, { city: '广州', year: '2023', caseLevel: 'first' }).map((record) => record.caseId))
       .toEqual(['gz-2023-first']);
+  });
+
+  it('builds dispute options from current and legacy record fields, excluding blanks and duplicates', () => {
+    const source = [
+      analysisRecord('current', 'supported', { disputeType: ['加班工资', '经济补偿金'] }),
+      analysisRecord('legacy', 'supported', { disputeType: [], disputeTypes: ['经济补偿金', '未休年休假工资'] } as any),
+      analysisRecord('blank', 'supported', { disputeType: [''] }),
+    ];
+    expect(getAvailableDisputeTypes(source)).toEqual(['加班工资', '经济补偿金', '未休年休假工资']);
+    expect(filterAnalysisCaseRecords(source, { dispute: '未休年休假工资' }).map((record) => record.caseId))
+      .toEqual(['legacy']);
+  });
+
+  it('builds database-wide coverage from normalized cities and real years', () => {
+    const source = [
+      analysisRecord('foshan-1', 'supported', { city: '佛山', year: 2020 }),
+      analysisRecord('foshan-2', 'supported', { city: '佛山市', year: 2020 }),
+      analysisRecord('guangzhou-1', 'supported', { city: '广州', year: 2023 }),
+      analysisRecord('missing-city-year', 'supported', { city: '', year: null }),
+    ];
+    expect(createCaseLibraryCoverage(source)).toEqual({
+      total: 4,
+      yearLabel: '2020 – 2023',
+      cityCount: 2,
+    });
+  });
+
+  it('formats a single year and missing year without inventing a range', () => {
+    expect(createCaseLibraryCoverage([
+      analysisRecord('single-year', 'supported', { city: '佛山', year: 2020 }),
+    ])).toMatchObject({ yearLabel: '2020', cityCount: 1 });
+    expect(createCaseLibraryCoverage([
+      analysisRecord('no-year', 'supported', { city: null, year: null }),
+    ])).toMatchObject({ yearLabel: '—', cityCount: 0 });
+  });
+
+  it('keeps coverage independent from the browsing filter surface', () => {
+    const librarySource = readFileSync(new URL('../../src/components/LaborAnalysisCaseLibrary.tsx', import.meta.url), 'utf8');
+    expect(librarySource).toMatch(/createCaseLibraryCoverage\(Array\.isArray\(records\) \? records : \[\]\)/);
+    expect(librarySource).not.toMatch(/广州案例数|深圳案例数|东莞案例数/);
+    expect(librarySource).not.toMatch(/stats\.gz|stats\.sz|stats\.dg/);
+  });
+
+  it('supports case-local search by title, party name, and caseId', () => {
+    const target = analysisRecord('case-li-chengyun', 'supported', {
+      title: '李成云与关兴教育培训中心工伤保险待遇纠纷',
+      employeeParty: '李成云',
+      employerParty: '上海浦东新区关兴教育培训中心',
+    });
+    const other = analysisRecord('case-other', 'supported', {
+      title: '其他劳动争议',
+      employeeParty: '林振兴',
+      employerParty: '其他公司',
+    });
+    const source = [target, other];
+
+    expect(filterAnalysisCaseRecords(source, { keyword: '李成云' }).map((record) => record.caseId))
+      .toEqual(['case-li-chengyun']);
+    expect(filterAnalysisCaseRecords(source, { keyword: 'CASE-LI' }).map((record) => record.caseId))
+      .toEqual(['case-li-chengyun']);
+    expect(filterAnalysisCaseRecords(source, { keyword: '关兴教育' }).map((record) => record.caseId))
+      .toEqual(['case-li-chengyun']);
+    expect(filterAnalysisCaseRecords(source, { keyword: '不存在的案件' })).toEqual([]);
+  });
+
+  it('exposes a minimal local-only search input in the case library', () => {
+    const librarySource = readFileSync(new URL('../../src/components/LaborAnalysisCaseLibrary.tsx', import.meta.url), 'utf8');
+    expect(librarySource).toContain('搜索案件名称 / 当事人 / Case ID');
+    expect(librarySource).toContain('setKeyword');
+    expect(librarySource).not.toContain('fetch(');
+  });
+
+  it('exposes explicit Gold add-case empty states instead of an empty dropdown', () => {
+    const goldSource = readFileSync(new URL('../../src/components/GoldAnnotationWorkspace.tsx', import.meta.url), 'utf8');
+    expect(goldSource).toContain('暂无可添加案例');
+    expect(goldSource).toContain('本地案例库暂无案例');
+    expect(goldSource).toContain('当前案例库中的 ${records.length} 个案例均已加入此 Gold Set');
+    expect(goldSource).toMatch(/disabled[^>]*><option value="">\{addCaseAvailability/);
+    expect(goldSource).toContain('getAvailableGoldCaseRecords');
+    expect(goldSource).toContain('请先创建一个 Gold Set。');
   });
 });
 
@@ -151,8 +239,9 @@ describe('Review queue interaction and analysis context contract', () => {
   it('makes review items actionable and exposes reason plus typed evidence fields', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     const workspace = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
+    const clueWorkspace = readFileSync(new URL('../../src/components/DiagnosticClueWorkspace.tsx', import.meta.url), 'utf8');
     expect(source).toMatch(/onSelectCase=\{handleReviewItemClick\}/);
-    expect(workspace).toMatch(/onClick=\{\(\) => onSelectCase\(item\)\}/);
+    expect(clueWorkspace).toMatch(/onSelectCase\(item\)/);
     expect(source).toMatch(/outcomeReviewEvidenceFields/);
     expect(source).toMatch(/OutcomeEvidenceFields/);
     expect(source).toMatch(/setSelectedCaseId\(item\.caseId\)/);
@@ -164,10 +253,11 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(source).toMatch(/流水线工作台/);
     expect(workspace).toMatch(/aria-label="分析流水线工作台"/);
     expect(workspace).toMatch(/aria-label="流水线总览"/);
-    expect(workspace).toMatch(/aria-label="裁判结果诊断线索"/);
+    const clueWorkspace = readFileSync(new URL('../../src/components/DiagnosticClueWorkspace.tsx', import.meta.url), 'utf8');
+    expect(clueWorkspace).toMatch(/aria-label="裁判结果诊断线索"/);
     expect(workspace).toMatch(/xl:grid-cols-2/);
-    expect(workspace).toMatch(/当前结果：\{getOutcomePresentation\(item\.outcome\)\.label\}/);
-    expect(workspace).toMatch(/line-clamp-2/);
+    expect(clueWorkspace).toMatch(/当前：\{outcome\.label\}/);
+    expect(clueWorkspace).toMatch(/line-clamp-2/);
     expect(workspace).toMatch(/SemanticReviewWorkspace/);
   });
 
@@ -275,8 +365,9 @@ describe('Review queue interaction and analysis context contract', () => {
 
   it('keeps the context bar user-facing while retaining compact debug identifiers', () => {
     const contextSource = readFileSync(new URL('../../src/components/AnalysisContextBar.tsx', import.meta.url), 'utf8');
-    expect(contextSource).toMatch(/当前分析：\{researchModeLabel\(run\.mode\)\}/);
-    expect(contextSource).toMatch(/范围：本次分析集/);
+    expect(contextSource).toMatch(/分析模式：\{researchModeLabel\(run\.mode\)\}/);
+    expect(contextSource).toMatch(/当前分析集/);
+    expect(contextSource).toMatch(/个案例/);
     expect(contextSource).toMatch(/AnalysisRun：\{shortResearchId\(run\.id\)\}/);
     expect(contextSource).toMatch(/统计口径：\{scopeLabel\}/);
   });

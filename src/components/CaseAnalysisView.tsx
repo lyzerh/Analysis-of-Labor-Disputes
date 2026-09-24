@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { AnalysisCaseRecord, CaseParty, OutcomeResolutionDiagnostic, OutcomeReviewItem, ProceduralRole } from '../types';
-import { Database, Search, FileText, Scale, Target, ShieldAlert, BookOpen, AlertCircle, X } from 'lucide-react';
+import { Search, FileText, AlertCircle, X } from 'lucide-react';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { getCaseEntityOutcomeLabel, getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
@@ -16,7 +16,18 @@ import { createCaseAnalysisScopeNotice, createCaseListScopeLabel } from '../serv
 import { PipelineWorkspace } from './PipelineWorkspace';
 import { CollapsibleText } from './CollapsibleText';
 import { cleanPipelineDiagnosticMessage } from '../services/presentation/PipelineStagePresentation';
-import { runSingleCaseSemanticAnalysis, type SingleCaseSemanticRunResult } from '../services/semantic/LlmRuntimeService';
+import { applyPersistedSemanticTechnicalFailure, applySingleCaseSemanticRunState, buildSemanticTask, runSingleCaseSemanticAnalysis, type SingleCaseSemanticRunResult } from '../services/semantic/LlmRuntimeService';
+import { readSemanticReviewItems } from '../services/semantic/SemanticReviewStorage';
+import {
+  createTechnicalManualReviewItem,
+  enqueueSemanticReviewItem,
+  type SemanticReviewItem,
+} from '../services/semantic/SemanticReviewQueue';
+import { appendSemanticTechnicalFailure, failureStageForCode, latestSemanticTechnicalFailure, readSemanticTechnicalFailures, semanticTechnicalFailureHistory } from '../services/semantic/SemanticTechnicalFailureStorage';
+import { AnalysisRunService } from '../services/analysis/AnalysisRunService';
+import { db } from '../db';
+import { exportCompetitionValidationSnapshot } from '../services/validation/CompetitionValidationSnapshot';
+import { addCaseToGoldSet, getActiveGoldSet } from '../services/gold/GoldAnnotationStorage';
 
 const proceduralRoleLabels: Record<ProceduralRole, string> = {
   plaintiff: '原告',
@@ -47,6 +58,18 @@ interface CaseAnalysisViewProps {
 type CaseAnalysisSubview = 'browse' | 'pipeline';
 
 const researchAnalysisService = new ResearchAnalysisService();
+
+const rehydrateTechnicalFailureStates = (nextRecords: AnalysisCaseRecord[]): AnalysisCaseRecord[] => {
+  const latestByCaseId = new Map<string, ReturnType<typeof latestSemanticTechnicalFailure>>();
+  readSemanticTechnicalFailures().forEach((failure) => {
+    const previous = latestByCaseId.get(failure.caseId);
+    if (!previous || previous.timestamp.localeCompare(failure.timestamp) <= 0) latestByCaseId.set(failure.caseId, failure);
+  });
+  return nextRecords.map((record) => {
+    const failure = latestByCaseId.get(record.caseId);
+    return failure ? applyPersistedSemanticTechnicalFailure(record, failure) : record;
+  });
+};
 
 const OutcomeEvidenceFields: React.FC<{
   item: ReturnType<typeof buildOutcomeReviewQueue>[number];
@@ -85,13 +108,15 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
   const [analysisContext, setAnalysisContext] = useState<ResearchAnalysisContext | null>(null);
   const [activeSubview, setActiveSubview] = useState<CaseAnalysisSubview>('browse');
   const [selectedReviewItem, setSelectedReviewItem] = useState<OutcomeReviewItem | null>(null);
+  const [semanticReviewItems, setSemanticReviewItems] = useState<SemanticReviewItem[]>(() => readSemanticReviewItems());
+  const [goldMessage, setGoldMessage] = useState('');
 
   // ② 所有 effect
   useEffect(() => {
     let cancelled = false;
 
     if (Array.isArray(initialRecords) && initialRecords.length > 0) {
-      setRecords(initialRecords);
+      setRecords(rehydrateTechnicalFailureStates(initialRecords));
       setAnalysisContext(null);
       setLoading(false);
       return;
@@ -104,14 +129,14 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
           const context = await researchAnalysisService.loadResearchAnalysisContext(initialAnalysisRunId);
           if (!cancelled) {
             setAnalysisContext(context);
-            setRecords(context.records.filter((record) => record && record.isIncludedInAnalysisSet));
+            setRecords(rehydrateTechnicalFailureStates(context.records.filter((record) => record && record.isIncludedInAnalysisSet)));
           }
           return;
         }
         setAnalysisContext(null);
         const recs = await LaborAnalysisPipeline.getAllAnalysisRecords(false);
         if (!cancelled) {
-          setRecords((Array.isArray(recs) ? recs : []).filter(r => r && r.isIncludedInAnalysisSet));
+          setRecords(rehydrateTechnicalFailureStates((Array.isArray(recs) ? recs : []).filter(r => r && r.isIncludedInAnalysisSet)));
         }
       } catch (err) {
         if (!cancelled) {
@@ -154,6 +179,13 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
     isFiltered: hasCaseFilter,
   });
 
+  const addSelectedCaseToGoldSet = (caseId: string) => {
+    const activeGoldSet = getActiveGoldSet();
+    setGoldMessage(activeGoldSet
+      ? (addCaseToGoldSet(activeGoldSet.id, caseId) ? '已加入当前 Gold Set' : '该案例已在 Gold Set 中')
+      : '请先在 Gold 标注页面创建 Gold Set');
+  };
+
   // Handle auto-selection when filtered list changes
   useEffect(() => {
     if (!filteredRecords || filteredRecords.length === 0) {
@@ -195,9 +227,69 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
     setActiveSubview('browse');
   };
 
+  const handlePipelineRecordClick = (record: AnalysisCaseRecord) => {
+    setKeyword('');
+    setSelectedCaseId(record.caseId);
+    setSelectedReviewItem(null);
+    setActiveSubview('browse');
+  };
+
   const handleRunSingleCase = async (record: AnalysisCaseRecord): Promise<SingleCaseSemanticRunResult> => {
     const rawDocument = await LaborAnalysisPipeline.getRawDocumentForRecord(record);
-    return runSingleCaseSemanticAnalysis(record, rawDocument);
+    const result = await runSingleCaseSemanticAnalysis(record, rawDocument);
+    setRecords((current) => current.map((currentRecord) => (
+      currentRecord.caseId === record.caseId
+        ? applySingleCaseSemanticRunState(currentRecord, result)
+        : currentRecord
+    )));
+    setSemanticReviewItems(readSemanticReviewItems());
+    return result;
+  };
+
+  const handleOpenManualReview = async (record: AnalysisCaseRecord): Promise<void> => {
+    const rawDocument = await LaborAnalysisPipeline.getRawDocumentForRecord(record);
+    if (!rawDocument) return;
+    let failure = latestSemanticTechnicalFailure(record.caseId);
+    if (!failure && record.semanticResolutionErrorCode) {
+      failure = appendSemanticTechnicalFailure({
+        caseId: record.caseId,
+        failureStage: failureStageForCode(record.semanticResolutionErrorCode),
+        failureCode: record.semanticResolutionErrorCode,
+        errorSummary: '历史技术失败记录未提供详细摘要。',
+        timestamp: new Date().toISOString(),
+      });
+    }
+    if (!failure) return;
+    const item = createTechnicalManualReviewItem({
+      task: buildSemanticTask(record, rawDocument),
+      caseTitle: record.title,
+      court: record.court,
+      date: record.date,
+      technicalFailureHistory: semanticTechnicalFailureHistory(record.caseId),
+      createdAt: new Date().toISOString(),
+    });
+    enqueueSemanticReviewItem(item);
+    setSemanticReviewItems(readSemanticReviewItems());
+    setActiveSubview('pipeline');
+  };
+
+  const handleExportValidationSnapshot = async () => {
+    const [allRecords, rawDocuments, analysisRuns] = await Promise.all([
+      LaborAnalysisPipeline.getAllAnalysisRecords(false),
+      db.rawDocuments.count(),
+      new AnalysisRunService().listAnalysisRuns(),
+    ]);
+    return exportCompetitionValidationSnapshot({
+      records,
+      allRecords,
+      reviewItems: readSemanticReviewItems(),
+      analysisRuns,
+      selectedAnalysisRunId: analysisContext?.analysisRun.id,
+      librarySummary: {
+        totalCases: allRecords.length,
+        rawDocuments,
+      },
+    });
   };
 
 
@@ -215,7 +307,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-slate-100/60 shadow-sm" data-testid="case-analysis-workspace">
       <div className="mx-4 mt-4 shrink-0 space-y-2">
         <div role="tablist" aria-label="案例分析视图" className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs">
           <button
@@ -254,13 +346,13 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
       </div>
 
       {activeSubview === 'pipeline' && (
-        <PipelineWorkspace records={records} reviewItems={reviewQueue} onSelectCase={handleReviewItemClick} hasAnalysisRun={hasAnalysisRun} onRunSingleCase={handleRunSingleCase} />
+        <PipelineWorkspace records={records} reviewItems={reviewQueue} onSelectCase={handleReviewItemClick} onSelectRecord={handlePipelineRecordClick} hasAnalysisRun={hasAnalysisRun} onRunSingleCase={handleRunSingleCase} onOpenManualReview={handleOpenManualReview} semanticReviewItems={semanticReviewItems} onSemanticReviewItemsChange={setSemanticReviewItems} onExportValidationSnapshot={handleExportValidationSnapshot} />
       )}
 
       {activeSubview === 'browse' && selectedReviewItem && selectedCase && selectedReviewItem.caseId === selectedCase.caseId && (
         <div className="mx-4 mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-950">
           <div className="font-semibold">已定位到当前案例的诊断线索</div>
-          <div className="mt-1">原因：{cleanPipelineDiagnosticMessage(selectedReviewItem.reasonMessage, (selectedReviewItem.reasonCode && outcomeReviewReasonLabels[selectedReviewItem.reasonCode]) || '待复核')} {selectedReviewItem.reasonCode && <span className="text-indigo-700/70">（{selectedReviewItem.reasonCode}）</span>}</div>
+          <div className="mt-1">原因：{cleanPipelineDiagnosticMessage(selectedReviewItem.reasonMessage, (selectedReviewItem.reasonCode && outcomeReviewReasonLabels[selectedReviewItem.reasonCode]) || '待复核')}</div>
           <details className="mt-1">
             <summary className="cursor-pointer text-indigo-700">展开诊断证据片段</summary>
             <OutcomeEvidenceFields item={selectedReviewItem} />
@@ -353,9 +445,11 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
               const record = selectedCase;
               return (
               <div className="space-y-6 h-full">
-                  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm mb-4">
+                  <div className="bg-white border border-slate-200 rounded-[24px] p-6 shadow-sm mb-4">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-[10px] rounded font-bold">当前案例</span>
+                      <button type="button" onClick={() => addSelectedCaseToGoldSet(record.caseId)} className="px-2 py-1 border border-indigo-200 text-indigo-700 text-[10px] rounded font-semibold hover:bg-indigo-50">加入 Gold Set</button>
+                      {goldMessage && <span className="text-[10px] text-emerald-700">{goldMessage}</span>}
                     </div>
                     <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4">
                       {record.title || record.caseNumber}
@@ -373,10 +467,9 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-3">
                         <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                          <BookOpen className="w-4 h-4 text-blue-600" />
                           基本情况
                         </div>
-                        <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 text-xs space-y-2">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs space-y-2">
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">案号：</span><span className="font-medium text-slate-900">{formatCaseNumber(record.caseNumber)}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">裁判日期：</span><span className="font-medium text-slate-900">{formatCaseDate(record.date)}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">裁判机构：</span><span className="font-medium text-slate-900">{record.arbitrationCommittee || record.court || '未知'}</span></div>
@@ -384,7 +477,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">用人单位：</span><span className="font-medium text-slate-900">{formatPartyName(record.employerParty)}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">审理程序：</span><span className="font-medium text-slate-900">{formatCaseLevel(record.caseLevel)}</span></div>
                         </div>
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-2">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs space-y-2">
                           <div className="font-bold text-slate-800">程序身份映射</div>
                           {record.parties?.length ? record.parties.map((party) => (
                             <div key={party.id} className="flex items-start gap-2">
@@ -399,10 +492,9 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                       
                       <div className="space-y-3">
                         <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                          <Scale className="w-4 h-4 text-purple-600" />
                           裁判结果与要点
                         </div>
-                        {selectedOutcomePresentations && <div className="bg-purple-50/50 p-3 rounded-xl border border-purple-100 text-xs space-y-2">
+                        {selectedOutcomePresentations && <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs space-y-2">
                           <div className="flex"><span className="text-slate-500 min-w-[6rem]">劳动者实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{getCaseEntityOutcomeLabel(record.employeeOutcome)}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[6rem]">用人单位实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{getCaseEntityOutcomeLabel(record.employerOutcome)}</span></div>
                           <div className="flex"><span className="text-slate-500 min-w-[5rem]">争议类型：</span><span className="font-medium text-slate-900">{Array.isArray(record.disputeType) ? record.disputeType.join('、') : (record.disputeType || '未知')}</span></div>
@@ -420,7 +512,6 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                       <div className="space-y-6">
                         <div className="space-y-3">
                           <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            <Target className="w-4 h-4 text-rose-500" />
                             诉求与裁判结果
                           </div>
                           {Array.isArray(record.claims) && record.claims.length > 0 ? (
@@ -440,7 +531,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                                         {ownership.relatedLabel && <span>关联权益：{ownership.relatedLabel}</span>}
                                         {diagnostic?.needsReview && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">待复核</span>}
                                       </div>
-                                      {diagnostic?.reasonMessage ? <span className="block text-amber-700 mt-1">无法确定：{diagnostic.reasonMessage}{diagnostic.reasonCode ? <span className="text-amber-700/70">（{diagnostic.reasonCode}）</span> : null}</span> : null}
+                                      {diagnostic?.reasonMessage ? <span className="block text-amber-700 mt-1">当前语义结果尚未明确：{diagnostic.reasonMessage}</span> : null}
                                       {diagnostic?.needsReview ? (
                                         <details className="mt-1 text-[11px] text-slate-600">
                                           <summary className="cursor-pointer text-indigo-700">展开诊断证据片段</summary>
@@ -471,7 +562,6 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                         
                         <div className="space-y-3">
                           <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                            <ShieldAlert className="w-4 h-4 text-emerald-600" />
                             企业抗辩
                           </div>
                           {Array.isArray(record.employerDefenses) && record.employerDefenses.length > 0 ? (
@@ -492,11 +582,10 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                     
                     <details className="mt-6 pt-6 border-t border-slate-100">
                       <summary className="flex cursor-pointer list-none items-center gap-1.5 font-bold text-slate-800 text-sm">
-                        <FileText className="w-4 h-4 text-indigo-600" />
                         关键证据与法院认定：{(record.evidence || []).length} 条证据｜{record.courtReasoning?.trim() ? '1' : '0'} 条认定理由
                       </summary>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                        <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                        <div className="bg-white border border-slate-200 p-3 rounded-xl">
                           <div className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">关键证据</div>
                           {Array.isArray(record.evidence) && record.evidence.length > 0 ? (
                             <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
@@ -512,7 +601,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                             <div className="text-xs text-slate-400">未识别</div>
                           )}
                         </div>
-                        <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                        <div className="bg-white border border-slate-200 p-3 rounded-xl">
                           <div className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">法院/仲裁委认定理由</div>
                           {typeof record.courtReasoning === 'string' && record.courtReasoning.trim().length > 0 ? (
                             <div className="text-xs text-slate-700 bg-white p-2 border border-slate-100 rounded leading-relaxed">

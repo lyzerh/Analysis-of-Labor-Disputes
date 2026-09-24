@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   auditSemanticResolutionResult,
   DEFAULT_SEMANTIC_RESULT_ADMISSION_THRESHOLD,
+  SEMANTIC_AUTO_ACCEPT_CONFIDENCE,
   type SemanticResolutionResult,
 } from '../../src/services/semantic';
 
@@ -105,8 +106,20 @@ describe('SemanticResult minimal local audit', () => {
       .toContain('required_relationship_missing');
   });
 
-  it('rejects confidence below the admission threshold', () => {
-    const result = validResult({ confidence: 0.89 });
+  it('uses the centralized 0.80 boundary for automatic admission', () => {
+    expect(SEMANTIC_AUTO_ACCEPT_CONFIDENCE).toBe(0.8);
+    expect(DEFAULT_SEMANTIC_RESULT_ADMISSION_THRESHOLD).toBe(SEMANTIC_AUTO_ACCEPT_CONFIDENCE);
+
+    const acceptedAtBoundary = validResult({
+      confidence: SEMANTIC_AUTO_ACCEPT_CONFIDENCE,
+      claimResolutions: [{
+        ...validResult().claimResolutions[0],
+        confidence: SEMANTIC_AUTO_ACCEPT_CONFIDENCE,
+      }],
+    });
+    expect(auditSemanticResolutionResult(acceptedAtBoundary, context).decision).toBe('pass');
+
+    const result = validResult({ confidence: 0.79 });
     expect(auditSemanticResolutionResult(result, context).reasonCodes)
       .toContain('confidence_below_admission_threshold');
   });
@@ -132,6 +145,26 @@ describe('SemanticResult minimal local audit', () => {
       'unresolved_result', 'technical_resolution_failure', 'confidence_below_admission_threshold',
     ]));
     expect(audit.decision).toBe('fail');
+  });
+
+  it('does not admit a high-confidence result while a required target is unresolved', () => {
+    const result = validResult({
+      status: 'unresolved',
+      applicantRole: 'employer',
+      applicantOutcome: 'unclear',
+      employeeOutcome: 'unclear',
+      employerOutcome: 'unclear',
+      confidence: 0.85,
+      claimResolutions: [{
+        ...validResult().claimResolutions[0],
+        outcome: 'unclear',
+        confidence: 0.85,
+      }],
+    });
+    const audit = auditSemanticResolutionResult(result, context);
+    expect(audit.decision).toBe('fail');
+    expect(audit.reasonCodes).toContain('unresolved_result');
+    expect(audit.reasonCodes).not.toContain('confidence_below_admission_threshold');
   });
 
   it('uses a caller-provided admission threshold', () => {

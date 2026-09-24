@@ -33,6 +33,9 @@ export interface ResearchWorkspaceSnapshots {
   getSnapshot(id: string): Promise<CandidatePoolSnapshot | undefined>;
   buildSnapshot(input: CandidateFilterInput, options?: BuildSnapshotOptions): Promise<CandidatePoolSnapshot>;
   buildLocalSnapshot(records: AnalysisCaseRecord[], input: CandidateFilterInput): Promise<CandidatePoolSnapshot>;
+  archiveSnapshot?(id: string): Promise<CandidatePoolSnapshot>;
+  restoreSnapshot?(id: string): Promise<CandidatePoolSnapshot>;
+  deleteSnapshot?(id: string): Promise<void>;
 }
 
 export interface ResearchWorkspaceLocalRecords {
@@ -71,6 +74,27 @@ export interface ResearchWorkspaceState {
   analysisRuns: AnalysisRun[];
 }
 
+export interface ResearchPopulationReferenceInfo {
+  referencedRunCount: number;
+  samplingRunCount: number;
+}
+
+/** Reference checks use the persisted foreign-key relation, never labels or current UI selection. */
+export function isResearchPopulationReferenced(snapshotId: string, analysisRuns: AnalysisRun[]): boolean {
+  return analysisRuns.some((run) => run.snapshotId === snapshotId);
+}
+
+export function countResearchPopulationReferences(
+  snapshotId: string,
+  analysisRuns: AnalysisRun[],
+  samplingRuns: SamplingRun[] = [],
+): ResearchPopulationReferenceInfo {
+  return {
+    referencedRunCount: analysisRuns.filter((run) => run.snapshotId === snapshotId).length,
+    samplingRunCount: samplingRuns.filter((run) => run.snapshotId === snapshotId).length,
+  };
+}
+
 export type CreateWorkspaceSamplingInput =
   | {
       method: 'seeded_random';
@@ -92,6 +116,9 @@ export type CreateWorkspaceAnalysisInput =
   | { mode: 'sampled'; snapshotId: string; samplingRunId: string; semanticEnabled: boolean };
 
 function selectableSnapshot(header: CandidatePoolSnapshotHeader): WorkspaceSnapshot {
+  if (header.lifecycleStatus === 'archived') {
+    return { ...header, isSelectable: false, unavailableReason: '该研究总体已归档，请先恢复后再创建新的研究运行。' };
+  }
   if (header.status !== 'complete') {
     return { ...header, isSelectable: false, unavailableReason: '该研究总体不完整，不能创建正式研究运行。' };
   }
@@ -129,6 +156,11 @@ export class ResearchWorkspaceService {
     return (await this.localRecords.listLocalAnalysisRecords()).length;
   }
 
+  /** Read-only local population access for rendering research-scope options and counts. */
+  public listLocalAnalysisRecords(): Promise<AnalysisCaseRecord[]> {
+    return this.localRecords.listLocalAnalysisRecords();
+  }
+
   public async prepareSnapshotRecords(snapshotId: string): Promise<ResearchCasePreparationSummary> {
     const snapshot = await this.requireSelectableSnapshot(snapshotId);
     return this.casePreparation.prepareSnapshot(snapshot);
@@ -145,6 +177,40 @@ export class ResearchWorkspaceService {
       samplingRuns,
       analysisRuns,
     };
+  }
+
+  public async getResearchPopulationReferenceInfo(snapshotId: string): Promise<ResearchPopulationReferenceInfo> {
+    const [analysisRuns, samplingRuns] = await Promise.all([
+      this.analysisRuns.listAnalysisRuns(),
+      this.sampling.listSamplingRuns(snapshotId),
+    ]);
+    return countResearchPopulationReferences(snapshotId, analysisRuns, samplingRuns);
+  }
+
+  public async archiveResearchPopulation(snapshotId: string): Promise<CandidatePoolSnapshot> {
+    if (!this.snapshots.archiveSnapshot) throw new Error('当前存储不支持归档研究总体');
+    return this.snapshots.archiveSnapshot(snapshotId);
+  }
+
+  public async restoreResearchPopulation(snapshotId: string): Promise<CandidatePoolSnapshot> {
+    if (!this.snapshots.restoreSnapshot) throw new Error('当前存储不支持恢复研究总体');
+    return this.snapshots.restoreSnapshot(snapshotId);
+  }
+
+  public async deleteResearchPopulation(snapshotId: string): Promise<void> {
+    const [analysisRuns, samplingRuns] = await Promise.all([
+      this.analysisRuns.listAnalysisRuns(),
+      this.sampling.listSamplingRuns(snapshotId),
+    ]);
+    const referenceInfo = countResearchPopulationReferences(snapshotId, analysisRuns, samplingRuns);
+    if (isResearchPopulationReferenced(snapshotId, analysisRuns)) {
+      throw new Error(`该研究总体已被 ${referenceInfo.referencedRunCount} 个研究运行引用，为保留历史研究的可复现性，不能直接删除。`);
+    }
+    if (referenceInfo.samplingRunCount > 0) {
+      throw new Error(`该研究总体已有 ${referenceInfo.samplingRunCount} 个抽样方案引用，不能直接删除。`);
+    }
+    if (!this.snapshots.deleteSnapshot) throw new Error('当前存储不支持删除研究总体');
+    await this.snapshots.deleteSnapshot(snapshotId);
   }
 
   public async listSamplingRuns(snapshotId: string): Promise<SamplingRun[]> {
@@ -199,6 +265,7 @@ export class ResearchWorkspaceService {
     if (!normalized) throw new Error('请明确选择一个研究总体 Snapshot');
     const snapshot = await this.snapshots.getSnapshot(normalized);
     if (!snapshot) throw new Error(`Candidate Pool Snapshot not found: ${normalized}`);
+    if (snapshot.lifecycleStatus === 'archived') throw new Error('该研究总体已归档，请先恢复后再创建新的研究运行。');
     if (snapshot.status !== 'complete') throw new Error('该 Snapshot 不完整，不能创建正式研究运行');
     if (snapshot.candidateCount === 0 || snapshot.candidates.length === 0) {
       throw new Error('该 Snapshot 为空，不能创建正式研究运行');

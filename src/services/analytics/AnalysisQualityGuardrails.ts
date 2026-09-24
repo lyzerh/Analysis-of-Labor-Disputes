@@ -145,7 +145,7 @@ export function evaluateAnalysisQuality(input: EvaluateAnalysisQualityInput): An
     issues.push({
       code: 'SMALL_SAMPLE',
       severity: 'warning',
-      message: `可用分析 N=${includedRecords.length} 小于 operational warning threshold ${ANALYTICS_QUALITY_THRESHOLDS.smallSample}；这不是统计有效性判定。`,
+      message: `可用分析案例为 ${includedRecords.length} 个，低于运行提示阈值 ${ANALYTICS_QUALITY_THRESHOLDS.smallSample} 个；这不是统计有效性判定。`,
       affectedCount: includedRecords.length,
     });
   }
@@ -153,7 +153,7 @@ export function evaluateAnalysisQuality(input: EvaluateAnalysisQualityInput): An
     issues.push({
       code: 'HIGH_UNKNOWN_OUTCOME_RATE',
       severity: 'warning',
-      message: `unclear 占准入记录 ${(unknownOutcomeRate * 100).toFixed(1)}%，超过 operational warning threshold 10%。`,
+      message: `结果不明确占准入记录 ${(unknownOutcomeRate * 100).toFixed(1)}%，超过运行提示阈值 10%。`,
       affectedCount: unknownOutcomeCount,
     });
   }

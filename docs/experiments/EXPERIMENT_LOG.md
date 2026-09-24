@@ -1,5 +1,7 @@
 # Semantic Resolution Experiment Log
 
+Competition production provider switched to xAI after comparative diagnostic experiments; historical DeepSeek entries below are retained for traceability only.
+
 This log freezes the semantic-resolution experiment history available at the
 documentation snapshot dated **2026-09-20 (Asia/Taipei)**. It is an archival
 record only. No production code, prompt, confidence threshold, or API call was

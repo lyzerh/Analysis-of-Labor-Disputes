@@ -66,11 +66,15 @@ describe('research region selection contract', () => {
     ]));
   });
 
-  it('renders a bounded scrollable region list with one combined summary', () => {
+  it('renders semantic region controls with a combined research summary', () => {
     const source = readFileSync(new URL('../../src/components/ResearchWorkspace.tsx', import.meta.url), 'utf8');
     expect(source).toMatch(/地区范围/);
-    expect(source).toMatch(/h-64 overflow-y-auto/);
-    expect(source).toMatch(/已选择 \{snapshotRegionIds\.length\} 个地区/);
+    expect(source).toMatch(/geographicScopeMode === 'province'/);
+    expect(source).toMatch(/geographicScopeMode === 'pearl_river_delta'/);
+    expect(source).toMatch(/geographicScopeMode === 'custom_cities'/);
+    expect(source).toMatch(/geographicOptions\.provinces\.map/);
+    expect(source).toMatch(/geographicOptions\.cities\.map/);
+    expect(source).toMatch(/研究地域摘要：\{geographicScopeLabel\(geographicScope\)\}/);
     expect(source).not.toMatch(/snapshotProvinces|snapshotCities/);
   });
 });

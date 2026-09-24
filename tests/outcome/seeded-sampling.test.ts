@@ -106,6 +106,14 @@ describe('Stage 5 deterministic seeded random sampling', () => {
     expect(first.sampleHash).toBe(second.sampleHash);
   });
 
+  it('rejects SamplingRun creation for an archived research population', async () => {
+    const archived = await snapshot(tenIds);
+    archived.lifecycleStatus = 'archived';
+    const { service, runs } = await setup(archived);
+    await expect(service.createSamplingRun({ snapshotId: archived.id, seed: 42, sampleSize: 2 })).rejects.toThrow(/归档/);
+    expect(await runs.list()).toHaveLength(0);
+  });
+
   it('produces distinct deterministic orders for fixed different seeds', async () => {
     const { service } = await setup(await snapshot(tenIds));
     const first = await service.createSamplingRun({ snapshotId: 'snapshot-A', seed: 42, sampleSize: 7 });

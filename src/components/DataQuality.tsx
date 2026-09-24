@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ShieldCheck,
   CheckCircle,
   AlertTriangle,
   FileWarning,
@@ -80,15 +79,14 @@ export const DataQuality: React.FC<DataQualityProps> = ({ onSelectCase, onRefres
   ];
 
   return (
-    <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="min-h-full bg-slate-50/80 p-6 lg:p-8 max-w-6xl mx-auto space-y-8" data-testid="data-quality-view">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.06)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-purple-600" />
-            数据质量诊断与运维中心
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+            数据质量
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 mt-2 max-w-2xl leading-6">
             监控裁决文书结构化要素提取完整度、识别低质/残缺案例、清理重复件并支持全库一键重新解析。
           </p>
         </div>
@@ -97,7 +95,7 @@ export const DataQuality: React.FC<DataQualityProps> = ({ onSelectCase, onRefres
           id="btn-reparse-all"
           disabled={reparsing}
           onClick={handleReparseAll}
-          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-colors shrink-0"
+          className="lawlens-primary-button px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-1.5 shrink-0"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${reparsing ? 'animate-spin' : ''}`} />
           全库一键重解析
@@ -112,43 +110,43 @@ export const DataQuality: React.FC<DataQualityProps> = ({ onSelectCase, onRefres
       )}
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="bg-white/80 border border-white/80 p-5 rounded-2xl shadow-sm">
           <span className="text-2xs text-slate-500 font-medium">文书总数</span>
           <div className="text-xl font-bold text-slate-900 font-mono mt-1">
             {qualityStats.totalDocs}
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="bg-emerald-50/70 border border-emerald-100 p-5 rounded-2xl shadow-sm">
           <span className="text-2xs text-emerald-600 font-medium">高质量 (80分+)</span>
           <div className="text-xl font-bold text-emerald-600 font-mono mt-1">
             {qualityStats.perfectCases}
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="bg-amber-50/70 border border-amber-100 p-5 rounded-2xl shadow-sm">
           <span className="text-2xs text-amber-600 font-medium">标准质量 (60-79)</span>
           <div className="text-xl font-bold text-amber-600 font-mono mt-1">
             {qualityStats.partialCases}
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="bg-rose-50/70 border border-rose-100 p-5 rounded-2xl shadow-sm">
           <span className="text-2xs text-rose-600 font-medium">需补充 (&lt;60分)</span>
           <div className="text-xl font-bold text-rose-600 font-mono mt-1">
             {qualityStats.failedCases}
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="bg-white/80 border border-white/80 p-5 rounded-2xl shadow-sm">
           <span className="text-2xs text-slate-500 font-medium">内容重复件</span>
           <div className="text-xl font-bold text-slate-700 font-mono mt-1">
             {qualityStats.duplicateDocs}
           </div>
         </div>
 
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="bg-white/80 border border-white/80 p-5 rounded-2xl shadow-sm">
           <span className="text-2xs text-slate-500 font-medium">超短/空文书</span>
           <div className="text-xl font-bold text-slate-700 font-mono mt-1">
             {qualityStats.emptyDocs}
@@ -157,10 +155,10 @@ export const DataQuality: React.FC<DataQualityProps> = ({ onSelectCase, onRefres
       </div>
 
       {/* Field Recognition Quality Bars */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+      <div className="bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)] space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <h3 className="text-xs font-bold text-slate-900">核心法律事实与要素本地识别率</h3>
-          <span className="text-2xs text-slate-400 font-mono">基于深圳仲裁文书正则表达式规则引擎</span>
+          <details className="text-2xs text-slate-400"><summary className="cursor-pointer">技术详情</summary><div className="mt-1 font-mono">基于深圳仲裁文书正则表达式规则引擎</div></details>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -190,10 +188,10 @@ export const DataQuality: React.FC<DataQualityProps> = ({ onSelectCase, onRefres
       </div>
 
       {/* Issue Document Breakdown List */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+      <div className="bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)] space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <h3 className="text-xs font-bold text-slate-900">
-            低得分 / 待复核文书清单 ({qualityStats.issues.length} 篇)
+            低得分 / 待复核案例清单 ({qualityStats.issues.length} 个案例)
           </h3>
           <span className="text-2xs text-slate-500">点击可查看原文比对或重解析</span>
         </div>

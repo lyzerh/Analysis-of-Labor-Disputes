@@ -126,6 +126,16 @@ describe('Stage 5 AnalysisRun research provenance', () => {
     expect(run.status).toBe('pending');
   });
 
+  it('rejects new AnalysisRun creation for an archived Snapshot without changing its provenance', async () => {
+    const archived = await makeSnapshot();
+    archived.lifecycleStatus = 'archived';
+    archived.archivedAt = '2026-09-20T00:00:00.000Z';
+    const { service, analysisRuns, snapshots } = await setup(archived);
+    await expect(service.createAnalysisRun({ mode: 'exhaustive', snapshotId: archived.id, engineVersions: versions, semantic: semanticDisabled })).rejects.toThrow(/归档/);
+    expect(analysisRuns.runs).toHaveLength(0);
+    expect((await snapshots.get(archived.id))?.snapshotFingerprint).toBe(archived.snapshotFingerprint);
+  });
+
   it('creates sampled input only from its SamplingRun', async () => {
     const setupValue = await setup();
     const sampling = await makeSamplingRun(setupValue.snapshot);

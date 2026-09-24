@@ -69,7 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="hidden lg:flex items-center gap-1 text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-md border border-slate-700">
               <Database className="w-3.5 h-3.5 text-emerald-400" />
               <span>本地 IndexedDB:</span>
-              <span className="font-semibold text-white">{caseCount} 篇文书</span>
+              <span className="font-semibold text-white">{caseCount} 个案例</span>
             </div>
 
             <button

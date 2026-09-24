@@ -188,7 +188,10 @@ const isClaim = (value: unknown): value is SemanticClaim => {
     || !isStringArray(value.claimantPartyIds)
     || !SEMANTIC_PARTY_ROLES.includes(value.claimantRole as SemanticParty['laborRole'])
     || !isNonEmptyString(value.claimType)
-    || !isNonEmptyString(value.claimText)
+    // An empty string is intentional: the claim was identified but reliable
+    // request provenance has not been located. Missing/non-string values still
+    // fail the strict result contract.
+    || typeof value.claimText !== 'string'
     || !optionalEvidence(value, 'sourceEvidence')) return false;
   if (value.requestedAmount !== undefined && !isFiniteNumberInRange(value.requestedAmount)) return false;
   return value.currency === undefined || value.currency === 'CNY';

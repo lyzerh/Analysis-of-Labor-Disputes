@@ -3,12 +3,12 @@ import type {
   GeminiSemanticResultClient,
 } from './GeminiSemanticResultResolver';
 import { readLlmRuntimeSettings } from './LlmRuntimeSettings';
-import {
-  DEEPSEEK_API_BASE_URL,
-  SEMANTIC_LLM_MODEL,
-  SEMANTIC_LLM_PROVIDER,
-} from './SemanticPrompt';
+import { DEEPSEEK_API_BASE_URL } from './SemanticPrompt';
 import { traceSemantic } from './SemanticTracing';
+
+// Historical adapter retained for archived experiments; formal runtime uses xAI.
+const HISTORICAL_DEEPSEEK_PROVIDER = 'deepseek' as const;
+const HISTORICAL_DEEPSEEK_MODEL = 'deepseek-flash' as const;
 
 export type DeepSeekConnectionStatus =
   | 'unknown'
@@ -93,7 +93,7 @@ export const createBrowserDeepSeekSemanticClient = (
           Authorization: `Bearer ${apiKey.trim()}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody(request, options.modelName ?? SEMANTIC_LLM_MODEL)),
+        body: JSON.stringify(requestBody(request, options.modelName ?? HISTORICAL_DEEPSEEK_MODEL)),
         signal: request.config?.abortSignal,
       });
       const body = await response.text();
@@ -128,8 +128,8 @@ export const createBrowserDeepSeekSemanticClient = (
         traceSemantic('providerResponse', {
           caseId: options.caseId ?? null,
           httpStatus: response.status,
-          provider: SEMANTIC_LLM_PROVIDER,
-          model: typeof payload?.model === 'string' ? payload.model : SEMANTIC_LLM_MODEL,
+          provider: HISTORICAL_DEEPSEEK_PROVIDER,
+          model: typeof payload?.model === 'string' ? payload.model : HISTORICAL_DEEPSEEK_MODEL,
           thinkingRequested: 'disabled',
           finishReason: finishReason ?? null,
           nativeFinishReason: nativeFinishReason ?? null,
@@ -186,14 +186,10 @@ export const testDeepSeekConnection = async (apiKeyOverride?: string): Promise<D
   traceConnection(`runtime enabled=${runtimeSettings.enabled}`);
   traceConnection(`apiKey present=${Boolean(apiKey.trim())}`);
   traceConnection(`apiKey prefix=${apiKey.trim().startsWith('sk-') ? 'sk-' : apiKey.trim() ? 'other' : 'none'}`);
-  traceConnection(`provider=${SEMANTIC_LLM_PROVIDER}`);
+  traceConnection(`provider=${HISTORICAL_DEEPSEEK_PROVIDER}`);
   if (!apiKey.trim()) {
     traceConnection('early return', { errorCode: 'missing_api_key' satisfies ConnectionDiagnosticCode });
     return 'invalid_key';
-  }
-  if (SEMANTIC_LLM_PROVIDER !== 'deepseek') {
-    traceConnection('provider mismatch', { errorCode: 'provider_not_configured' satisfies ConnectionDiagnosticCode });
-    return 'unknown_error';
   }
   if (typeof fetch !== 'function' || typeof AbortController !== 'function') {
     traceConnection('runtime dependency unavailable', { errorCode: 'missing_runtime_dependency' satisfies ConnectionDiagnosticCode });
@@ -211,7 +207,7 @@ export const testDeepSeekConnection = async (apiKeyOverride?: string): Promise<D
     traceConnection('calling client.testConnection');
     fetchStarted = true;
     const request = client.models.generateContent({
-      model: SEMANTIC_LLM_MODEL,
+      model: HISTORICAL_DEEPSEEK_MODEL,
       contents: 'Return JSON only: {"ok":true}',
       config: {
         responseMimeType: 'application/json',

@@ -167,7 +167,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
     let md = `# 深圳劳动仲裁裁决本地实证研究报告\n\n`;
     md += `> **合规声明**：${reportData.disclaimer}\n\n`;
     md += `- **生成时间**：${reportData.generatedAt}\n`;
-    md += `- **样本规模**：${reportData.sampleSize} 份真实裁判文书\n`;
+    md += `- **样本规模**：${reportData.sampleSize} 个案例\n`;
     md += `- **争议过滤**：${reportData.filterSummary.disputeTypeFilter}\n`;
     md += `- **年份范围**：${reportData.filterSummary.yearRange}\n\n`;
 
@@ -175,26 +175,26 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
     for (const [outcome, count] of Object.entries(reportData.outcomeDistribution)) {
       const cnt = Number(count) || 0;
       const rate = ((cnt / (reportData.sampleSize || 1)) * 100).toFixed(1);
-      md += `- **${outcome}**：${cnt} 件 (${rate}%)\n`;
+      md += `- **${outcome}**：${cnt} 个案例 (${rate}%)\n`;
     }
 
-    md += `\n## 二、企业抗辩策略支持率统计\n\n`;
-    md += `| 抗辩策略 | 样本数 | 用人单位胜诉 | 败诉/部分支持 | 胜诉支持率 | 高频采信证据 |\n`;
+    md += `\n## 二、企业抗辩策略有利结果比例统计\n\n`;
+    md += `| 抗辩策略 | 样本数 | 用人单位结果偏有利 | 结果偏不利/部分支持 | 有利结果比例 | 高频采信证据 |\n`;
     md += `| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
     for (const def of reportData.defenseOutcomes) {
       md += `| ${def.defenseType} | ${def.totalCount} | ${def.supportedCount} | ${def.unsupportedCount} | ${def.winRate}% | ${def.topEvidence.join(', ') || '无'} |\n`;
     }
 
     md += `\n## 三、抗辩 × 证据组合胜率分析\n\n`;
-    md += `| 策略组合 | 样本数 | 胜诉数 | 胜诉支持率 |\n`;
+    md += `| 策略组合 | 样本数 | 结果偏有利案例数 | 有利结果比例 |\n`;
     md += `| :--- | :--- | :--- | :--- |\n`;
     for (const combo of reportData.comboOutcomes.slice(0, 15)) {
       md += `| ${combo.comboKey} | ${combo.totalCount} | ${combo.supportedCount} | ${combo.winRate}% |\n`;
     }
 
-    md += `\n## 四、用人单位主要败诉原因诊断\n\n`;
+    md += `\n## 四、用人单位结果不利原因诊断\n\n`;
     for (const lr of reportData.lossReasons) {
-      md += `### 1. ${lr.reason} (出现 ${lr.count} 次 / 败诉占比 ${lr.percentage}%)\n`;
+      md += `### 1. ${lr.reason} (出现 ${lr.count} 次 / 结果不利案例占比 ${lr.percentage}%)\n`;
       if (lr.involvedDefenses.length > 0) {
         md += `- 涉及主要抗辩：${lr.involvedDefenses.map((d) => `${d.defense}(${d.count}次)`).join(', ')}\n`;
       }
@@ -234,7 +234,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                 本地文本分析与裁判实证引擎
               </h2>
               <span className="text-2xs bg-emerald-950 text-emerald-300 border border-emerald-700/60 px-2.5 py-0.5 rounded-full font-mono font-semibold">
-                纯浏览器本地运行 · 零云端依赖
+                本地规则与统计计算
               </span>
             </div>
             <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
@@ -247,7 +247,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
               id="btn-generate-report"
               onClick={handleGenerateReport}
               disabled={generatingReport || filteredCases.length === 0}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+              className="lawlens-primary-button flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-xl cursor-pointer disabled:bg-slate-200"
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>{generatingReport ? '计算分析中...' : '一键生成本地研究报告'}</span>
@@ -342,7 +342,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
           }`}
         >
           <Scale className="w-3.5 h-3.5" />
-          <span>抗辩策略与支持率</span>
+          <span>抗辩策略与有利结果比例</span>
           <span className="font-mono text-2xs opacity-80">({defenseStats.length})</span>
         </button>
 
@@ -370,7 +370,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
           }`}
         >
           <AlertTriangle className="w-3.5 h-3.5" />
-          <span>败诉原因诊断</span>
+          <span>结果不利原因诊断</span>
           <span className="font-mono text-2xs opacity-80">({lossStats.length})</span>
         </button>
 
@@ -415,7 +415,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
         </div>
       ) : (
         <>
-          {/* TAB 1: 抗辩策略与支持率 */}
+          {/* TAB 1: 抗辩策略与有利结果比例 */}
           {activeSubTab === 'defense' && (
             <div className="space-y-4">
               <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-3.5 flex items-center justify-between text-xs text-blue-900">
@@ -424,7 +424,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                   <strong>追溯查看全部关联真实案件</strong>。
                 </span>
                 <span className="text-2xs font-mono text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-200">
-                  支持率 = 用人单位胜诉案件数 / 该抗辩出现总案数
+                  有利结果比例 = 用人单位结果偏有利案例数 / 该抗辩出现案例数
                 </span>
               </div>
 
@@ -442,14 +442,14 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                             {item.defenseType}
                           </h3>
                           <span className="text-2xs text-slate-400 font-mono">
-                            样本出现 {item.totalCount} 件
+                            样本出现 {item.totalCount} 个案例
                           </span>
                         </div>
                         <div className="text-right">
                           <div className="text-lg font-bold font-mono text-blue-700">
                             {item.winRate}%
                           </div>
-                          <div className="text-2xs text-slate-500">胜诉支持率</div>
+                          <div className="text-2xs text-slate-500">有利结果比例</div>
                         </div>
                       </div>
 
@@ -470,11 +470,11 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                       {/* Outcome Breakdown pills */}
                       <div className="grid grid-cols-3 gap-1.5 mb-3 text-2xs font-mono text-center">
                         <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded p-1.5">
-                          <div>胜诉支持</div>
+                          <div>结果偏有利</div>
                           <div className="font-bold">{item.supportedCount}</div>
                         </div>
                         <div className="bg-rose-50 text-rose-700 border border-rose-200 rounded p-1.5">
-                          <div>败诉驳回</div>
+                          <div>结果偏不利</div>
                           <div className="font-bold">{item.unsupportedCount - item.partialCount}</div>
                         </div>
                         <div className="bg-blue-50 text-blue-700 border border-blue-200 rounded p-1.5">
@@ -517,7 +517,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                         className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>查看 {item.totalCount} 件溯源案例</span>
+                        <span>查看 {item.totalCount} 个溯源案例</span>
                       </button>
                       <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                     </div>
@@ -532,7 +532,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
             <div className="space-y-4">
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex items-center justify-between text-xs text-slate-700">
                 <span>
-                  基于实证计算 <strong>Defense × Evidence × Outcome</strong> 交叉胜率，展示不同证据组合对抗辩支持率的直接影响。
+                  基于实证计算 <strong>Defense × Evidence × Outcome</strong> 的结果共现，展示不同证据组合与有利结果比例的关联。
                 </span>
                 <span className="text-2xs text-slate-500">
                   共统计 {comboStats.length} 组有效抗辩证据链
@@ -547,8 +547,8 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                         <th className="py-3 px-4">抗辩策略</th>
                         <th className="py-3 px-4">采信证据链组合</th>
                         <th className="py-3 px-4 text-center">样本案件数</th>
-                        <th className="py-3 px-4 text-center">用人单位胜诉</th>
-                        <th className="py-3 px-4 text-center">胜诉支持率</th>
+                        <th className="py-3 px-4 text-center">用人单位结果偏有利</th>
+                        <th className="py-3 px-4 text-center">有利结果比例</th>
                         <th className="py-3 px-4 text-right">溯源查看</th>
                       </tr>
                     </thead>
@@ -596,7 +596,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                               }
                               className="text-2xs font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer"
                             >
-                              查看 {combo.totalCount} 件案例
+                              查看 {combo.totalCount} 个案例
                             </button>
                           </td>
                         </tr>
@@ -608,12 +608,12 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
             </div>
           )}
 
-          {/* TAB 3: 败诉原因诊断 */}
+          {/* TAB 3: 结果不利原因诊断 */}
           {activeSubTab === 'loss' && (
             <div className="space-y-4">
               <div className="bg-rose-50/60 border border-rose-100 rounded-xl p-3.5 flex items-center justify-between text-xs text-rose-900">
                 <span>
-                  对败诉及部分支持案件的说理理由进行深度语义扫描，归纳企业核心败诉法理原因。
+                  对结果不利及部分支持案例的说理理由进行深度语义扫描，归纳企业核心结果不利原因。
                 </span>
                 <span className="text-2xs font-mono text-rose-700 bg-white px-2 py-0.5 rounded border border-rose-200">
                   真实说理片段溯源
@@ -643,7 +643,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                           <div className="text-base font-bold font-mono text-rose-600">
                             {lr.percentage}%
                           </div>
-                          <div className="text-2xs text-slate-400">败诉案件占比</div>
+                          <div className="text-2xs text-slate-400">结果不利案例占比</div>
                         </div>
                       </div>
 
@@ -681,7 +681,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                     <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                       <button
                         onClick={() =>
-                          handleOpenDrilldown(`败诉归因「${lr.reason}」关联案例`, lr.sourceCaseIds)
+                          handleOpenDrilldown(`结果不利归因「${lr.reason}」关联案例`, lr.sourceCaseIds)
                         }
                         className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
                       >
@@ -762,7 +762,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                     高频词语语义共现关系 (Co-occurrence Matrix)
                   </h3>
                   <p className="text-2xs text-slate-500">
-                    分析抗辩、证据、败诉原因与裁决结果之间的共同出现频次与相关度 (Jaccard Coefficient)。
+                    分析抗辩、证据、结果不利原因与裁决结果之间的共同出现频次与相关度 (Jaccard Coefficient)。
                   </p>
                 </div>
 
@@ -779,7 +779,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                           <span className="text-purple-700">{c.wordB}</span>
                         </div>
                         <span className="text-2xs font-mono font-bold bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
-                          {c.count} 案共现
+                          {c.count} 个案例共现
                         </span>
                       </div>
 
@@ -820,7 +820,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                       </h2>
                       <div className="text-xs text-slate-400 mt-1">
                         生成时间: {reportData.generatedAt} · 分析样本:{' '}
-                        <strong className="text-slate-700 font-mono">{reportData.sampleSize}</strong> 份公开裁决书
+                        <strong className="text-slate-700 font-mono">{reportData.sampleSize}</strong> 个案例
                       </div>
                     </div>
 
@@ -854,7 +854,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                         return (
                           <div key={outcome} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
                             <div className="text-xs text-slate-500 font-medium">{outcome}</div>
-                            <div className="text-xl font-bold font-mono text-slate-800 mt-1">{cnt} 件</div>
+                            <div className="text-xl font-bold font-mono text-slate-800 mt-1">{cnt} 个案例</div>
                             <div className="text-2xs text-slate-400 font-mono">占比 {rate}%</div>
                           </div>
                         );
@@ -862,10 +862,10 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                     </div>
                   </div>
 
-                  {/* Section 2: 抗辩胜诉率表 */}
+                  {/* Section 2: 抗辩有利结果比例表 */}
                   <div className="space-y-3">
                     <h3 className="text-base font-bold text-slate-900 border-l-3 border-blue-600 pl-2">
-                      二、企业抗辩策略支持率与证据实证
+                      二、企业抗辩策略有利结果比例与证据实证
                     </h3>
                     <div className="overflow-x-auto border border-slate-200 rounded-xl">
                       <table className="w-full text-left text-xs">
@@ -873,10 +873,10 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                           <tr>
                             <th className="py-2.5 px-3">抗辩策略</th>
                             <th className="py-2.5 px-3 text-center">样本案件数</th>
-                            <th className="py-2.5 px-3 text-center">胜诉支持数</th>
-                            <th className="py-2.5 px-3 text-center">胜诉支持率</th>
+                            <th className="py-2.5 px-3 text-center">结果偏有利案例数</th>
+                            <th className="py-2.5 px-3 text-center">有利结果比例</th>
                             <th className="py-2.5 px-3">高频有效证据</th>
-                            <th className="py-2.5 px-3">核心败诉归因</th>
+                            <th className="py-2.5 px-3">核心结果不利归因</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -899,17 +899,17 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                     </div>
                   </div>
 
-                  {/* Section 3: 败诉原因归因 */}
+                  {/* Section 3: 结果不利原因归因 */}
                   <div className="space-y-3">
                     <h3 className="text-base font-bold text-slate-900 border-l-3 border-blue-600 pl-2">
-                      三、用人单位败诉核心原因诊断
+                      三、用人单位结果不利核心原因诊断
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {reportData.lossReasons.slice(0, 6).map((lr) => (
                         <div key={lr.reason} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50">
                           <div className="flex items-center justify-between text-xs font-bold text-slate-900 mb-1">
                             <span>{lr.reason}</span>
-                            <span className="font-mono text-rose-600">{lr.percentage}% 败诉案涉及</span>
+                            <span className="font-mono text-rose-600">{lr.percentage}% 结果不利案例涉及</span>
                           </div>
                           <p className="text-2xs text-slate-500">
                             典型涉及抗辩: {lr.involvedDefenses.map((d) => d.defense).join('、') || '通用争议'}
@@ -965,7 +965,7 @@ export const LocalAnalysisCenter: React.FC<LocalAnalysisCenterProps> = ({
                   {/* Disclaimer Footer */}
                   <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 text-2xs text-amber-900">
                     <strong>报告声明：</strong>
-                    {reportData.disclaimer} 本报告数据基于 IndexedDB 本地保存之深圳市人力资源和社会保障局公开裁决文书，通过纯本地规则与统计算法生成。
+                    {reportData.disclaimer} 本报告基于本机已保存的公开裁决文书，由本地规则与统计计算生成；如启用 AI 语义分析，相关文本处理遵循当前 AI 配置。
                   </div>
                 </div>
               ) : (

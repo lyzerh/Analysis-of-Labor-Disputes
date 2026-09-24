@@ -10,14 +10,26 @@ import type {
 } from './SemanticResult';
 import {
   SEMANTIC_AUDIT_REASON_CODES,
+  auditSemanticResolutionResult,
+  type SemanticAuditContext,
   type SemanticAuditReasonCode,
   type SemanticLocalAuditResult,
 } from './SemanticResultAudit';
 import { parseSemanticResolutionResult } from './SemanticResultSchema';
 import { saveSemanticReviewItem } from './SemanticReviewStorage';
+import { semanticAuditReasonLabel } from '../presentation/WorkflowPresentation';
+import type { UnresolvedSemanticTask } from './SemanticResult';
+import type { SemanticTechnicalFailure } from './SemanticTechnicalFailureStorage';
 
 export type SemanticReviewStatus = 'pending' | 'reviewed';
 export type SemanticReviewAction = 'accept' | 'edit' | 'unresolved';
+
+/**
+ * Source facts needed to re-run the current audit.  The admission threshold
+ * is deliberately excluded: it is a centralized runtime rule, not persisted
+ * provenance.
+ */
+export type SemanticReviewAuditContext = Omit<SemanticAuditContext, 'admissionConfidenceThreshold'>;
 
 export interface SemanticReviewItem {
   id: string;
@@ -27,13 +39,19 @@ export interface SemanticReviewItem {
   date?: string;
   status: SemanticReviewStatus;
   semanticResult: SemanticResolutionResult;
+  /** Distinguishes an actual AI candidate from a manual-only scaffold. */
+  candidateStatus?: 'ai_candidate' | 'no_candidate';
   audit: SemanticLocalAuditResult;
+  /** Immutable source context for current-rule audit recomputation. */
+  auditContext?: SemanticReviewAuditContext;
   unresolvedTargets?: SemanticTarget[];
   /** Original text or a bounded context excerpt for the reviewer. */
   context?: string;
   createdAt: string;
   reviewedAt?: string;
   reviewedResult?: ReviewedSemanticResult;
+  /** Technical attempts remain available after retry or human annotation. */
+  technicalFailureHistory?: SemanticTechnicalFailure[];
 }
 
 export interface ReviewedSemanticResult {
@@ -44,7 +62,7 @@ export interface ReviewedSemanticResult {
   /** Human action metadata; optional for backwards-compatible persisted items. */
   reviewAction?: SemanticReviewAction;
   /** Immutable snapshot of the AI candidate shown before editing. */
-  originalCandidate?: SemanticResolutionResult;
+  originalCandidate?: SemanticResolutionResult | null;
   /** Immutable snapshot of the value saved by the reviewer. */
   finalValue?: SemanticResolutionResult;
 }
@@ -70,32 +88,35 @@ export interface CreateSemanticReviewItemInput {
   date?: string;
   result: SemanticResolutionResult;
   audit: SemanticLocalAuditResult;
+  auditContext?: SemanticReviewAuditContext;
   unresolvedTargets?: SemanticTarget[];
   context?: string;
   createdAt: string;
   id?: string;
+  candidateStatus?: 'ai_candidate' | 'no_candidate';
+  technicalFailureHistory?: SemanticTechnicalFailure[];
 }
 
 export const semanticReviewReasonLabels: Record<SemanticAuditReasonCode, string> = {
-  schema_invalid: '自动结果结构不符合系统要求',
-  source_evidence_not_found: '解析依据无法在原文中核验',
-  party_id_not_found: '当事人引用与已知主体不一致',
-  claim_id_not_found: '诉求引用与已知诉求不一致',
-  judgment_item_id_not_found: '裁判项引用与已知裁判项不一致',
-  claim_resolution_claim_id_not_found: '诉求结果引用不完整',
-  claim_resolution_judgment_item_id_not_found: '诉求与裁判项的关联不完整',
-  duplicate_party_id: '当事人标识重复',
-  duplicate_claim_id: '诉求标识重复',
-  duplicate_judgment_item_id: '裁判项标识重复',
-  required_relationship_missing: '关键主体、诉求或裁判关系不完整',
-  confidence_below_admission_threshold: '自动解析置信度不足',
-  resolved_contains_unclear: '自动结果仍存在关键未明确字段',
-  unresolved_result: '系统未能可靠完成自动解析',
-  technical_resolution_failure: '系统未能可靠完成自动解析',
+  schema_invalid: semanticAuditReasonLabel('schema_invalid'),
+  source_evidence_not_found: semanticAuditReasonLabel('source_evidence_not_found'),
+  party_id_not_found: semanticAuditReasonLabel('party_id_not_found'),
+  claim_id_not_found: semanticAuditReasonLabel('claim_id_not_found'),
+  judgment_item_id_not_found: semanticAuditReasonLabel('judgment_item_id_not_found'),
+  claim_resolution_claim_id_not_found: semanticAuditReasonLabel('claim_resolution_claim_id_not_found'),
+  claim_resolution_judgment_item_id_not_found: semanticAuditReasonLabel('claim_resolution_judgment_item_id_not_found'),
+  duplicate_party_id: semanticAuditReasonLabel('duplicate_party_id'),
+  duplicate_claim_id: semanticAuditReasonLabel('duplicate_claim_id'),
+  duplicate_judgment_item_id: semanticAuditReasonLabel('duplicate_judgment_item_id'),
+  required_relationship_missing: semanticAuditReasonLabel('required_relationship_missing'),
+  confidence_below_admission_threshold: semanticAuditReasonLabel('confidence_below_admission_threshold'),
+  resolved_contains_unclear: semanticAuditReasonLabel('resolved_contains_unclear'),
+  unresolved_result: semanticAuditReasonLabel('unresolved_result'),
+  technical_resolution_failure: semanticAuditReasonLabel('technical_resolution_failure'),
 };
 
 export function getAuditReasonLabel(code: SemanticAuditReasonCode): string {
-  return semanticReviewReasonLabels[code] || '自动解析结果需要人工确认';
+  return semanticReviewReasonLabels[code] || '需要人工复核';
 }
 
 export function semanticReviewItemId(
@@ -110,6 +131,36 @@ export function semanticReviewItemId(
 function cloneResult(result: SemanticResolutionResult): SemanticResolutionResult {
   return JSON.parse(JSON.stringify(result)) as SemanticResolutionResult;
 }
+
+function cloneAuditContext(context: SemanticReviewAuditContext): SemanticReviewAuditContext {
+  return JSON.parse(JSON.stringify(context)) as SemanticReviewAuditContext;
+}
+
+const isAuditContext = (value: unknown): value is SemanticReviewAuditContext => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const context = value as Partial<SemanticReviewAuditContext>;
+  return typeof context.rawText === 'string'
+    && (context.knownParties === undefined || Array.isArray(context.knownParties))
+    && (context.knownClaims === undefined || Array.isArray(context.knownClaims))
+    && (context.knownJudgmentItems === undefined || Array.isArray(context.knownJudgmentItems))
+    && (context.requiredClaimResolutionIds === undefined || Array.isArray(context.requiredClaimResolutionIds));
+};
+
+const legacyAuditContext = (item: SemanticReviewItem): SemanticReviewAuditContext | undefined => {
+  if (item.auditContext) return item.auditContext;
+  // Older persisted items have only the reviewer context.  Reuse it as a
+  // conservative source window and the result's own IDs for mechanical
+  // checks; evidence outside that window remains blocked rather than guessed.
+  return {
+    rawText: item.context || '',
+    knownParties: item.semanticResult.parties,
+    knownClaims: item.semanticResult.claims,
+    knownJudgmentItems: item.semanticResult.judgmentItems,
+    requiredClaimResolutionIds: (item.unresolvedTargets || [])
+      .filter((target) => target.type === 'claim_resolution' && Boolean(target.id))
+      .map((target) => target.id as string),
+  };
+};
 
 export function validateSemanticReviewItem(value: unknown): value is SemanticReviewItem {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -129,7 +180,32 @@ export function validateSemanticReviewItem(value: unknown): value is SemanticRev
     || item.audit.reasonCodes.some((code) => !SEMANTIC_AUDIT_REASON_CODES.includes(code))) return false;
   if (item.audit.decision !== 'fail') return false;
   if (item.status === 'reviewed' && (!item.reviewedAt || !item.reviewedResult)) return false;
-  return item.context === undefined || typeof item.context === 'string';
+  return (item.context === undefined || typeof item.context === 'string')
+    && (item.auditContext === undefined || isAuditContext(item.auditContext))
+    && (item.candidateStatus === undefined || item.candidateStatus === 'ai_candidate' || item.candidateStatus === 'no_candidate')
+    && (item.technicalFailureHistory === undefined || Array.isArray(item.technicalFailureHistory));
+}
+
+/** Returns the effective semantic result without mutating persisted history. */
+export function currentSemanticReviewResult(item: SemanticReviewItem): SemanticResolutionResult {
+  if (item.status === 'reviewed' && item.reviewedResult?.reviewedResult) {
+    return item.reviewedResult.reviewedResult;
+  }
+  return item.semanticResult;
+}
+
+/**
+ * Re-runs the current centralized audit rules for a persisted review item.
+ * Legacy items use their bounded context (or an empty source window) so
+ * missing evidence stays a failure rather than being invented.
+ */
+export function getCurrentSemanticReviewAudit(
+  item: SemanticReviewItem,
+  contextOverride?: SemanticReviewAuditContext,
+): SemanticLocalAuditResult | undefined {
+  const context = contextOverride || legacyAuditContext(item);
+  if (!context || !isAuditContext(context)) return undefined;
+  return auditSemanticResolutionResult(currentSemanticReviewResult(item), context);
 }
 
 /** Creates a pending item only for an audit failure; audit pass returns null. */
@@ -150,13 +226,85 @@ export function createSemanticReviewItemFromAudit(
     ...(input.date !== undefined ? { date: input.date } : {}),
     status: 'pending',
     semanticResult: cloneResult(input.result),
+    candidateStatus: input.candidateStatus || 'ai_candidate',
     audit: {
       decision: 'fail',
       reasonCodes: [...input.audit.reasonCodes],
       admissionConfidenceThreshold: input.audit.admissionConfidenceThreshold,
     },
+    ...(input.auditContext ? { auditContext: cloneAuditContext(input.auditContext) } : {}),
     ...(targets.length > 0 ? { unresolvedTargets: JSON.parse(JSON.stringify(targets)) as SemanticTarget[] } : {}),
     ...(input.context !== undefined ? { context: input.context } : {}),
+    ...(input.technicalFailureHistory ? { technicalFailureHistory: JSON.parse(JSON.stringify(input.technicalFailureHistory)) as SemanticTechnicalFailure[] } : {}),
+    createdAt: input.createdAt,
+  };
+}
+
+const manualResultFromTask = (task: UnresolvedSemanticTask): SemanticResolutionResult => parseSemanticResolutionResult({
+  status: 'unresolved',
+  resolver: 'llm',
+  parties: task.knownParties || [],
+  // For a manual-only item, keep an explicit display fallback rather than
+  // fabricating a request excerpt; an empty claimText is valid contract data
+  // and means reliable request provenance is unavailable. The original
+  // task/audit context remains available for the reviewer to inspect.
+  claims: (task.knownClaims || []).map(({ claimLabel: _claimLabel, ...claim }) => ({
+    ...claim,
+    claimText: claim.claimText || '暂未定位到明确的请求原文',
+  })),
+  judgmentItems: task.knownJudgmentItems || [],
+  claimResolutions: (task.knownClaims || []).map((claim) => ({
+    claimId: claim.id,
+    judgmentItemIds: [],
+    outcome: 'unclear',
+    confidence: 0,
+  })),
+  applicantRole: 'unknown',
+  applicantOutcome: 'unclear',
+  employeeOutcome: 'unclear',
+  employerOutcome: 'unclear',
+  confidence: 0,
+  unresolvedReasonCodes: ['insufficient_context'],
+});
+
+/** Creates a pending claim-centric review item without pretending AI produced a candidate. */
+export function createTechnicalManualReviewItem(input: {
+  task: UnresolvedSemanticTask;
+  caseTitle?: string;
+  court?: string;
+  date?: string;
+  technicalFailureHistory: SemanticTechnicalFailure[];
+  createdAt: string;
+}): SemanticReviewItem {
+  const result = manualResultFromTask(input.task);
+  const audit: SemanticLocalAuditResult = {
+    decision: 'fail',
+    reasonCodes: ['technical_resolution_failure'],
+    admissionConfidenceThreshold: 0.8,
+  };
+  const requiredClaimResolutionIds = input.task.unresolvedTargets
+    .filter((target) => target.type === 'claim_resolution' && Boolean(target.id))
+    .map((target) => target.id as string);
+  return {
+    id: semanticReviewItemId(input.task.caseId, audit, input.task.unresolvedTargets) + '::manual',
+    caseId: input.task.caseId,
+    ...(input.caseTitle !== undefined ? { caseTitle: input.caseTitle } : {}),
+    ...(input.court !== undefined ? { court: input.court } : {}),
+    ...(input.date !== undefined ? { date: input.date } : {}),
+    status: 'pending',
+    semanticResult: result,
+    candidateStatus: 'no_candidate',
+    audit,
+    auditContext: {
+      rawText: input.task.rawText,
+      ...(input.task.knownParties ? { knownParties: input.task.knownParties } : {}),
+      ...(input.task.knownClaims ? { knownClaims: input.task.knownClaims.map(({ claimLabel: _claimLabel, ...claim }) => claim) } : {}),
+      ...(input.task.knownJudgmentItems ? { knownJudgmentItems: input.task.knownJudgmentItems } : {}),
+      requiredClaimResolutionIds,
+    },
+    unresolvedTargets: JSON.parse(JSON.stringify(input.task.unresolvedTargets)) as SemanticTarget[],
+    context: input.task.context || input.task.rawText,
+    technicalFailureHistory: JSON.parse(JSON.stringify(input.technicalFailureHistory)) as SemanticTechnicalFailure[],
     createdAt: input.createdAt,
   };
 }
@@ -220,7 +368,24 @@ export function reviewSemanticReviewItem(
       status: 'unresolved',
       unresolvedReasonCodes: reviewedResult.unresolvedReasonCodes?.length
         ? reviewedResult.unresolvedReasonCodes
-        : ['outcome_unclear'],
+      : ['outcome_unclear'],
+    });
+  } else if (item.candidateStatus === 'no_candidate') {
+    const hasUnclearClaim = reviewedResult.claimResolutions.some((resolution) => resolution.outcome === 'unclear');
+    const hasUnclearOutcome = [
+      reviewedResult.applicantOutcome,
+      reviewedResult.employeeOutcome,
+      reviewedResult.employerOutcome,
+    ].some((outcome) => outcome === 'unclear');
+    reviewedResult = parseSemanticResolutionResult({
+      ...reviewedResult,
+      status: hasUnclearClaim || hasUnclearOutcome ? 'unresolved' : 'resolved',
+      confidence: hasUnclearClaim || hasUnclearOutcome ? 0 : 1,
+      ...(hasUnclearClaim || hasUnclearOutcome ? { unresolvedReasonCodes: ['outcome_unclear'] } : { unresolvedReasonCodes: undefined }),
+      resolverErrorCode: undefined,
+      claimResolutions: reviewedResult.claimResolutions.map((resolution) => resolution.outcome === 'unclear'
+        ? resolution
+        : { ...resolution, confidence: 1 }),
     });
   }
   const reviewed: ReviewedSemanticResult = {
@@ -229,7 +394,7 @@ export function reviewSemanticReviewItem(
     reviewStatus: 'approved',
     reviewedAt,
     reviewAction: options.reviewAction || 'edit',
-    originalCandidate: cloneResult(item.semanticResult),
+    originalCandidate: item.candidateStatus === 'no_candidate' ? null : cloneResult(item.semanticResult),
     finalValue: cloneResult(reviewedResult),
   };
   return {

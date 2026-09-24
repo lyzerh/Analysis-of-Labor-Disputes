@@ -3,10 +3,16 @@ import {
   clearLlmRuntimeSettings,
   isLlmAvailable,
   LLM_RUNTIME_SETTINGS_STORAGE_KEY,
+  XAI_RUNTIME_SETTINGS_STORAGE_KEY,
   readLlmRuntimeSettings,
   writeLlmRuntimeSettings,
 } from '../../src/services/semantic/LlmRuntimeSettings';
-import { testDeepSeekConnection } from '../../src/services/semantic/BrowserDeepSeekSemanticClient';
+import { testXaiConnection } from '../../src/services/semantic/BrowserXaiSemanticClient';
+import {
+  createLlmProviderPresentation,
+  getConfiguredLlmProvider,
+  testConfiguredLlmConnection,
+} from '../../src/services/semantic/LlmRuntimeProvider';
 import { SEMANTIC_LLM_MODEL, SEMANTIC_LLM_PROVIDER } from '../../src/services/semantic/SemanticPrompt';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -28,21 +34,43 @@ describe('browser LLM runtime settings contract', () => {
     const settingsSource = readFileSync(resolve(process.cwd(), 'src/services/semantic/LlmRuntimeSettings.ts'), 'utf8');
     const viewSource = readFileSync(resolve(process.cwd(), 'src/components/SettingsView.tsx'), 'utf8');
     expect(settingsSource).toContain('sessionStorage');
+    expect(XAI_RUNTIME_SETTINGS_STORAGE_KEY).toBe('labor-analysis-xai-settings-v1');
+    expect(LLM_RUNTIME_SETTINGS_STORAGE_KEY).toBe(XAI_RUNTIME_SETTINGS_STORAGE_KEY);
     expect(settingsSource).not.toContain('localStorage');
     expect(settingsSource).not.toContain('indexedDB');
     expect(viewSource).toMatch(/type="password"/);
     expect(viewSource).toContain('测试连接');
     expect(viewSource).toContain('清除 Key');
-    expect(viewSource).toContain('SEMANTIC_LLM_MODEL');
-    expect(viewSource).toContain('DeepSeek API Key');
-    expect(viewSource).toContain('DeepSeek V4.1 Flash');
-    expect(viewSource).toContain('testDeepSeekConnection()');
+    expect(viewSource).toContain('xAI API Key');
+    expect(viewSource).toContain('输入您的 xAI API Key');
+    expect(viewSource).toContain('getConfiguredLlmProvider');
+    expect(viewSource).toContain('testConfiguredLlmConnection()');
+    expect(viewSource).not.toContain('DeepSeek API Key');
+    expect(viewSource).not.toContain('调用 DeepSeek');
     expect(viewSource).toContain('onChange={(event) => persistApiKeyInput(event.target.value)}');
     expect(viewSource).toContain('onBlur={(event) => persistApiKeyInput(event.currentTarget.value)}');
     expect(viewSource).not.toContain('if (!settings.enabled');
-    expect(SEMANTIC_LLM_PROVIDER).toBe('deepseek');
-    expect(SEMANTIC_LLM_MODEL).toBe('deepseek-flash');
+    expect(SEMANTIC_LLM_PROVIDER).toBe('xai');
+    expect(SEMANTIC_LLM_MODEL).toBe('grok-4.20-0309-reasoning');
     expect(viewSource).toContain('不代表绝对安全');
+  });
+
+  it('presents the configured provider dynamically without provider-specific component copy', () => {
+    const sidebarSource = readFileSync(resolve(process.cwd(), 'src/components/Sidebar.tsx'), 'utf8');
+    expect(getConfiguredLlmProvider()).toMatchObject({
+      provider: 'xai',
+      providerLabel: 'xAI',
+      model: 'grok-4.20-0309-reasoning',
+      modelLabel: 'Grok 4.20 Reasoning',
+    });
+    expect(createLlmProviderPresentation('xai', 'grok-4.20-0309-reasoning')).toMatchObject({
+      provider: 'xai',
+      providerLabel: 'xAI',
+      model: 'grok-4.20-0309-reasoning',
+      modelLabel: 'Grok 4.20 Reasoning',
+    });
+    expect(sidebarSource).toContain('llmProvider.providerLabel');
+    expect(sidebarSource).not.toContain('DeepSeek 已启用');
   });
 
   it('writes, restores, and clears runtime settings in the dedicated session storage entry', () => {
@@ -67,7 +95,7 @@ describe('browser LLM runtime settings contract', () => {
     expect(readLlmRuntimeSettings()).toEqual({ enabled: false, apiKey: null });
   });
 
-  it('uses the restored runtime key for the DeepSeek connection header', async () => {
+  it('uses the restored runtime key for the xAI connection header', async () => {
     const values = new Map<string, string>();
     vi.stubGlobal('window', {
       sessionStorage: {
@@ -77,15 +105,36 @@ describe('browser LLM runtime settings contract', () => {
       },
       dispatchEvent: vi.fn(),
     });
-    writeLlmRuntimeSettings({ enabled: true, apiKey: 'sk-restored-test' });
+    writeLlmRuntimeSettings({ enabled: true, apiKey: 'xai-restored-test' });
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { content: '{"ok":true}' } }],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchMock);
 
     const restored = readLlmRuntimeSettings();
-    await expect(testDeepSeekConnection()).resolves.toBe('available');
-    expect(fetchMock.mock.calls[0][0]).toBe('https://api.deepseek.com/chat/completions');
-    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer sk-restored-test');
+    await expect(testXaiConnection()).resolves.toBe('available');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.x.ai/v1/chat/completions');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer xai-restored-test');
+  });
+
+  it('routes the provider-neutral connection entry point to the configured provider', async () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal('window', {
+      sessionStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+        removeItem: (key: string) => values.delete(key),
+      },
+      dispatchEvent: vi.fn(),
+    });
+    writeLlmRuntimeSettings({ enabled: true, apiKey: 'sk-configured-provider-test' });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: '{"ok":true}' } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(testConfiguredLlmConnection()).resolves.toBe('available');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer sk-configured-provider-test');
   });
 });

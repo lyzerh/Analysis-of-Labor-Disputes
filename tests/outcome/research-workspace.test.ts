@@ -90,6 +90,25 @@ class SnapshotAccess implements ResearchWorkspaceSnapshots {
     this.values.push(created);
     return created;
   }
+  async archiveSnapshot(id: string): Promise<CandidatePoolSnapshot> {
+    const item = this.values.find((snapshot) => snapshot.id === id);
+    if (!item) throw new Error('not found');
+    item.lifecycleStatus = 'archived';
+    item.archivedAt = '2026-09-20T00:00:00.000Z';
+    return structuredClone(item);
+  }
+  async restoreSnapshot(id: string): Promise<CandidatePoolSnapshot> {
+    const item = this.values.find((snapshot) => snapshot.id === id);
+    if (!item) throw new Error('not found');
+    item.lifecycleStatus = 'active';
+    delete item.archivedAt;
+    return structuredClone(item);
+  }
+  async deleteSnapshot(id: string): Promise<void> {
+    const index = this.values.findIndex((snapshot) => snapshot.id === id);
+    if (index < 0) throw new Error('not found');
+    this.values.splice(index, 1);
+  }
 }
 
 class LocalRecordAccess implements ResearchWorkspaceLocalRecords {
@@ -309,7 +328,44 @@ describe('Research Workspace service contract', () => {
   it('requires explicit semantic provider metadata when enabled', async () => {
     const { service } = await setup();
     const run = await service.createAnalysisRun({ snapshotId: 'snapshot-A', mode: 'exhaustive', semanticEnabled: true });
-    expect(run.semantic).toMatchObject({ enabled: true, promptVersion: expect.any(String), provider: 'deepseek', model: 'deepseek-flash' });
+    expect(run.semantic).toMatchObject({ enabled: true, promptVersion: expect.any(String), provider: 'xai', model: 'grok-4.20-0309-reasoning' });
+  });
+
+  it('treats legacy populations without lifecycle metadata as active', async () => {
+    const { service } = await setup();
+    expect((await service.loadWorkspace()).snapshots.find((item) => item.id === 'snapshot-A')?.isSelectable).toBe(true);
+  });
+
+  it('allows deleting an unreferenced population without touching local cases', async () => {
+    const { service, snapshots } = await setup();
+    const before = await new LocalRecordAccess().listLocalAnalysisRecords();
+    await service.deleteResearchPopulation('snapshot-A');
+    expect(await snapshots.getSnapshot('snapshot-A')).toBeUndefined();
+    expect((await new LocalRecordAccess().listLocalAnalysisRecords()).map((record) => record.caseId)).toEqual(before.map((record) => record.caseId));
+  });
+
+  it('protects populations referenced by one or more AnalysisRuns', async () => {
+    const { service, analyses } = await setup();
+    await service.createAnalysisRun({ snapshotId: 'snapshot-A', mode: 'exhaustive', semanticEnabled: false });
+    await expect(service.deleteResearchPopulation('snapshot-A')).rejects.toThrow(/1 个研究运行引用/);
+    expect(analyses.runs).toHaveLength(1);
+  });
+
+  it('archives without mutating historical run or frozen snapshot provenance, then restores the same identity', async () => {
+    const { service, snapshots, analyses } = await setup();
+    const original = await snapshots.getSnapshot('snapshot-A');
+    if (!original) throw new Error('fixture missing');
+    original.geographicScope = { mode: 'custom_cities', cities: ['广州'] };
+    const run = await service.createAnalysisRun({ snapshotId: 'snapshot-A', mode: 'exhaustive', semanticEnabled: false });
+    const frozenRun = structuredClone(run);
+    await service.archiveResearchPopulation('snapshot-A');
+    const archived = await snapshots.getSnapshot('snapshot-A');
+    expect(archived).toMatchObject({ id: 'snapshot-A', lifecycleStatus: 'archived', geographicScope: original.geographicScope, snapshotFingerprint: original.snapshotFingerprint });
+    expect(analyses.runs[0]).toEqual(frozenRun);
+    await expect(service.createAnalysisRun({ snapshotId: 'snapshot-A', mode: 'exhaustive', semanticEnabled: false })).rejects.toThrow(/归档/);
+    await service.restoreResearchPopulation('snapshot-A');
+    const restored = await snapshots.getSnapshot('snapshot-A');
+    expect(restored).toMatchObject({ id: 'snapshot-A', lifecycleStatus: 'active', geographicScope: original.geographicScope, snapshotFingerprint: original.snapshotFingerprint });
   });
 });
 
@@ -343,10 +399,21 @@ describe('Research Workspace UI contract', () => {
     expect(appSource).toMatch(/initialAnalysisRunId/);
   });
 
-  it('has an empty state and no delete or mutation controls', () => {
+  it('has an empty state and lifecycle controls without exposing AnalysisRun deletion', () => {
     expect(workspaceSource).toMatch(/尚无研究总体/);
     expect(workspaceSource).toMatch(/创建研究总体/);
-    expect(workspaceSource).not.toMatch(/删除研究|deleteAnalysisRun|updateAnalysisRun/);
+    expect(workspaceSource).toMatch(/删除研究总体/);
+    expect(workspaceSource).toMatch(/归档研究总体/);
+    expect(workspaceSource).toMatch(/恢复研究总体/);
+    expect(workspaceSource).not.toMatch(/deleteAnalysisRun|updateAnalysisRun/);
+  });
+
+  it('renders population lifecycle menus in a viewport-safe overlay layer', () => {
+    expect(workspaceSource).toMatch(/createPortal/);
+    expect(workspaceSource).toMatch(/className="fixed z-40/);
+    expect(workspaceSource).toMatch(/maxHeight: 'calc\(100vh - 1rem\)'/);
+    expect(workspaceSource).toMatch(/addEventListener\('scroll', handleViewportChange, true\)/);
+    expect(workspaceSource).not.toMatch(/<details className="relative shrink-0">/);
   });
 
   it('exposes explicit create flow and disables sampled creation without a SamplingRun', () => {

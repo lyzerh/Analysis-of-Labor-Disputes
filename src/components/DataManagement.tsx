@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   RotateCcw,
   Layers,
-  Database,
   CloudDownload,
   UploadCloud,
   ShieldCheck,
@@ -35,11 +34,10 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
   const [activeTab, setActiveTab] = useState<'backup' | 'crawler' | 'import' | 'quality' | 'semanticReview' | 'advanced'>('crawler');
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full bg-slate-50/80">
       {/* Management Top Nav */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-4 shrink-0 overflow-x-auto">
-        <h2 className="text-lg font-bold text-slate-900 mr-4 flex items-center gap-2">
-          <Database className="w-5 h-5 text-blue-600" />
+      <div className="bg-white/90 backdrop-blur-xl border-b border-white/80 px-6 py-4 flex items-center gap-4 shrink-0 overflow-x-auto">
+        <h2 className="text-lg font-bold text-slate-900 mr-4">
           数据管理
         </h2>
         
@@ -116,10 +114,10 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto px-6 py-6 lg:px-8">
         {activeTab === 'crawler' && <LaborInfoCrawlerComponent />}
         {activeTab === 'import' && <ImportCases onImportComplete={() => onDataChanged?.()} onNavigateToDatabase={() => {}} />}
-        {activeTab === 'quality' && <LaborInfoReview />}
+        {activeTab === 'quality' && <LaborInfoReview onDataChanged={onDataChanged} />}
         {activeTab === 'semanticReview' && <SemanticReviewWorkspace />}
         {activeTab === 'backup' && <BackupRestorePanel onDataChanged={onDataChanged} />}
         {activeTab === 'advanced' && <AdvancedToolsPanel />}
@@ -146,7 +144,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
       a.download = `劳动争议案例库_全量案例_${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      setMessage({ type: 'success', text: `成功导出 ${allCases.length} 篇案例为 CSV 文件！` });
+      setMessage({ type: 'success', text: `成功导出 ${allCases.length} 个案例为 CSV 文件！` });
     } catch (err: any) {
       setMessage({ type: 'error', text: `导出 CSV 失败: ${err.message}` });
     } finally {
@@ -167,7 +165,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
       a.download = `劳动争议案例库_结构化数据_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      setMessage({ type: 'success', text: `成功导出 ${allCases.length} 篇结构化案例为 JSON 文件！` });
+      setMessage({ type: 'success', text: `成功导出 ${allCases.length} 个结构化案例为 JSON 文件！` });
     } catch (err: any) {
       setMessage({ type: 'error', text: `导出 JSON 失败: ${err.message}` });
     } finally {
@@ -203,7 +201,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
       const result = await DataService.restoreDatabaseBackup(content);
       setMessage({
         type: 'success',
-        text: `🎉 成功从备份文件恢复 ${result.importedCount} 篇裁决案例及原始文书！`,
+        text: `🎉 成功从备份文件恢复 ${result.importedCount} 个裁决案例及原始文书！`,
       });
       onDataChanged?.();
     } catch (err: any) {
@@ -225,7 +223,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
   };
 
   return (
-    <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-8">
       <div>
         <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
           <HardDrive className="w-5 h-5 text-blue-600" />
@@ -254,7 +252,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
       )}
 
       {/* Export Section */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+      <div className="bg-white/80 border border-white/80 p-6 rounded-[24px] shadow-sm space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
             <Download className="w-4 h-4 text-blue-600" />
@@ -294,7 +292,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
       </div>
 
       {/* Restore Section */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+      <div className="bg-white/80 border border-white/80 p-6 rounded-[24px] shadow-sm space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
             <Upload className="w-4 h-4 text-blue-600" />

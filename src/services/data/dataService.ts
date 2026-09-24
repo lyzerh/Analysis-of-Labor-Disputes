@@ -1,12 +1,32 @@
 import { db } from '../../db';
 import { RawDocument, ArbitrationCase, CaseFilterOptions, DocumentContentType, LaborInfoCrawlTask } from '../../types';
 import { ShenzhenArbitrationParser } from '../parser/ShenzhenArbitrationParser';
+import { LaborInfoParserAdapter } from '../parser/LaborInfoParserAdapter';
 import { ParserUtils } from '../parser/ParserUtils';
 import { MockDataSourceAdapter } from '../dataSource/MockDataSourceAdapter';
 import { MHTParser } from '../../utils/mhtParser';
 
+export interface ReparseFailure {
+  caseId: string;
+  error: string;
+}
+
+export interface ReparseBatchResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  failures: ReparseFailure[];
+}
+
 export class DataService {
   private static parser = new ShenzhenArbitrationParser();
+
+  /** Reparse through the source-specific current parser without changing raw data. */
+  private static async parseStoredDocument(rawDoc: RawDocument): Promise<ArbitrationCase> {
+    return rawDoc.source === 'laborinfo'
+      ? LaborInfoParserAdapter.parse(rawDoc)
+      : this.parser.parse(rawDoc);
+  }
 
   /**
    * 自动检查并载入示范数据集（初次使用或库为空时）
@@ -386,7 +406,7 @@ export class DataService {
     const rawDoc = await db.rawDocuments.get(id);
     if (!rawDoc) return null;
 
-    const parsedCase = await this.parser.parse(rawDoc);
+    const parsedCase = await this.parseStoredDocument(rawDoc);
     await db.arbitrationCases.put(parsedCase);
     return parsedCase;
   }
@@ -394,13 +414,35 @@ export class DataService {
   /**
    * 全部重新解析
    */
-  public static async reparseAllCases(): Promise<number> {
+  public static async reparseAllCases(
+    onProgress?: (current: number, total: number, caseId: string) => void,
+  ): Promise<ReparseBatchResult> {
     const allRaw = await db.rawDocuments.toArray();
-    for (const doc of allRaw) {
-      const parsedCase = await this.parser.parse(doc);
-      await db.arbitrationCases.put(parsedCase);
+    const failures: ReparseFailure[] = [];
+    let succeeded = 0;
+
+    for (let index = 0; index < allRaw.length; index += 1) {
+      const doc = allRaw[index];
+      try {
+        const parsedCase = await this.parseStoredDocument(doc);
+        await db.arbitrationCases.put(parsedCase);
+        succeeded += 1;
+      } catch (error) {
+        failures.push({
+          caseId: doc.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        onProgress?.(index + 1, allRaw.length, doc.id);
+      }
     }
-    return allRaw.length;
+
+    return {
+      total: allRaw.length,
+      succeeded,
+      failed: failures.length,
+      failures,
+    };
   }
 
   /**

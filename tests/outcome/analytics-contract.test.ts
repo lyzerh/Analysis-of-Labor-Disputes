@@ -48,6 +48,15 @@ describe('Layer 3: Analytics outcome contracts', () => {
     expect(overtime?.employerOutcome.not_supported).toBe(0);
   });
 
+  it('does not use a procedural-only claim as a substantive outcome fallback', () => {
+    const record = analysisRecord('analytics-procedural-only', 'supported', {
+      disputeType: ['程序性上诉请求'],
+      claims: [{ claimType: 'procedural_appeal', claimName: '请求撤销原判', claimant: 'employee', supportStatus: 'supported' }],
+    });
+    const report = LaborDisputeAnalyticsEngine.generateReport([record]);
+    expect(report.disputeTypes.some((item) => item.disputeType === '程序性上诉请求')).toBe(false);
+  });
+
   it('exposes every matrix outcome bucket so the displayed denominator is auditable', () => {
     const defense = [{ defenseType: '严重违纪', matchedText: '企业提出严重违纪抗辩', confidence: 1 }];
     const records = [

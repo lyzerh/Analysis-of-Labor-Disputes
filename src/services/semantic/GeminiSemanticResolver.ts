@@ -5,6 +5,7 @@ import {
   parseSemanticResolutionResponse,
   SEMANTIC_RESPONSE_JSON_SCHEMA,
 } from './SemanticResolutionSchema';
+import { ensureSemanticSchemaValidationErrors } from './SemanticSchemaDiagnostics';
 import {
   buildSemanticPrompt,
   DEFAULT_SEMANTIC_MODEL,
@@ -45,7 +46,26 @@ export interface GeminiGenerateClient {
 const classifyProviderError = (error: unknown): SemanticResolverError => {
   if (error instanceof SemanticResolverError) return error;
   if (error instanceof SemanticSchemaError) {
-    return new SemanticResolverError('schema_invalid', 'Gemini response failed runtime schema validation');
+    return new SemanticResolverError(
+      'schema_invalid',
+      'Gemini response failed runtime schema validation',
+      undefined,
+      undefined,
+      {
+        failureStage: 'schema',
+        failureCode: 'schema_invalid',
+        schemaFailureOrigin: 'provider_response_schema',
+        validatorName: 'parseSemanticResolutionResponse',
+        validatorPassed: false,
+        validatorErrors: error.issues,
+        providerRawParsed: true,
+        semanticSchemaPassed: false,
+        normalizationPassed: false,
+        contractPassed: false,
+        auditRan: false,
+        schemaValidationErrors: ensureSemanticSchemaValidationErrors([], error.issues),
+      },
+    );
   }
   const candidate = error as { name?: string; message?: string; status?: number; code?: number | string };
   const status = Number(candidate?.status || candidate?.code) || undefined;
@@ -130,7 +150,7 @@ export class GeminiSemanticResolver implements SemanticResolver {
       } catch (error) {
         const classified = classifyProviderError(error);
         const finalError = new SemanticResolverError(
-          classified.code, classified.message, classified.status, attempt,
+          classified.code, classified.message, classified.status, attempt, classified.diagnostics,
         );
         if (!isRetryableProviderError(classified) || attempt === this.maxAttempts) throw finalError;
 

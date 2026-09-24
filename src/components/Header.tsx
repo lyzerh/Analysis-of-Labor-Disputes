@@ -1,20 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Menu, Database, Clock, HardDrive, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Menu, Database, Clock } from 'lucide-react';
 
 interface HeaderProps {
-  onSearch: (keyword: string) => void;
   caseCount: number;
   totalDocs: number;
   onOpenMobileMenu: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  onSearch,
   caseCount,
   totalDocs,
   onOpenMobileMenu,
 }) => {
-  const [keyword, setKeyword] = useState('');
   const [currentTime, setCurrentTime] = useState('');
 
   useEffect(() => {
@@ -35,14 +32,9 @@ export const Header: React.FC<HeaderProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSearch(keyword);
-  };
-
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-4 lg:px-8 flex items-center justify-between sticky top-0 z-20 shadow-2xs">
-      <div className="flex items-center gap-3 flex-1 max-w-2xl">
+    <header className="lawlens-global-header h-16 px-4 lg:px-8 flex items-center justify-between sticky top-0 z-20">
+      <div className="flex items-center flex-1">
         <button
           id="btn-mobile-menu"
           onClick={onOpenMobileMenu}
@@ -52,21 +44,9 @@ export const Header: React.FC<HeaderProps> = ({
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Global Search Bar */}
-        <form onSubmit={handleSubmit} className="relative w-full max-w-md">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            id="input-global-search"
-            type="text"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="全文检索（支持如：违法解除 AND 员工手册，或输入案号）..."
-            className="w-full pl-9.5 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-          />
-        </form>
       </div>
 
-      {/* Right Stats & Status */}
+      {/* Right utility cluster */}
       <div className="flex items-center gap-4 lg:gap-6 shrink-0">
         <div className="hidden sm:flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
           <Database className="w-3.5 h-3.5 text-blue-600" />
@@ -81,12 +61,6 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="font-mono">{currentTime}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-2xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-            本地引擎运行正常
-          </span>
-        </div>
       </div>
     </header>
   );

@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { SEMANTIC_LLM_MODEL, SEMANTIC_LLM_PROVIDER } from '../../src/services/semantic/SemanticPrompt';
 
-describe('DeepSeek activation contract', () => {
+describe('xAI activation contract', () => {
   it('pins the official provider and free model without a model fallback', () => {
-    expect(SEMANTIC_LLM_PROVIDER).toBe('deepseek');
-    expect(SEMANTIC_LLM_MODEL).toBe('deepseek-flash');
+    expect(SEMANTIC_LLM_PROVIDER).toBe('xai');
+    expect(SEMANTIC_LLM_MODEL).toBe('grok-4.20-0309-reasoning');
     const runtimeSource = readFileSync(resolve(process.cwd(), 'src/services/semantic/LlmRuntimeService.ts'), 'utf8');
-    expect(runtimeSource).toContain('createBrowserDeepSeekSemanticClient');
+    expect(runtimeSource).toContain('createBrowserXaiSemanticClient');
     expect(runtimeSource).toContain('modelName: SEMANTIC_LLM_MODEL');
     expect(runtimeSource).toContain('timeoutMs: SEMANTIC_LLM_TIMEOUT_MS');
     expect(runtimeSource).not.toContain('createBrowserGeminiSemanticClient');

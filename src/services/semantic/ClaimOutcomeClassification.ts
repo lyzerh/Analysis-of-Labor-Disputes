@@ -110,6 +110,7 @@ Return JSON only; do not include markdown or chain-of-thought.`,
   user: `Stage 2 target task:\n${JSON.stringify(task)}`,
 });
 
+/** Diagnostic-only Stage 2 experiment policy; not the production admission gate. */
 export const CLAIM_OUTCOME_CLASSIFICATION_CONFIDENCE_THRESHOLD = 0.9;
 
 export interface ClaimOutcomeClassificationContractResult {

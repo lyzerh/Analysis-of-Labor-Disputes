@@ -33,6 +33,7 @@ export interface SemanticClaim {
   claimantPartyIds: string[];
   claimantRole: PartyRole;
   claimType: string;
+  /** Empty means the claim is identified but reliable request provenance is unavailable. */
   claimText: string;
   requestedAmount?: number;
   currency?: 'CNY';
@@ -134,6 +135,46 @@ export interface SemanticResolutionResult extends SemanticFactSet {
   unresolvedReasonCodes?: SemanticReasonCode[];
   /** Technical provider/schema failures are distinct from semantic uncertainty. */
   resolverErrorCode?: SemanticResolverErrorCode;
+  /** Non-contract diagnostic metadata; populated only on local technical fallbacks. */
+  resolverErrorDetails?: {
+    httpStatus?: number;
+    message?: string;
+    failureStage?: 'provider' | 'json_parse' | 'schema' | 'contract' | 'audit';
+    failureCode?: string;
+    schemaFailureOrigin?: SemanticSchemaFailureOrigin;
+    validatorName?: string;
+    validatorPassed?: boolean;
+    validatorErrors?: string[];
+    contractReasonCodes?: string[];
+    providerRawParsed?: boolean;
+    semanticSchemaPassed?: boolean;
+    normalizationPassed?: boolean;
+    contractPassed?: boolean;
+    auditRan?: boolean;
+    rawResponseAvailable?: boolean;
+    rawResponsePreview?: string;
+    parsedJsonCandidate?: unknown;
+    schemaValidationErrors?: SemanticSchemaValidationError[];
+  };
+}
+
+/** Stable origin labels for schema-shaped failures across the resolver lifecycle. */
+export type SemanticSchemaFailureOrigin =
+  | 'provider_response_schema'
+  | 'semantic_result_schema'
+  | 'claim_resolution_schema'
+  | 'strict_schema_adapter'
+  | 'post_parse_normalization'
+  | 'contract_bridge'
+  | 'unknown';
+
+/** Bounded, presentation-safe diagnostics for a failed provider response. */
+export interface SemanticSchemaValidationError {
+  path: string;
+  errorCode: string;
+  expected?: string;
+  actualType?: string;
+  actualValuePreview?: string;
 }
 
 /** Shared routing contract between deterministic rules and a future resolver. */

@@ -1,1 +1,552 @@
 @import "tailwindcss";
+
+:root {
+  --lawlens-surface-page: #f6f8fb;
+  --lawlens-surface-glass: rgba(255, 255, 255, 0.82);
+  --lawlens-surface-solid: #ffffff;
+  --lawlens-surface-elevated: #ffffff;
+  --lawlens-border-soft: rgba(226, 232, 240, 0.82);
+  --lawlens-border-subtle: rgba(226, 232, 240, 0.56);
+  --lawlens-text-primary: #172033;
+  --lawlens-text-secondary: #526078;
+  --lawlens-text-muted: #7a879b;
+  --lawlens-accent: #4f67b8;
+  --lawlens-success: #218866;
+  --lawlens-warning: #b7791f;
+  --lawlens-danger: #bd4b58;
+  --lawlens-radius-section: 28px;
+  --lawlens-radius-card: 20px;
+  --lawlens-radius-control: 12px;
+  --lawlens-shadow-section: 0 12px 32px rgba(31, 45, 73, 0.045);
+  --lawlens-shadow-floating: 0 18px 46px rgba(31, 45, 73, 0.1);
+  --lawlens-page-padding: clamp(1rem, 2vw, 2rem);
+}
+
+html {
+  background: var(--lawlens-surface-page);
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  color: var(--lawlens-text-primary);
+  background:
+    radial-gradient(circle at 8% -10%, rgba(220, 231, 250, 0.42), transparent 32rem),
+    radial-gradient(circle at 96% 6%, rgba(225, 230, 242, 0.24), transparent 28rem),
+    var(--lawlens-surface-page);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 3px solid rgba(79, 103, 184, 0.24);
+  outline-offset: 2px;
+}
+
+::selection {
+  color: #18233a;
+  background: rgba(180, 197, 238, 0.58);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.42);
+  background-clip: padding-box;
+}
+
+@layer base {
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  th {
+    color: var(--lawlens-text-secondary);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  textarea,
+  input,
+  select {
+    border-radius: var(--lawlens-radius-control);
+  }
+}
+
+@layer components {
+  .lawlens-app-shell {
+    background: var(--lawlens-surface-page);
+  }
+
+  .lawlens-global-header {
+    background: rgba(255, 255, 255, 0.86);
+    border-color: var(--lawlens-border-subtle);
+    box-shadow: 0 1px 14px rgba(31, 45, 73, 0.045);
+    backdrop-filter: blur(16px);
+  }
+
+  .lawlens-sidebar {
+    box-shadow: 10px 0 30px rgba(15, 23, 42, 0.08);
+  }
+
+  .lawlens-section {
+    border-color: var(--lawlens-border-subtle);
+    border-radius: var(--lawlens-radius-section);
+    box-shadow: var(--lawlens-shadow-section);
+  }
+
+  .lawlens-solid-surface {
+    background: var(--lawlens-surface-solid);
+    border-color: var(--lawlens-border-subtle);
+  }
+
+  .lawlens-kpi-value {
+    color: var(--lawlens-text-primary);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.035em;
+  }
+
+  .lawlens-table-row {
+    transition: background-color 150ms ease;
+  }
+
+  .lawlens-table-row:hover {
+    background: rgba(241, 245, 249, 0.7);
+  }
+
+  [data-testid="gold-annotation-workspace"] > div:last-child {
+    gap: 1.5rem;
+  }
+
+  [data-testid="gold-annotation-workspace"] > div:last-child > aside {
+    border-color: var(--lawlens-border-soft);
+    border-radius: 22px;
+    padding: 1rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  }
+
+  [data-testid="gold-annotation-workspace"] > div:last-child > aside > button {
+    border-radius: 16px;
+    padding: 1rem;
+  }
+
+  [data-testid="gold-annotation-workspace"] > div:last-child > main {
+    border-color: var(--lawlens-border-soft);
+    border-radius: 24px;
+    padding: 1.5rem;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.04);
+  }
+
+  [data-testid="gold-annotation-workspace"] > section {
+    border-color: var(--lawlens-border-soft);
+    border-radius: 24px;
+    background: var(--lawlens-surface-glass);
+    box-shadow: 0 10px 32px rgba(15, 23, 42, 0.05);
+  }
+
+  [data-testid="gold-annotation-workspace"] > div.grid {
+    grid-template-columns: minmax(14rem, 0.34fr) minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  [data-testid="gold-annotation-workspace"] > div.grid > aside {
+    align-self: start;
+    border-color: var(--lawlens-border-subtle);
+    border-radius: 20px;
+    background: rgba(248, 250, 252, 0.82);
+    padding: 0.75rem;
+    box-shadow: none;
+  }
+
+  [data-testid="gold-annotation-workspace"] > div.grid > aside > button {
+    border-radius: 12px;
+    padding: 0.85rem;
+    transition: background-color 150ms ease, border-color 150ms ease;
+  }
+
+  [data-testid="gold-annotation-workspace"] > div.grid > main {
+    min-width: 0;
+    border-color: var(--lawlens-border-subtle);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 1.5rem;
+    box-shadow: var(--lawlens-shadow-section);
+  }
+
+  [data-testid="gold-claim-card"] > .text-xl {
+    font-size: 1.35rem;
+  }
+
+  [data-testid="gold-claim-card"] > div.mt-4 {
+    border: 1px solid var(--lawlens-border-subtle);
+    border-radius: 18px;
+    background: rgba(248, 250, 252, 0.72);
+    padding: 1rem;
+  }
+
+  [data-testid="gold-claim-card"] textarea {
+    min-height: 7rem;
+    line-height: 1.65;
+    background: var(--lawlens-surface-solid);
+  }
+
+  [data-testid="gold-claim-card"] > details {
+    border-top: 1px solid var(--lawlens-border-subtle);
+    padding-top: 0.75rem;
+  }
+
+  @media (max-width: 1023px) {
+    [data-testid="gold-annotation-workspace"] > div.grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+/* Shared primary action treatment: visible, calm, and consistent with the light workspace. */
+.lawlens-primary-button,
+[data-testid="gold-annotation-workspace"] > div.grid > main > button.mt-5 {
+  color: #334a88;
+  background: rgba(224, 231, 250, 0.88);
+  border: 1px solid rgba(171, 187, 229, 0.82);
+  box-shadow: 0 2px 8px rgba(71, 91, 150, 0.08);
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
+}
+
+.lawlens-primary-button:hover:not(:disabled),
+[data-testid="gold-annotation-workspace"] > div.grid > main > button.mt-5:hover:not(:disabled) {
+  color: #263a78;
+  background: rgba(207, 218, 246, 0.96);
+  border-color: rgba(145, 164, 218, 0.9);
+  box-shadow: 0 4px 12px rgba(71, 91, 150, 0.12);
+}
+
+.lawlens-primary-button:active:not(:disabled),
+[data-testid="gold-annotation-workspace"] > div.grid > main > button.mt-5:active:not(:disabled) {
+  background: rgba(191, 205, 239, 1);
+  border-color: rgba(125, 147, 210, 0.95);
+  box-shadow: 0 1px 4px rgba(71, 91, 150, 0.1);
+}
+
+.lawlens-primary-button:focus-visible {
+  outline: 3px solid rgba(112, 135, 205, 0.25);
+  outline-offset: 2px;
+}
+
+.lawlens-primary-button:disabled {
+  color: #8994ad;
+  background: rgba(226, 231, 242, 0.68);
+  border-color: rgba(203, 211, 226, 0.72);
+  box-shadow: none;
+  opacity: 0.72;
+}
+
+/* Visual art direction: hierarchy comes from type, area and spacing before borders. */
+.lawlens-app-shell {
+  background: transparent;
+}
+
+.lawlens-global-header {
+  background: rgba(250, 251, 253, 0.78);
+  border-bottom-color: rgba(203, 213, 225, 0.42);
+  box-shadow: 0 1px 12px rgba(31, 45, 73, 0.035);
+}
+
+.lawlens-global-header > div:last-child > div:first-child {
+  background: rgba(241, 245, 249, 0.54);
+  border-color: rgba(203, 213, 225, 0.42);
+}
+
+.lawlens-sidebar {
+  background: rgba(248, 250, 252, 0.9);
+  border-right-color: rgba(203, 213, 225, 0.46);
+  box-shadow: 4px 0 18px rgba(31, 45, 73, 0.035);
+}
+
+.lawlens-sidebar > div:first-child {
+  border-bottom-color: rgba(203, 213, 225, 0.42);
+  padding-top: 1.35rem;
+  padding-bottom: 1.35rem;
+}
+
+.lawlens-sidebar nav {
+  gap: 1.35rem;
+}
+
+.lawlens-sidebar nav > div > div:first-child {
+  color: #8a95a8;
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  font-weight: 600;
+}
+
+.lawlens-sidebar nav > div > div:last-child {
+  gap: 0.3rem;
+}
+
+.lawlens-sidebar nav button {
+  border-color: transparent;
+  box-shadow: none;
+  min-height: 2.35rem;
+  transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.lawlens-sidebar nav button:hover {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.lawlens-sidebar nav button[class*="bg-white"] {
+  background: rgba(232, 237, 249, 0.78);
+  border-color: rgba(182, 195, 229, 0.58);
+  box-shadow: 0 3px 10px rgba(71, 91, 150, 0.06);
+}
+
+.lawlens-sidebar > div:last-child {
+  background: rgba(248, 250, 252, 0.64);
+  border-top-color: rgba(203, 213, 225, 0.4);
+}
+
+.lawlens-sidebar > div:last-child > div:first-child {
+  background: transparent;
+  border-color: transparent;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+.lawlens-sidebar > div:last-child > div:nth-child(2),
+.lawlens-sidebar > div:last-child > div:nth-child(3) {
+  opacity: 0.78;
+}
+
+/* Shared surface levels. These are intentionally border-light and shadow-light. */
+.lawlens-section {
+  border-color: rgba(203, 213, 225, 0.38);
+  box-shadow: var(--lawlens-shadow-section);
+}
+
+.lawlens-solid-surface {
+  border-color: rgba(203, 213, 225, 0.4);
+  box-shadow: none;
+}
+
+.lawlens-primary-surface {
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(203, 213, 225, 0.38);
+  box-shadow: var(--lawlens-shadow-section);
+}
+
+.lawlens-secondary-surface {
+  background: rgba(248, 250, 252, 0.58);
+  border: 1px solid rgba(226, 232, 240, 0.3);
+  box-shadow: none;
+}
+
+.lawlens-utility-surface {
+  background: rgba(241, 245, 249, 0.46);
+  border: 1px solid rgba(226, 232, 240, 0.3);
+  box-shadow: none;
+}
+
+/* Gold benchmark: make agreement the visual anchor without changing metrics. */
+[data-testid="gold-benchmark-panel"] {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border-color: rgba(203, 213, 225, 0.4) !important;
+  box-shadow: var(--lawlens-shadow-section) !important;
+  backdrop-filter: none !important;
+}
+
+[data-testid="gold-benchmark-panel"] > div:nth-child(2) {
+  background: rgba(241, 245, 249, 0.54);
+  border-color: rgba(226, 232, 240, 0.36);
+}
+
+[data-testid="gold-benchmark-results"] > div.grid > div {
+  border-color: rgba(203, 213, 225, 0.34);
+  box-shadow: none;
+}
+
+[data-testid="gold-benchmark-results"] > div.grid > div:nth-child(3) {
+  padding: 1.35rem;
+  box-shadow: 0 8px 22px rgba(47, 115, 88, 0.08);
+}
+
+[data-testid="gold-benchmark-results"] > div.grid > div:nth-child(3) > div:nth-child(2) {
+  font-size: 2.15rem;
+}
+
+/* Pipeline: a quiet context strip, then a clear stage workspace. */
+[data-testid="pipeline-workspace"] {
+  background: transparent !important;
+}
+
+[data-testid="pipeline-workspace"] > section:first-child {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border-color: rgba(203, 213, 225, 0.38) !important;
+  box-shadow: var(--lawlens-shadow-section) !important;
+}
+
+[data-testid="pipeline-workspace"] > section:first-child > div.grid:first-of-type > div {
+  border-color: transparent;
+  background: rgba(248, 250, 252, 0.42);
+  box-shadow: none;
+}
+
+[data-testid="pipeline-workspace"] > section:first-child > div.grid:first-of-type > div:nth-child(3),
+[data-testid="pipeline-workspace"] > section:first-child > div.grid:first-of-type > div:nth-child(4) {
+  background: rgba(248, 250, 252, 0.7);
+}
+
+[data-testid="pipeline-workspace"] > section:first-child > div.grid:nth-of-type(2) > div {
+  border-color: rgba(226, 232, 240, 0.3);
+  box-shadow: none;
+}
+
+[data-testid="pipeline-workspace"] > section:nth-child(2) > div {
+  border-color: rgba(203, 213, 225, 0.34);
+  box-shadow: none;
+}
+
+[data-testid="pipeline-workspace"] > section:nth-child(2) > div:nth-child(2) {
+  background: rgba(238, 242, 252, 0.62);
+}
+
+[data-testid="pipeline-workspace"] > section:nth-child(2) > div:nth-child(4) {
+  background: rgba(255, 247, 237, 0.62);
+}
+
+[data-testid="pipeline-workspace"] > section:nth-child(3),
+[data-testid="pipeline-workspace"] > section:nth-child(4) {
+  border-color: rgba(203, 213, 225, 0.32);
+  box-shadow: none;
+}
+
+[data-testid="pipeline-workspace"] > section:nth-child(3) {
+  background: rgba(241, 245, 249, 0.48);
+}
+
+[data-testid="pipeline-workspace"] > section:nth-child(4) {
+  background: rgba(255, 251, 235, 0.5);
+}
+
+/* Case analysis: rail items are navigation, not a stack of cards. */
+[data-testid="case-analysis-workspace"] {
+  border-color: rgba(203, 213, 225, 0.38) !important;
+  box-shadow: var(--lawlens-shadow-section) !important;
+  background: rgba(248, 250, 252, 0.54) !important;
+}
+
+[data-testid="case-analysis-workspace"] aside > div:last-child > div {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+[data-testid="case-analysis-workspace"] aside > div:last-child > div:hover {
+  background: rgba(255, 255, 255, 0.64);
+}
+
+[data-testid="case-analysis-workspace"] aside > div:last-child > div[class*="bg-indigo-50"] {
+  background: rgba(231, 237, 251, 0.86);
+  border-color: rgba(176, 191, 228, 0.58);
+}
+
+[data-testid="case-analysis-workspace"] main > div > div:first-child {
+  border-color: rgba(203, 213, 225, 0.36);
+  box-shadow: var(--lawlens-shadow-section);
+}
+
+[data-testid="case-detail-modal"] > div {
+  border-color: rgba(203, 213, 225, 0.44);
+  box-shadow: 0 18px 48px rgba(31, 45, 73, 0.14);
+}
+
+[data-testid="case-detail-modal"] > div > div:first-child,
+[data-testid="case-detail-modal"] > div > div:nth-child(2) {
+  border-color: rgba(203, 213, 225, 0.34);
+}
+
+[data-testid="case-detail-modal"] > div > div:last-child {
+  background: rgba(248, 250, 252, 0.58);
+}
+
+/* Analytics and data quality use one primary surface plus quiet information zones. */
+[data-testid="analytics-view"],
+[data-testid="data-quality-view"] {
+  background: transparent !important;
+}
+
+[data-testid="analytics-view"] > div:first-child,
+[data-testid="data-quality-view"] > div:first-child {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(203, 213, 225, 0.38);
+  box-shadow: var(--lawlens-shadow-section);
+  backdrop-filter: none;
+}
+
+[data-testid="analytics-view"] > div:not(:first-child) > div,
+[data-testid="data-quality-view"] > div:not(:first-child) > div {
+  border-color: rgba(203, 213, 225, 0.3);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+[data-testid="analytics-view"] > div:nth-child(2) > div:first-child {
+  box-shadow: var(--lawlens-shadow-section);
+}
+
+[data-testid="analytics-view"] h3,
+[data-testid="data-quality-view"] h3 {
+  font-size: 0.9rem;
+  letter-spacing: -0.01em;
+}
+
+/* Dense evidence and review pages keep their efficiency, but lose repeated elevation. */
+[data-testid="gold-annotation-workspace"] > div.grid > aside,
+[data-testid="gold-annotation-workspace"] > div.grid > main,
+[data-testid="gold-claim-card"] {
+  border-color: rgba(203, 213, 225, 0.38) !important;
+  box-shadow: none !important;
+}
+
+[data-testid="gold-annotation-workspace"] > div.grid > main {
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+[data-testid="gold-claim-card"] {
+  background: rgba(255, 255, 255, 0.74) !important;
+}
+
+[data-testid="semantic-review-workspace"] {
+  background: rgba(248, 250, 252, 0.54) !important;
+}
+
+@media (min-width: 1024px) {
+  [data-testid="pipeline-workspace"] > section:nth-child(2) {
+    grid-template-columns: 1.08fr 1fr;
+  }
+}

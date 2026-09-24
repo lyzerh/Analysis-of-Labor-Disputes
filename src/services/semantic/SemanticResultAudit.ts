@@ -4,6 +4,8 @@ import type {
   SemanticParty,
   SemanticResolutionResult,
 } from './SemanticResult';
+import { SEMANTIC_AUTO_ACCEPT_CONFIDENCE } from './SemanticConfidenceConfig';
+export { SEMANTIC_AUTO_ACCEPT_CONFIDENCE } from './SemanticConfidenceConfig';
 
 /**
  * The local audit is deliberately narrower than a legal or outcome audit. It
@@ -47,7 +49,8 @@ export const SEMANTIC_AUDIT_REASON_CODES: readonly SemanticAuditReasonCode[] = [
   'technical_resolution_failure',
 ];
 
-export const DEFAULT_SEMANTIC_RESULT_ADMISSION_THRESHOLD = 0.9;
+/** Single production automatic-admission confidence gate for semantic results. */
+export const DEFAULT_SEMANTIC_RESULT_ADMISSION_THRESHOLD = SEMANTIC_AUTO_ACCEPT_CONFIDENCE;
 
 export interface SemanticAuditContext {
   rawText: string;

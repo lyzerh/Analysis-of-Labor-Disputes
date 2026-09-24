@@ -183,7 +183,7 @@ export const DatasetBuilderTest: React.FC = () => {
             <Filter className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
               <span className="font-semibold">数据集准入过滤规则：</span>
-              默认仅当 <strong>reviewStatus = 'approved' (人工核准)</strong> 或 <strong>parserScore ≥ 80 分 (高质量)</strong> 时进入正式分析集；其余低分未审案件自动归入<strong>待优化池</strong>。
+              默认仅当<strong>人工已核准</strong>或<strong>解析质量达到 80 分</strong>时进入正式分析集；其余低分未审案件自动归入<strong>待优化池</strong>。
             </div>
           </div>
         </div>
@@ -265,7 +265,7 @@ export const DatasetBuilderTest: React.FC = () => {
               <div>
                 <div className="flex justify-between text-2xs mb-1">
                   <span className="text-slate-600 font-medium">90 - 100 分 (极佳质量)</span>
-                  <span className="font-mono font-bold text-emerald-600">{summary.qualityDistribution.range90_100} 篇</span>
+                  <span className="font-mono font-bold text-emerald-600">{summary.qualityDistribution.range90_100} 个案例</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -278,7 +278,7 @@ export const DatasetBuilderTest: React.FC = () => {
               <div>
                 <div className="flex justify-between text-2xs mb-1">
                   <span className="text-slate-600 font-medium">80 - 89 分 (良好达标)</span>
-                  <span className="font-mono font-bold text-blue-600">{summary.qualityDistribution.range80_89} 篇</span>
+                  <span className="font-mono font-bold text-blue-600">{summary.qualityDistribution.range80_89} 个案例</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -291,7 +291,7 @@ export const DatasetBuilderTest: React.FC = () => {
               <div>
                 <div className="flex justify-between text-2xs mb-1">
                   <span className="text-slate-600 font-medium">60 - 79 分 (待优化)</span>
-                  <span className="font-mono font-bold text-amber-600">{summary.qualityDistribution.range60_79} 篇</span>
+                  <span className="font-mono font-bold text-amber-600">{summary.qualityDistribution.range60_79} 个案例</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -304,7 +304,7 @@ export const DatasetBuilderTest: React.FC = () => {
               <div>
                 <div className="flex justify-between text-2xs mb-1">
                   <span className="text-slate-600 font-medium">&lt; 60 分 (低完整度)</span>
-                  <span className="font-mono font-bold text-rose-600">{summary.qualityDistribution.rangeBelow60} 篇</span>
+                  <span className="font-mono font-bold text-rose-600">{summary.qualityDistribution.rangeBelow60} 个案例</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -330,7 +330,7 @@ export const DatasetBuilderTest: React.FC = () => {
                 城市归属分布 (核心三市)
               </h3>
               <span className="text-2xs text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-full">
-                广深莞: {summary.prdCount} 篇
+                广深莞: {summary.prdCount} 个案例
               </span>
             </div>
 
@@ -356,7 +356,7 @@ export const DatasetBuilderTest: React.FC = () => {
                       {isPRD && <span className="text-3xs text-indigo-600 bg-indigo-100 px-1 py-0.2 rounded">PRD</span>}
                     </div>
                     <div className="flex items-center gap-2 font-mono text-2xs">
-                      <span>{count} 篇</span>
+                      <span>{count} 个案例</span>
                       <span className="text-slate-400">({percent}%)</span>
                     </div>
                   </div>
@@ -399,7 +399,7 @@ export const DatasetBuilderTest: React.FC = () => {
                   >
                     <div className="truncate pr-2">{type}</div>
                     <div className="flex items-center gap-2 font-mono text-2xs shrink-0">
-                      <span>{count} 案</span>
+                      <span>{count} 个案例</span>
                       <span className="text-slate-400">({percent}%)</span>
                     </div>
                   </div>
@@ -575,7 +575,7 @@ export const DatasetBuilderTest: React.FC = () => {
                         <span>证据 ({r.evidence.length} 项)</span>
                       </div>
                       <div className="text-2xs font-semibold text-indigo-600">
-                        {r.overallResult === 'supported' ? '全部支持' : r.overallResult === 'not_supported' ? '全部驳回' : r.overallResult === 'partially_supported' ? '部分支持' : '结果未明确'}
+                         {r.overallResult === 'supported' ? '获得支持' : r.overallResult === 'not_supported' ? '未获支持' : r.overallResult === 'partially_supported' ? '部分支持' : '结果不明确'}
                       </div>
                     </div>
                   </div>
@@ -684,7 +684,7 @@ export const DatasetBuilderTest: React.FC = () => {
                             ? 'bg-rose-100 text-rose-800'
                             : 'bg-slate-200 text-slate-700'
                         }`}>
-                          {c.supportStatus === 'supported' ? '支持' : c.supportStatus === 'partially_supported' ? '部分支持' : c.supportStatus === 'not_supported' ? '驳回' : '未明确'}
+                          {c.supportStatus === 'supported' ? '获得支持' : c.supportStatus === 'partially_supported' ? '部分支持' : c.supportStatus === 'not_supported' ? '未获支持' : '结果不明确'}
                         </span>
                       </div>
                     ))}
@@ -738,7 +738,7 @@ export const DatasetBuilderTest: React.FC = () => {
                   <div className="grid grid-cols-2 gap-2 text-2xs">
                     <div><span className="text-slate-400">完整度评分:</span> <strong className="font-mono">{activeRecord.parserScore} 分</strong></div>
                     <div><span className="text-slate-400">综合置信度:</span> <strong className="font-mono">{(activeRecord.confidence * 100).toFixed(0)}%</strong></div>
-                    <div><span className="text-slate-400">审核状态:</span> <strong className="font-mono">{activeRecord.reviewStatus}</strong></div>
+                    <div><span className="text-slate-400">审核状态:</span> <strong className="font-mono">{activeRecord.reviewStatus === 'approved' ? '已核准' : activeRecord.reviewStatus === 'modified' ? '已修改' : '待核验'}</strong></div>
                     <div><span className="text-slate-400">含人工修订:</span> {activeRecord.hasReviewerChanges ? '是 (已叠加)' : '否'}</div>
                   </div>
                   {activeRecord.reviewerNotes && (

@@ -91,6 +91,15 @@ describe('Semantic Result resolver routing', () => {
     const result = await resolveUnresolvedSemanticTask(task, resolver);
     expect(result).toMatchObject({ status: 'unresolved', resolverErrorCode: 'schema_invalid' });
     expect(result.employeeOutcome).toBe('unclear');
+    expect(result.resolverErrorDetails).toMatchObject({
+      failureStage: 'schema',
+      schemaFailureOrigin: 'semantic_result_schema',
+      validatorName: 'parseSemanticResolutionResult',
+      validatorPassed: false,
+      providerRawParsed: true,
+      semanticSchemaPassed: false,
+      contractPassed: false,
+    });
   });
 
   it('rejects schema-valid target contract violations before audit', async () => {
@@ -107,6 +116,14 @@ describe('Semantic Result resolver routing', () => {
       status: 'unresolved',
       resolver: 'llm',
       resolverErrorCode: 'validation_rejected',
+    });
+    expect(result.resolverErrorDetails).toMatchObject({
+      failureStage: 'contract',
+      schemaFailureOrigin: 'contract_bridge',
+      semanticSchemaPassed: true,
+      normalizationPassed: true,
+      contractPassed: false,
+      contractReasonCodes: expect.arrayContaining(['target_resolution_duplicate']),
     });
   });
 

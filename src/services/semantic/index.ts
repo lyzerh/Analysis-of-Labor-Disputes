@@ -1,6 +1,7 @@
 export * from './types';
 export * from './OrdinalReferenceResolver';
 export * from './SemanticResolutionValidator';
+export * from './SemanticConfidenceConfig';
 export * from './SemanticResolver';
 export * from './SemanticResolutionSchema';
 export * from './SemanticPrompt';
@@ -19,6 +20,8 @@ export * from './SemanticReviewStorage';
 export * from './SemanticReviewQueue';
 export * from './BrowserGeminiSemanticClient';
 export * from './BrowserOpenRouterSemanticClient';
-export * from './BrowserDeepSeekSemanticClient';
+export * from './BrowserXaiSemanticClient';
+// BrowserDeepSeekSemanticClient remains available only through its direct
+// historical test import; it is intentionally not part of the formal runtime.
 export * from './LlmRuntimeSettings';
 export * from './LlmRuntimeService';

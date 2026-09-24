@@ -573,6 +573,12 @@ export interface NormalizedCandidateFilters {
     cities: string[];
     regions?: RegionSelectionRule[];
   };
+  /** Optional research-design geography; absent on legacy snapshots (equivalent to all). */
+  geographicScope?: {
+    mode: 'all' | 'province' | 'pearl_river_delta' | 'custom_cities';
+    provinces?: string[];
+    cities?: string[];
+  };
 }
 
 export interface RegionSelectionRule {
@@ -594,6 +600,7 @@ export interface CandidateMetadata {
 }
 
 export type CandidatePoolSnapshotStatus = 'complete' | 'partial' | 'failed' | 'cancelled';
+export type ResearchPopulationLifecycleStatus = 'active' | 'archived';
 
 export interface CandidatePoolDistribution {
   byCity: Record<string, number>;
@@ -625,6 +632,15 @@ export interface CandidatePoolSnapshotHeader {
     excludedUnknown: number;
   };
   distribution: CandidatePoolDistribution;
+  /** Frozen research geography. Missing on legacy snapshots means all collected areas. */
+  geographicScope?: {
+    mode: 'all' | 'province' | 'pearl_river_delta' | 'custom_cities';
+    provinces?: string[];
+    cities?: string[];
+  };
+  /** Lifecycle metadata for the research population; missing on legacy data means active. */
+  lifecycleStatus?: ResearchPopulationLifecycleStatus;
+  archivedAt?: string;
 }
 
 export interface CandidatePoolSnapshot extends CandidatePoolSnapshotHeader {
@@ -750,6 +766,12 @@ export interface AnalysisRun {
   errorCode?: string;
   errorMessage?: string;
   provenanceHash: string;
+  /** Frozen copy of the Snapshot geography; legacy runs default to all. */
+  geographicScope?: {
+    mode: 'all' | 'province' | 'pearl_river_delta' | 'custom_cities';
+    provinces?: string[];
+    cities?: string[];
+  };
 }
 
 export interface AnalysisRunProvenanceComparison {
@@ -799,6 +821,9 @@ export interface LaborInfoClaimItem {
   id?: string;
   claimName: string;
   claimType?: string;
+  /** Provenance of the text shown as the party's request. */
+  claimSourceKind?: 'litigation_request' | 'appeal_request' | 'arbitration_request' | 'party_statement' | 'inferred' | 'unknown';
+  claimSourceField?: 'ssjl' | 'fbqw' | 'unknown';
   claimant: LaborRole;
   claimantRole?: LaborRole;
   claimantPartyId?: string;
@@ -1230,17 +1255,18 @@ export interface OutcomeStats {
 }
 
 /**
- * 目标城市统计结构 (CityAnalyticsSummary)
+ * 研究地域城市统计结构 (CityAnalyticsSummary)
  */
 export interface CityAnalyticsSummary {
-  city: '广州' | '深圳' | '东莞';
+  /** Normalized city display name; the set is determined by the frozen AnalysisRun scope. */
+  city: string;
   caseCount: number;
   caseIds: string[];
   employeeOutcome: OutcomeStats;
   employerOutcome: OutcomeStats;
-  employerWinRate: number; // 企业胜诉率 (百分比，如 35.5)
-  employerPartialRate: number; // 企业部分支持率 (百分比)
-  employeeWinRate: number; // 员工胜诉率 (百分比)
+  employerWinRate: number | null; // 企业胜诉率 (百分比；无样本时为 null)
+  employerPartialRate: number | null; // 企业部分支持率 (百分比；无样本时为 null)
+  employeeWinRate: number | null; // 员工胜诉率 (百分比；无样本时为 null)
 }
 
 /**
@@ -1288,7 +1314,7 @@ export interface EvidenceAnalyticsItem {
 }
 
 /**
- * 广深莞劳动争议统计分析报告 (LaborDisputeReport)
+ * 研究地域劳动争议统计分析报告 (LaborDisputeReport)
  */
 export interface LaborDisputeReport {
   generatedAt: string;

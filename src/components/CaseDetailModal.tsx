@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   FileText,
-  Scale,
   ShieldCheck,
   Calendar,
   Building2,
@@ -12,8 +11,6 @@ import {
   Tag,
   AlertCircle,
   Code,
-  Sparkles,
-  Brain,
   Layers,
   ChevronRight,
   ShieldAlert,
@@ -76,19 +73,19 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
       case '用人单位胜诉':
         return (
           <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            用人单位胜诉 (全驳回)
+            用人单位结果偏有利
           </span>
         );
       case '用人单位败诉':
         return (
           <span className="px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-            用人单位败诉 (全额裁付)
+            用人单位结果偏不利
           </span>
         );
       case '部分支持':
         return (
           <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            部分支持裁决
+            部分有利
           </span>
         );
       default:
@@ -101,10 +98,10 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/70 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/70 backdrop-blur-xs" data-testid="case-detail-modal">
+      <div className="bg-white rounded-[28px] w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-4 shrink-0">
+        <div className="px-6 py-5 border-b border-slate-200 bg-white/95 flex items-center justify-between gap-4 shrink-0">
           <div className="overflow-hidden">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-bold text-blue-700 font-mono">
@@ -120,6 +117,11 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
             <h2 className="text-base sm:text-lg font-bold text-slate-900 truncate mt-1">
               {currentCase.title}
             </h2>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-2xs text-slate-500">
+              <span>{currentCase.arbitrationCommittee || '裁判机构未记录'}</span>
+              <span>{formatCaseDate(currentCase.publishedDate)}</span>
+              <span>{currentCase.caseLevel || '审级未记录'}</span>
+            </div>
           </div>
 
           <button
@@ -142,8 +144,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <Brain className="w-4 h-4 text-blue-600" />
-            本地文本画像与研判 (CaseProfile)
+            本地文本画像与研判
           </button>
           <button
             id="tab-btn-structured"
@@ -154,13 +155,12 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <Scale className="w-4 h-4" />
             结构化法务要素
           </button>
         </div>
 
         {/* Modal Scrollable Content */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+        <div className="p-6 lg:p-7 overflow-y-auto flex-1 space-y-6 bg-slate-50/40">
           {/* TAB 1: 本地文本画像与研判 */}
           {activeTab === 'profile' && caseProfile && (
             <div className="space-y-6 text-xs text-slate-800">
@@ -171,12 +171,12 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   <span>本地文本分析结果仅用于案例研究和统计，不构成法律意见。</span>
                 </div>
                 <span className="bg-white/80 border border-amber-300/80 px-2 py-0.5 rounded font-mono font-bold text-amber-800">
-                  纯本地规则引擎
+                  本模块由本地规则引擎生成
                 </span>
               </div>
 
               {/* 1. 章节结构完备性 */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div className="bg-white p-4 rounded-xl border border-slate-200">
                 <div className="font-bold text-slate-900 flex items-center gap-1.5 mb-2.5">
                   <Layers className="w-4 h-4 text-blue-600" />
                   文书章节结构识别
@@ -233,7 +233,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
               {/* 2. 企业抗辩识别 */}
               <div className="space-y-3 border-t border-slate-100 pt-4">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Scale className="w-4 h-4 text-blue-600" />
                   企业抗辩策略识别
                   <span className="text-2xs font-mono font-normal text-slate-400">
                     ({caseProfile.employerDefenses.length} 项)
@@ -244,13 +243,13 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                     {caseProfile.employerDefenses.map((def, idx) => (
                       <div
                         key={idx}
-                        className="bg-blue-50/50 border border-blue-200 rounded-xl p-3.5 space-y-1.5"
+                        className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-1.5"
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-blue-900 text-xs">
                             {def.defenseType}
                           </span>
-                          <span className="text-2xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono">
+                          <span className="text-2xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono">
                             置信度: {(def.confidence * 100).toFixed(0)}%
                           </span>
                         </div>
@@ -318,13 +317,13 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                     {caseProfile.lossReasons.map((lr, idx) => (
                       <div
                         key={idx}
-                        className="bg-rose-50/50 border border-rose-200 rounded-xl p-3.5 space-y-1"
+                        className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-1"
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-rose-900 text-xs">
                             归因特征：{lr.reason}
                           </span>
-                          <span className="text-2xs bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-mono">
+                          <span className="text-2xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono">
                             匹配置信度: {(lr.confidence * 100).toFixed(0)}%
                           </span>
                         </div>
@@ -345,7 +344,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
               <div className="space-y-3 border-t border-slate-100 pt-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-600" />
                     本地相似案件智能推荐 (TOP 10)
                   </h3>
                   <span className="text-2xs text-slate-400 font-mono">
@@ -429,7 +427,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
             <div className="space-y-6 text-xs text-slate-800">
               {/* Meta Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="p-3 bg-white rounded-lg border border-slate-200">
                   <span className="text-2xs text-slate-500 flex items-center gap-1">
                     <Building2 className="w-3 h-3 text-slate-400" /> 仲裁委员会
                   </span>
@@ -438,7 +436,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   </div>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="p-3 bg-white rounded-lg border border-slate-200">
                   <span className="text-2xs text-slate-500 flex items-center gap-1">
                     <Calendar className="w-3 h-3 text-slate-400" /> 裁决年份与日期
                   </span>
@@ -447,7 +445,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   </div>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="p-3 bg-white rounded-lg border border-slate-200">
                   <span className="text-2xs text-slate-500 flex items-center gap-1">
                     <Users className="w-3 h-3 text-slate-400" /> 申请人 vs 被申请人
                   </span>
@@ -456,7 +454,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   </div>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="p-3 bg-white rounded-lg border border-slate-200">
                   <span className="text-2xs text-slate-500 flex items-center gap-1">
                     <Award className="w-3 h-3 text-slate-400" /> 裁决金额
                   </span>
@@ -474,7 +472,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   <span className="w-1.5 h-4 bg-blue-600 rounded-full inline-block" />
                   仲裁请求
                 </h3>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1.5">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1.5">
                   {currentCase.claims.map((claim, idx) => (
                     <div key={idx} className="flex items-start gap-2 text-slate-800 leading-relaxed">
                       <span className="text-blue-600 font-bold font-mono shrink-0">
@@ -492,7 +490,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   <span className="w-1.5 h-4 bg-emerald-600 rounded-full inline-block" />
                   经审理查明事实
                 </h3>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-700 leading-relaxed whitespace-pre-wrap font-sans">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 text-slate-700 leading-7 whitespace-pre-wrap font-sans">
                   {currentCase.facts}
                 </div>
               </div>
@@ -503,7 +501,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   <span className="w-1.5 h-4 bg-purple-600 rounded-full inline-block" />
                   仲裁庭认定与说理
                 </h3>
-                <div className="bg-purple-50/40 p-4 rounded-xl border border-purple-200/60 text-slate-800 leading-relaxed whitespace-pre-wrap">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 text-slate-800 leading-7 whitespace-pre-wrap">
                   {currentCase.tribunalReasoning}
                 </div>
               </div>
@@ -514,7 +512,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   <span className="w-1.5 h-4 bg-amber-600 rounded-full inline-block" />
                   裁决结果主文
                 </h3>
-                <div className="bg-slate-900 text-slate-100 p-4 rounded-xl font-mono leading-relaxed whitespace-pre-wrap">
+                <div className="bg-white border border-slate-200 text-slate-800 p-4 rounded-xl leading-7 whitespace-pre-wrap">
                   {currentCase.decision}
                 </div>
               </div>
@@ -524,8 +522,11 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 text-xs">
-          <span className="text-slate-400 font-mono">ID: {currentCase.id}</span>
+        <div className="px-6 py-3 border-t border-slate-200 bg-white flex items-center justify-between shrink-0 text-xs">
+          <details className="text-2xs text-slate-400">
+            <summary className="cursor-pointer">技术详情</summary>
+            <span className="mt-1 block font-mono">案例 ID：{currentCase.id}</span>
+          </details>
           <button
             id="btn-close-modal-bottom"
             onClick={onClose}

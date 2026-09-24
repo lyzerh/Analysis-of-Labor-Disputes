@@ -2,6 +2,7 @@ import {
   SEMANTIC_RESOLUTION_RESULT_JSON_SCHEMA,
   parseSemanticResolutionResult,
 } from './SemanticResultSchema';
+import { SemanticSchemaError } from './SemanticResolutionSchema';
 import type {
   SemanticResolutionResult,
   UnresolvedSemanticTask,
@@ -18,6 +19,12 @@ import {
   SEMANTIC_TEMPERATURE,
 } from './SemanticPrompt';
 import { traceSemantic } from './SemanticTracing';
+import {
+  boundedParsedJsonCandidate,
+  boundedRawResponsePreview,
+  collectSemanticSchemaValidationErrors,
+  ensureSemanticSchemaValidationErrors,
+} from './SemanticSchemaDiagnostics';
 
 export interface GeminiResultGenerateRequest {
   model: string;
@@ -117,7 +124,16 @@ export class GeminiSemanticResultResolver implements SemanticResultResolver {
           contentPresent: false,
           contentLength: 0,
         });
-        return createTechnicalUnresolvedResult(task, 'empty_response');
+        return createTechnicalUnresolvedResult(task, 'empty_response', 'provider returned an empty response', undefined, {
+          failureStage: 'provider',
+          failureCode: 'empty_response',
+          providerRawParsed: false,
+          semanticSchemaPassed: false,
+          normalizationPassed: false,
+          contractPassed: false,
+          auditRan: false,
+          rawResponseAvailable: false,
+        });
       }
 
       let raw: unknown;
@@ -137,7 +153,17 @@ export class GeminiSemanticResultResolver implements SemanticResultResolver {
           contentPresent: true,
           contentLength: text.length,
         });
-        return createTechnicalUnresolvedResult(task, 'invalid_json');
+        return createTechnicalUnresolvedResult(task, 'invalid_json', 'provider response was not valid JSON', undefined, {
+          failureStage: 'json_parse',
+          failureCode: 'invalid_json',
+          providerRawParsed: false,
+          semanticSchemaPassed: false,
+          normalizationPassed: false,
+          contractPassed: false,
+          auditRan: false,
+          rawResponseAvailable: true,
+          rawResponsePreview: boundedRawResponsePreview(text),
+        });
       }
 
       try {
@@ -148,13 +174,40 @@ export class GeminiSemanticResultResolver implements SemanticResultResolver {
           status: result.status,
         });
         return result;
-      } catch {
+      } catch (error) {
+        const validatorIssues = error instanceof SemanticSchemaError ? error.issues : [];
+        const collectedErrors = collectSemanticSchemaValidationErrors(raw);
+        const schemaValidationErrors = ensureSemanticSchemaValidationErrors(collectedErrors, validatorIssues);
+        const hasValidatorErrors = validatorIssues.length > 0 || schemaValidationErrors.length > 0;
+        const failureCode = hasValidatorErrors ? 'schema_invalid' : 'unknown_schema_failure';
+        const resolverCode: SemanticResolverErrorCode = hasValidatorErrors ? 'schema_invalid' : 'provider_error';
         traceSemantic('schemaValidation', {
           caseId: task.caseId,
           passed: false,
-          errorCode: 'schema_invalid',
+          errorCode: failureCode,
+          schemaFailureOrigin: 'semantic_result_schema',
+          validatorName: 'parseSemanticResolutionResult',
+          validatorPassed: false,
+          validatorErrorCount: validatorIssues.length,
+          errorCount: schemaValidationErrors.length,
         });
-        return createTechnicalUnresolvedResult(task, 'schema_invalid');
+        return createTechnicalUnresolvedResult(task, resolverCode, 'provider JSON failed the semantic schema', undefined, {
+          failureStage: 'schema',
+          failureCode,
+          schemaFailureOrigin: 'semantic_result_schema',
+          validatorName: 'parseSemanticResolutionResult',
+          validatorPassed: false,
+          validatorErrors: validatorIssues,
+          providerRawParsed: true,
+          semanticSchemaPassed: false,
+          normalizationPassed: false,
+          contractPassed: false,
+          auditRan: false,
+          rawResponseAvailable: true,
+          rawResponsePreview: boundedRawResponsePreview(text),
+          parsedJsonCandidate: boundedParsedJsonCandidate(raw),
+          schemaValidationErrors,
+        });
       }
     } catch (error) {
       const errorCode = classifyError(error);
@@ -162,7 +215,16 @@ export class GeminiSemanticResultResolver implements SemanticResultResolver {
         caseId: task.caseId,
         errorCode,
       });
-      return createTechnicalUnresolvedResult(task, errorCode);
+      const candidate = error as { status?: number; message?: string };
+      return createTechnicalUnresolvedResult(task, errorCode, candidate?.message, candidate?.status, {
+        failureStage: 'provider',
+        failureCode: errorCode,
+        providerRawParsed: false,
+        semanticSchemaPassed: false,
+        normalizationPassed: false,
+        contractPassed: false,
+        auditRan: false,
+      });
     } finally {
       if (timeout) clearTimeout(timeout);
     }

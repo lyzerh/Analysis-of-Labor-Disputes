@@ -20,7 +20,12 @@ describe('BUG-010 research navigation context', () => {
     saveResearchNavigationContext(storage, { page: 'caseResearch', selectedSnapshotId: 'snapshot-A', selectedAnalysisRunId: 'run-A' });
     expect(loadResearchNavigationContext(storage).selectedSnapshotId).toBe('snapshot-A');
     const workspaceSource = readFileSync(new URL('../../src/components/ResearchWorkspace.tsx', import.meta.url), 'utf8');
-    expect(workspaceSource).toMatch(/当前 Snapshot：\{selectedSnapshot\.id\}/);
+    // Snapshot context is now presented through the shared context bar and
+    // progressive-disclosure technical details instead of the removed inline
+    // "当前 Snapshot" label.
+    expect(workspaceSource).toMatch(/<AnalysisContextBar/);
+    expect(workspaceSource).toMatch(/Snapshot ID：/);
+    expect(workspaceSource).toMatch(/高级设置 \/ 技术详情/);
   });
 
   it('restores Snapshot A after a Workspace refresh', () => {

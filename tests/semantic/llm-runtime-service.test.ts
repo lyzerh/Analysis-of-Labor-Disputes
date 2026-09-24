@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildSemanticTask, runSingleCaseSemanticAnalysis } from '../../src/services/semantic/LlmRuntimeService';
+import { applyPersistedSemanticTechnicalFailure, applySingleCaseSemanticRunState, buildSemanticTask, runSingleCaseSemanticAnalysis } from '../../src/services/semantic/LlmRuntimeService';
 import { createTechnicalUnresolvedResult } from '../../src/services/semantic/SemanticResultFallback';
 import type { AnalysisCaseRecord, RawDocument } from '../../src/types';
 
@@ -146,7 +146,7 @@ describe('single-case browser semantic runtime', () => {
     expect(JSON.stringify(input)).toBe(before);
   });
 
-  it('classifies an output-truncated DeepSeek response as technical and uses the 8192 token budget', async () => {
+  it('classifies an output-truncated xAI response as technical and uses the 8192 token budget', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{
         message: { content: null },
@@ -161,9 +161,9 @@ describe('single-case browser semantic runtime', () => {
       apiKey: 'test-key',
     })).resolves.toMatchObject({
       status: 'technical_failure',
-      message: expect.stringContaining('未创建人工复核项'),
+      message: expect.stringContaining('可重试 AI 或直接人工复核'),
     });
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ max_tokens: 8192, model: 'deepseek-flash' });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ max_tokens: 8192, model: 'grok-4.20-0309-reasoning' });
   });
 
   it('classifies schema/JSON failures as technical without creating human review', async () => {
@@ -173,5 +173,72 @@ describe('single-case browser semantic runtime', () => {
     await expect(runSingleCaseSemanticAnalysis(record(), rawDocument, { enabled: true, apiKey: 'test-key' })).resolves.toMatchObject({
       status: 'technical_failure',
     });
+  });
+
+  it('keeps a retryable technical failure separate, then routes a later valid response to review', async () => {
+    const validCandidate = {
+      status: 'unresolved',
+      resolver: 'llm',
+      parties: [],
+      claims: [{ id: 'claim-1', claimantPartyIds: [], claimantRole: 'employee', claimType: '工资', claimText: '待分析片段' }],
+      judgmentItems: [],
+      claimResolutions: [{ claimId: 'claim-1', judgmentItemIds: [], outcome: 'unclear', confidence: 0 }],
+      applicantRole: 'unknown', applicantOutcome: 'unclear', employeeOutcome: 'unclear', employerOutcome: 'unclear',
+      confidence: 0,
+      unresolvedReasonCodes: ['claim_judgment_match_unclear'],
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: null }, finish_reason: 'length' }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(validCandidate) }, finish_reason: 'stop' }] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const first = await runSingleCaseSemanticAnalysis(record(), rawDocument, { enabled: true, apiKey: 'test-key' });
+    expect(first.status).toBe('technical_failure');
+    const second = await runSingleCaseSemanticAnalysis(record(), rawDocument, { enabled: true, apiKey: 'test-key' });
+    expect(second.status).toBe('review');
+    expect(second.reviewItem?.candidateStatus).toBe('ai_candidate');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('synchronizes a technical job failure into the case workflow state without changing parser facts', () => {
+    const source = { ...record(), semanticResolutionStatus: 'pending' as const, semanticResolutionErrorCode: undefined };
+    const updated = applySingleCaseSemanticRunState(source, {
+      status: 'technical_failure',
+      message: '技术失败',
+      technicalFailure: {
+        caseId: source.caseId,
+        failureStage: 'response',
+        failureCode: 'schema_invalid',
+        errorSummary: 'schema failed',
+        timestamp: '2026-09-17T06:00:00.000Z',
+        attempt: 1,
+      },
+    });
+    expect(updated).toMatchObject({ semanticResolutionStatus: 'technical_failure', semanticResolutionErrorCode: 'schema_invalid' });
+    expect(updated.claims).toEqual(source.claims);
+    expect(updated.unresolvedReferences).toEqual(source.unresolvedReferences);
+  });
+
+  it('moves a valid-but-uncertain retry into review_pending and clears stale technical code', () => {
+    const source = { ...record(), semanticResolutionStatus: 'technical_failure' as const, semanticResolutionErrorCode: 'schema_invalid' };
+    const updated = applySingleCaseSemanticRunState(source, { status: 'review', message: '已进入人工复核' });
+    expect(updated).toMatchObject({ semanticResolutionStatus: 'needs_review' });
+    expect(updated.semanticResolutionErrorCode).toBeUndefined();
+  });
+
+  it('rehydrates a stored technical failure without regressing a later semantic result', () => {
+    const failure = {
+      caseId: 'case-1',
+      failureStage: 'validation' as const,
+      failureCode: 'schema_invalid',
+      errorSummary: 'schema failed',
+      timestamp: '2026-09-17T06:00:00.000Z',
+      attempt: 1,
+    };
+    expect(applyPersistedSemanticTechnicalFailure({ ...record(), semanticResolutionStatus: 'pending' }, failure)).toMatchObject({
+      semanticResolutionStatus: 'technical_failure',
+      semanticResolutionErrorCode: 'schema_invalid',
+    });
+    const later = { ...record(), semanticResolutionStatus: 'needs_review' as const };
+    expect(applyPersistedSemanticTechnicalFailure(later, failure)).toBe(later);
   });
 });

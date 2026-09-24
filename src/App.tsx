@@ -20,8 +20,9 @@ import { ResearchWorkspace } from './components/ResearchWorkspace';
 import { DataManagement } from './components/DataManagement';
 import { SettingsView } from './components/SettingsView';
 import { UserGuideView } from './components/UserGuideView';
+import { GoldAnnotationWorkspace } from './components/GoldAnnotationWorkspace';
 import { CaseDetailModal } from './components/CaseDetailModal';
-import { ArbitrationCase, CaseFilterOptions } from './types';
+import { ArbitrationCase } from './types';
 import { DataService } from './services/data/dataService';
 import { AnalyticsService } from './services/analytics/analyticsService';
 import { db } from './db';
@@ -43,9 +44,6 @@ export function App() {
 
   // Selected case for detail modal
   const [selectedCase, setSelectedCase] = useState<ArbitrationCase | null>(null);
-
-  // Filter params passed to CaseDatabase when drilldown happens
-  const [databaseFilter, setDatabaseFilter] = useState<Partial<CaseFilterOptions>>({});
 
   const refreshSummaryStats = useCallback(async () => {
     try {
@@ -81,31 +79,16 @@ export function App() {
     });
   }, [currentTab, selectedSnapshotId, selectedAnalysisRunId]);
 
-  const handleGlobalSearch = (keyword: string) => {
-    setDatabaseFilter({ keyword });
-    setCurrentTab('caseLibrary');
-  };
-
-  const handleNavigateWithFilter = (tab: NavTab, params: any = {}) => {
-    if (tab === 'caseLibrary') {
-      setDatabaseFilter(params);
-    }
-    setCurrentTab(tab);
-  };
-
   const handleSelectCase = (c: ArbitrationCase) => {
     setSelectedCase(c);
   };
 
   return (
-    <div className="flex h-screen w-screen bg-slate-100/70 text-slate-800 overflow-hidden font-sans antialiased select-none">
+    <div className="lawlens-app-shell flex h-screen w-screen text-slate-800 overflow-hidden font-sans antialiased select-none">
       {/* PC Left Fixed Sidebar + Tablet Drawer */}
       <Sidebar
         currentTab={currentTab}
         onSelectTab={(tab) => {
-          if (tab === 'caseLibrary') {
-            setDatabaseFilter({});
-          }
           setCurrentTab(tab);
         }}
         caseCount={caseCount}
@@ -118,7 +101,6 @@ export function App() {
       <div className="flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
         {/* Global Header */}
         <Header
-          onSearch={handleGlobalSearch}
           caseCount={caseCount}
           totalDocs={totalDocs}
           onOpenMobileMenu={() => setIsOpenMobile(true)}
@@ -173,6 +155,8 @@ export function App() {
           {currentTab === 'dataManagement' && (
             <DataManagement onDataChanged={refreshSummaryStats} />
           )}
+
+          {currentTab === 'goldAnnotation' && <GoldAnnotationWorkspace />}
 
           {currentTab === 'settings' && <SettingsView onNavigateToGuide={() => setCurrentTab('userGuide')} />}
           {currentTab === 'userGuide' && <UserGuideView onNavigate={(tab) => setCurrentTab(tab)} />}

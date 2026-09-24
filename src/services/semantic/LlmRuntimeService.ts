@@ -1,11 +1,17 @@
 import type { AnalysisCaseRecord, RawDocument } from '../../types';
-import { createBrowserDeepSeekSemanticClient } from './BrowserDeepSeekSemanticClient';
+import { createBrowserXaiSemanticClient } from './BrowserXaiSemanticClient';
 import { GeminiSemanticResultResolver } from './GeminiSemanticResultResolver';
 import { readLlmRuntimeSettings, isLlmAvailable, type LlmRuntimeSettings } from './LlmRuntimeSettings';
 import {
   enqueueSemanticReviewItem,
   createSemanticReviewItemFromAudit,
+  type SemanticReviewItem,
 } from './SemanticReviewQueue';
+import {
+  appendSemanticTechnicalFailure,
+  failureStageForCode,
+  type SemanticTechnicalFailure,
+} from './SemanticTechnicalFailureStorage';
 import {
   resolveUnresolvedSemanticTaskWithAudit,
 } from './SemanticResolutionOrchestrator';
@@ -26,7 +32,77 @@ export interface SingleCaseSemanticRunResult {
   status: SingleCaseSemanticRunStatus;
   message: string;
   auditReasonCodes?: string[];
+  technicalFailure?: SemanticTechnicalFailure;
+  reviewItem?: SemanticReviewItem;
 }
+
+/**
+ * Runs the current production semantic resolver without applying workflow
+ * side effects.  Gold benchmark and other read-only experiments use this
+ * boundary so they still share the active provider, prompt, schema, contract
+ * validation, and audit path without creating review items or technical
+ * failure records.
+ */
+export const resolveSemanticTaskForBenchmark = async (
+  task: UnresolvedSemanticTask,
+  settings: LlmRuntimeSettings = readLlmRuntimeSettings(),
+): Promise<Awaited<ReturnType<typeof resolveUnresolvedSemanticTaskWithAudit>>> => {
+  if (!isLlmAvailable(settings)) {
+    throw new Error('当前 AI 服务 API Key 未配置或 AI 未启用');
+  }
+  const resolver = new GeminiSemanticResultResolver({
+    apiKey: settings.apiKey!,
+    modelName: SEMANTIC_LLM_MODEL,
+    timeoutMs: SEMANTIC_LLM_TIMEOUT_MS,
+    maxOutputTokens: SEMANTIC_MAX_OUTPUT_TOKENS,
+    client: createBrowserXaiSemanticClient(settings.apiKey),
+  });
+  return resolveUnresolvedSemanticTaskWithAudit(task, resolver);
+};
+
+/**
+ * Projects only the semantic workflow state of a case after a single run.
+ * Parser facts, outcomes, provenance, and analysis-set membership remain
+ * untouched; this closes the gap between the AI job result and the pipeline
+ * stage cards shown in Case Analysis.
+ */
+export const applySingleCaseSemanticRunState = (
+  record: AnalysisCaseRecord,
+  result: SingleCaseSemanticRunResult,
+): AnalysisCaseRecord => {
+  if (result.status === 'technical_failure' && result.technicalFailure) {
+    return {
+      ...record,
+      semanticResolutionStatus: 'technical_failure',
+      semanticResolutionErrorCode: result.technicalFailure.failureCode,
+    };
+  }
+  if (result.status === 'review') {
+    return {
+      ...record,
+      semanticResolutionStatus: 'needs_review',
+      semanticResolutionErrorCode: undefined,
+    };
+  }
+  return record;
+};
+
+/** Rehydrates a persisted technical failure for a freshly loaded case list. */
+export const applyPersistedSemanticTechnicalFailure = (
+  record: AnalysisCaseRecord,
+  failure: SemanticTechnicalFailure,
+): AnalysisCaseRecord => {
+  // A later semantic review/result is authoritative; an old failure record
+  // must not regress it back to a retryable technical stage.
+  if (record.semanticResolutionStatus === 'resolved' || record.semanticResolutionStatus === 'needs_review') {
+    return record;
+  }
+  return {
+    ...record,
+    semanticResolutionStatus: 'technical_failure',
+    semanticResolutionErrorCode: failure.failureCode,
+  };
+};
 
 const claimIdOf = (claim: AnalysisCaseRecord['claims'][number], index: number): string =>
   claim.id || `${claim.claimName || 'claim'}-${index + 1}`;
@@ -76,7 +152,9 @@ export const buildSemanticTask = (record: AnalysisCaseRecord, rawDocument: RawDo
     claimantRole: claim.claimantRole || claim.claimant,
     claimType: claim.claimType || claim.claimName,
     claimLabel: claim.claimName,
-    claimText: claim.sourceText || claim.claimName,
+    // Keep an unavailable request text empty; claimLabel remains the stable
+    // semantic label and must not be presented as fabricated request prose.
+    claimText: claim.sourceText || '',
     ...(claim.requestedAmount !== undefined ? { requestedAmount: claim.requestedAmount, currency: 'CNY' as const } : {}),
   }));
   const judgmentItems = collectKnownJudgmentItems(record);
@@ -131,10 +209,10 @@ export const runSingleCaseSemanticAnalysis = async (
     return { status: 'awaiting_llm', message: 'AI 语义分析未启用，案例保持待 AI 语义分析。' };
   }
   if (!settings.apiKey?.trim()) {
-    return { status: 'awaiting_llm', message: 'DeepSeek API Key 未配置，案例保持待 AI 语义分析。' };
+    return { status: 'awaiting_llm', message: '当前 AI 服务 API Key 未配置，案例保持待 AI 语义分析。' };
   }
   if (!isLlmAvailable(settings)) {
-    return { status: 'awaiting_llm', message: 'DeepSeek API Key 未配置，案例保持待 AI 语义分析。' };
+    return { status: 'awaiting_llm', message: '当前 AI 服务 API Key 未配置，案例保持待 AI 语义分析。' };
   }
 
   const task = buildSemanticTask(record, rawDocument);
@@ -157,22 +235,33 @@ export const runSingleCaseSemanticAnalysis = async (
     modelName: SEMANTIC_LLM_MODEL,
     timeoutMs: SEMANTIC_LLM_TIMEOUT_MS,
     maxOutputTokens: SEMANTIC_MAX_OUTPUT_TOKENS,
-    client: createBrowserDeepSeekSemanticClient(settings.apiKey, { caseId: record.caseId }),
+    client: createBrowserXaiSemanticClient(settings.apiKey, { caseId: record.caseId }),
   });
   const audited = await resolveUnresolvedSemanticTaskWithAudit(task, resolver);
 
   if (audited.result.resolverErrorCode && TECHNICAL_RESOLVER_ERROR_CODES.includes(audited.result.resolverErrorCode)) {
+    const technicalFailure = appendSemanticTechnicalFailure({
+      caseId: record.caseId,
+      failureStage: failureStageForCode(audited.result.resolverErrorCode),
+      failureCode: audited.result.resolverErrorCode,
+      ...(audited.result.resolverErrorDetails?.httpStatus !== undefined ? { httpStatus: audited.result.resolverErrorDetails.httpStatus } : {}),
+      errorSummary: audited.result.resolverErrorDetails?.message || `语义解析失败：${audited.result.resolverErrorCode}`,
+      timestamp: new Date().toISOString(),
+    });
     traceSemantic('finalRouting', {
       caseId: record.caseId,
       status: 'technical_failure',
       resolverErrorCode: audited.result.resolverErrorCode,
+      failureStage: technicalFailure.failureStage,
+      failureCode: technicalFailure.failureCode,
       auditDecision: audited.audit.decision,
       auditReasonCodes: audited.audit.reasonCodes,
     });
     return {
       status: 'technical_failure',
-      message: '语义分析技术失败，未生成可供人工判断的候选结果；未创建人工复核项。',
+      message: `语义分析技术失败（${technicalFailure.failureCode}），可重试 AI 或直接人工复核。`,
       auditReasonCodes: audited.audit.reasonCodes,
+      technicalFailure,
     };
   }
 
@@ -197,6 +286,15 @@ export const runSingleCaseSemanticAnalysis = async (
     date: record.date,
     result: audited.result,
     audit: audited.audit,
+    auditContext: {
+      rawText: task.rawText,
+      ...(task.knownParties ? { knownParties: task.knownParties } : {}),
+      ...(task.knownClaims ? { knownClaims: task.knownClaims } : {}),
+      ...(task.knownJudgmentItems ? { knownJudgmentItems: task.knownJudgmentItems } : {}),
+      requiredClaimResolutionIds: task.unresolvedTargets
+        .filter((target) => target.type === 'claim_resolution' && Boolean(target.id))
+        .map((target) => target.id as string),
+    },
     unresolvedTargets: task.unresolvedTargets,
     context: rawDocument.rawText.slice(0, 8_000),
     createdAt: new Date().toISOString(),
@@ -213,5 +311,6 @@ export const runSingleCaseSemanticAnalysis = async (
     status: 'review',
     message: '单案例语义解析完成，但 Audit 未通过，已进入人工复核。',
     auditReasonCodes: audited.audit.reasonCodes,
+    ...(reviewItem ? { reviewItem } : {}),
   };
 };

@@ -47,17 +47,17 @@ export const ResearchAnalysisHeader: React.FC<ResearchAnalysisHeaderProps> = ({
           onChange={(event) => onSelect(event.target.value)}
           className="min-w-0 flex-1 text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-700"
         >
-          <option value="">请选择 AnalysisRun（不会自动选择最新记录）</option>
+          <option value="">请选择分析记录（不会自动选择最新记录）</option>
           {runs.map((run) => (
             <option key={run.id} value={run.id} disabled={run.status === 'failed'}>
-              {shortResearchId(run.id)} · {researchModeLabel(run.mode)} · N={run.inputCaseCount} · {researchStatusLabel(run.status)}
+              {shortResearchId(run.id)} · {researchModeLabel(run.mode)} · {run.inputCaseCount} 个案例 · {researchStatusLabel(run.status)}
             </option>
           ))}
         </select>
         <button
           onClick={onExecute}
           disabled={isLoading || !selectedAnalysisRunId}
-          className="px-4 py-2 bg-indigo-600 disabled:bg-slate-300 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-colors"
+          className="lawlens-primary-button px-4 py-2 text-xs font-semibold rounded-lg disabled:bg-slate-200"
         >
           {isLoading ? '正在执行…' : '加载并执行正式分析'}
         </button>
@@ -65,7 +65,7 @@ export const ResearchAnalysisHeader: React.FC<ResearchAnalysisHeaderProps> = ({
 
       {runs.length === 0 && (
         <div className="text-xs rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
-          当前没有 AnalysisRun。请先创建 exhaustive 或 sampled AnalysisRun；本页不会回退到本地全库。
+          当前没有可用的分析记录。请先创建全量分析或抽样分析；本页不会回退到本地全库。
         </div>
       )}
       {error && <div className="text-xs rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">{error}</div>}
@@ -82,38 +82,30 @@ export const ResearchAnalysisHeader: React.FC<ResearchAnalysisHeaderProps> = ({
       {context && (
         <div className={`rounded-xl border p-3 text-xs ${qualityClass}`}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <div>模式：{researchModeLabel(context.analysisRun.mode)}</div>
-            <div>输入：N={context.analysisRun.inputCaseCount}</div>
-            <div>Analytics 准入：N={metadata ? metadata.usableCaseCount : '待执行'}</div>
-            <div>质量：{quality?.status === 'blocked' ? '阻断' : quality?.status === 'warning' ? '警告' : '通过'}</div>
-            <div className="col-span-2 truncate" title={context.analysisRun.id}>AnalysisRun：{shortResearchId(context.analysisRun.id)}</div>
-            <div className="col-span-2 truncate" title={context.snapshot.id}>研究范围：{shortResearchId(context.snapshot.id)}</div>
-            <div>已有记录：{quality?.metrics.availableRecordCount ?? 0}</div>
-            <div>缺失记录：{quality?.metrics.missingRecordCount ?? 0}</div>
-            <div className="col-span-2 truncate" title={context.analysisRun.provenanceHash}>Provenance（调试）：{shortResearchId(context.analysisRun.provenanceHash)}</div>
+            <div>当前分析集：{context.analysisRun.inputCaseCount} 个案例</div>
+            <div>状态：{researchStatusLabel(context.analysisRun.status)}</div>
+            <div>结果可用：{metadata ? `${metadata.usableCaseCount} 个案例` : '待执行'}</div>
+            <div>质量状态：{quality?.status === 'blocked' ? '阻断' : quality?.status === 'warning' ? '警告' : '通过'}</div>
           </div>
-          {metadata && (
-            <div className="mt-2 pt-2 border-t border-current/20 space-y-1">
-              <div>{metadata.scopeStatement}；结果范围为 {metadata.statisticalScope === 'corpus' ? '语料总体' : '本次样本'}。</div>
-              <div>
-                结果比例分母：已知结果 N={metadata.denominatorContract.knownOutcomeCount}；
-                排除未确定 N={metadata.denominatorContract.unknownOutcomeExcludedCount}。
-              </div>
-              {metadata.sampling && (
-                <div>
-                  抽样：{metadata.sampling.method} · seed={metadata.sampling.seed} · 样本 N={metadata.sampling.actualSampleSize}
-                  {metadata.sampling.allocationStrategy ? ` · ${metadata.sampling.allocationStrategy}` : ''}
-                  {metadata.sampling.dimensions ? ` · dimensions=${metadata.sampling.dimensions.join(',')}` : ''}
-                  {` · hash=${metadata.sampling.sampleHash}`}
-                </div>
-              )}
+          <details className="mt-2 border-t border-current/20 pt-2">
+            <summary className="cursor-pointer font-medium">技术详情</summary>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div>分析模式：{researchModeLabel(context.analysisRun.mode)}</div>
+              <div>AnalysisRun：<span className="truncate" title={context.analysisRun.id}>{shortResearchId(context.analysisRun.id)}</span></div>
+              <div>研究范围：<span className="truncate" title={context.snapshot.id}>{shortResearchId(context.snapshot.id)}</span></div>
+              <div>已有记录：{quality?.metrics.availableRecordCount ?? 0}</div>
+              <div>缺失记录：{quality?.metrics.missingRecordCount ?? 0}</div>
+              <div className="col-span-2 truncate" title={context.analysisRun.provenanceHash}>Provenance：{shortResearchId(context.analysisRun.provenanceHash)}</div>
             </div>
-          )}
-          {quality && quality.issues.length > 0 && (
-            <ul className="mt-2 pt-2 border-t border-current/20 list-disc pl-4 space-y-1">
-              {quality.issues.map((issue, index) => <li key={`${issue.code}-${index}`}>{issue.code}: {issue.message}</li>)}
-            </ul>
-          )}
+            {metadata && (
+              <div className="mt-2 space-y-1">
+                <div>{metadata.scopeStatement}；结果范围为 {metadata.statisticalScope === 'corpus' ? '语料总体' : '本次样本'}。</div>
+                <div>结果比例分母：已知结果 {metadata.denominatorContract.knownOutcomeCount} 个案例；排除未确定 {metadata.denominatorContract.unknownOutcomeExcludedCount} 个案例。</div>
+                {metadata.sampling && <div>抽样：{metadata.sampling.method} · seed={metadata.sampling.seed} · 样本 {metadata.sampling.actualSampleSize} 个案例{metadata.sampling.allocationStrategy ? ` · ${metadata.sampling.allocationStrategy}` : ''}{metadata.sampling.dimensions ? ` · dimensions=${metadata.sampling.dimensions.join(',')}` : ''} · hash={metadata.sampling.sampleHash}</div>}
+              </div>
+            )}
+            {quality && quality.issues.length > 0 && <ul className="mt-2 list-disc pl-4 space-y-1">{quality.issues.map((issue, index) => <li key={`${issue.code}-${index}`}>{issue.code}: {issue.message}</li>)}</ul>}
+          </details>
         </div>
       )}
     </div>

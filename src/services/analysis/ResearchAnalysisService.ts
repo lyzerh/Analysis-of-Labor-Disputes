@@ -209,7 +209,11 @@ export class ResearchAnalysisService {
 
   public async executeResearchAnalysis<T>(
     analysisRunId: string,
-    analyze: (records: AnalysisCaseRecord[], admissionOptions?: AnalyticsAdmissionFilterOptions) => T,
+    analyze: (
+      records: AnalysisCaseRecord[],
+      admissionOptions?: AnalyticsAdmissionFilterOptions,
+      analysisRun?: AnalysisRun,
+    ) => T,
   ): Promise<ResearchAnalysisExecution<T>> {
     const context = await this.loadResearchAnalysisContext(analysisRunId);
     let currentRun = context.analysisRun;
@@ -244,7 +248,7 @@ export class ResearchAnalysisService {
     }
 
     try {
-      const report = analyze(analyticsAdmission.eligibleRecords, admissionOptions);
+      const report = analyze(analyticsAdmission.eligibleRecords, admissionOptions, context.analysisRun);
       if (currentRun.status === 'running') {
         currentRun = await this.analysisRuns.markAnalysisRunCompleted(
           currentRun.id,

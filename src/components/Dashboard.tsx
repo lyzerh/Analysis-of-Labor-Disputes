@@ -11,7 +11,6 @@ import {
   Search,
   Activity,
   AlertCircle,
-  Brain,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -83,8 +82,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
     {
       title: '案例总数',
       value: overview.totalCases,
-      unit: '件',
-      sub: `原始文书 ${overview.totalDocs} 篇`,
+      unit: '个案例',
+      sub: `原始文书 ${overview.totalDocs} 份`,
       icon: FileText,
       color: 'blue',
       onClick: () => onNavigate('database'),
@@ -117,10 +116,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
       onClick: () => onNavigate('database', { disputeTag: overview.topDisputeTag }),
     },
     {
-      title: '用人单位整体胜诉率',
+      title: '用人单位结果偏有利比例',
       value: `${overview.companyWinRate}%`,
       unit: '',
-      sub: `胜诉 ${overview.companyWinCount} | 败诉 ${overview.companyLossCount} | 部分 ${overview.partialWinCount}`,
+      sub: `偏有利 ${overview.companyWinCount} | 偏不利 ${overview.companyLossCount} | 部分支持 ${overview.partialWinCount}`,
       icon: TrendingUp,
       color: 'emerald',
       onClick: () => onNavigate('analytics'),
@@ -137,21 +136,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
   ];
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="min-h-full bg-slate-50/80 p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-6 shadow-sm border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white/80 backdrop-blur-xl text-slate-900 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.06)] border border-white/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-400/30">
+              <span className="px-2.5 py-0.5 rounded-full text-2xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
               PC桌面端本地分析系统
             </span>
-            <span className="text-2xs text-slate-400">深圳市人力资源和社会保障局数据规范</span>
+              <span className="text-2xs text-slate-500">深圳市人力资源和社会保障局数据规范</span>
           </div>
-          <h2 className="text-xl lg:text-2xl font-bold tracking-tight mt-1.5">
+          <h2 className="text-2xl font-bold tracking-tight mt-1.5">
             深圳劳动人事争议仲裁文书本地研究库
           </h2>
-          <p className="text-sm text-slate-300 mt-1 max-w-2xl">
-            提供离线裁判文书解析、当事人与法条要素结构化提取、多维法务检索、胜诉率与高频争议关键词统计。
+          <p className="text-sm text-slate-500 mt-2 max-w-2xl leading-6">
+            提供本地裁判文书解析、当事人与法条要素结构化提取、多维法务检索、案件结果比例与高频争议关键词统计；可按配置启用 AI 语义分析。
           </p>
         </div>
 
@@ -159,15 +158,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
           <button
             id="btn-dash-analysis"
             onClick={() => onNavigate('localAnalysis')}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
+            className="lawlens-primary-button px-4 py-2.5 text-sm font-medium rounded-xl flex items-center gap-2 cursor-pointer"
           >
-            <Brain className="w-4 h-4" />
             本地研判引擎
           </button>
           <button
             id="btn-dash-import"
             onClick={() => onNavigate('import')}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
+            className="lawlens-primary-button px-4 py-2.5 text-sm font-medium rounded-xl flex items-center gap-2 cursor-pointer"
           >
             <Upload className="w-4 h-4" />
             导入新文书
@@ -175,7 +173,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
           <button
             id="btn-dash-database"
             onClick={() => onNavigate('database')}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg flex items-center gap-2 border border-slate-700 transition-colors"
+            className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl flex items-center gap-2 border border-slate-200 transition-colors"
           >
             <Search className="w-4 h-4" />
             检索案例库
@@ -191,7 +189,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
             <div
               key={idx}
               onClick={kpi.onClick}
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group"
+              className="bg-white/80 border border-white/80 p-5 rounded-2xl shadow-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group"
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-700">{kpi.title}</span>
@@ -214,7 +212,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Decision Distribution (4 cols) */}
-        <div className="lg:col-span-4 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+        <div className="lg:col-span-4 bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)] flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-900">裁决结果倾向分布</h3>
             <button
@@ -241,7 +239,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: any, name: any) => [`${value} 件`, name]}
+                  formatter={(value: any, name: any) => [`${value} 个案例`, name]}
                   contentStyle={{
                     backgroundColor: '#0f172a',
                     border: 'none',
@@ -264,17 +262,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                   <span className="text-slate-700 truncate">{item.name}</span>
                 </div>
-                <span className="font-semibold text-slate-900 font-mono">{item.value}件</span>
+                <span className="font-semibold text-slate-900 font-mono">{item.value} 个案例</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Year & Committee Trends (8 cols) */}
-        <div className="lg:col-span-8 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+        <div className="lg:col-span-8 bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)] flex flex-col">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-slate-900">年度案件数量与胜负变化趋势</h3>
-            <span className="text-xs text-slate-400 font-mono">单位: 件</span>
+            <h3 className="text-sm font-bold text-slate-900">年度案例数量与结果倾向变化趋势</h3>
+            <span className="text-xs text-slate-400 font-mono">单位：个案例</span>
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -291,9 +289,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
-                <Bar dataKey="win" name="用人单位胜诉" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="win" name="用人单位结果偏有利" fill="#10b981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="partial" name="部分支持" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="loss" name="用人单位败诉" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="loss" name="用人单位结果偏不利" fill="#ef4444" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -303,7 +301,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
       {/* Keywords & Recent Cases Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Keywords Top 8 (5 cols) */}
-        <div className="lg:col-span-5 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="lg:col-span-5 bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-slate-900">高频合规与抗辩关键词</h3>
             <span className="text-xs text-slate-500">点击可下钻检索</span>
@@ -331,7 +329,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
                       style={{ width: `${Math.min(100, kw.percent * 1.5)}%` }}
                     />
                   </div>
-                  <span className="text-xs font-mono font-bold text-slate-700">{kw.count} 篇</span>
+                  <span className="text-xs font-mono font-bold text-slate-700">{kw.count} 个案例</span>
                 </div>
               </div>
             ))}
@@ -339,7 +337,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
         </div>
 
         {/* Recent Cases (7 cols) */}
-        <div className="lg:col-span-7 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+        <div className="lg:col-span-7 bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)] flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-slate-900">最新入库与解析案例</h3>
             <button
@@ -374,7 +372,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectCase }
                             : 'bg-blue-50 text-blue-700 border border-blue-200'
                         }`}
                       >
-                        {c.decisionOutcome}
+                        {c.decisionOutcome === '用人单位胜诉'
+                          ? '用人单位结果偏有利'
+                          : c.decisionOutcome === '用人单位败诉'
+                          ? '用人单位结果偏不利'
+                          : c.decisionOutcome}
                       </span>
                     </div>
                     <p className="text-xs text-slate-800 font-medium truncate mt-0.5">{c.title}</p>

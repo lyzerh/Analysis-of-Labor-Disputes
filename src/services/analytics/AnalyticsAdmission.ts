@@ -1,6 +1,10 @@
 import type { AnalysisCaseRecord } from '../../types';
 import { readSemanticReviewItems } from '../semantic/SemanticReviewStorage';
-import type { SemanticReviewItem } from '../semantic/SemanticReviewQueue';
+import {
+  getCurrentSemanticReviewAudit,
+  type SemanticReviewAuditContext,
+  type SemanticReviewItem,
+} from '../semantic/SemanticReviewQueue';
 import type {
   ResolvedSemanticResult,
   SemanticResolutionResult,
@@ -9,6 +13,7 @@ import {
   parseSemanticResolutionResult,
 } from '../semantic/SemanticResultSchema';
 import type { SemanticLocalAuditResult } from '../semantic/SemanticResultAudit';
+import { auditSemanticResolutionResult } from '../semantic/SemanticResultAudit';
 import { traceSemantic } from '../semantic/SemanticTracing';
 
 /**
@@ -45,6 +50,8 @@ export interface AnalyticsAdmissionInput {
   ruleResult?: ResolvedSemanticResult | null;
   semanticResult?: SemanticResolutionResult | null;
   audit?: SemanticLocalAuditResult | null;
+  /** Full source context used to re-run the current centralized audit rules. */
+  semanticAuditContext?: SemanticReviewAuditContext | null;
   reviewItem?: SemanticReviewItem | null;
   reviewItems?: readonly SemanticReviewItem[];
   technicalErrorCode?: string | null;
@@ -154,6 +161,14 @@ const auditPassed = (audit: SemanticLocalAuditResult | null | undefined): boolea
   audit?.decision === 'pass' && audit.reasonCodes.length === 0
 );
 
+const currentAuditForResult = (
+  result: SemanticResolutionResult,
+  context: SemanticReviewAuditContext | null | undefined,
+  historicalAudit: SemanticLocalAuditResult | null | undefined,
+): SemanticLocalAuditResult | null | undefined => context
+  ? auditSemanticResolutionResult(result, context)
+  : historicalAudit;
+
 const reviewCandidates = (input: AnalyticsAdmissionInput): SemanticReviewItem[] => {
   const candidates = [
     ...(input.reviewItem ? [input.reviewItem] : []),
@@ -179,15 +194,27 @@ const humanReviewResult = (
   }
 };
 
-const latestHumanReview = (
-  items: readonly SemanticReviewItem[],
-): AcceptedSemanticResult | undefined => items
+const currentAuditForReviewItem = (item: SemanticReviewItem): SemanticLocalAuditResult | undefined => (
+  getCurrentSemanticReviewAudit(item)
+);
+
+type HumanReviewEntry = { item: SemanticReviewItem; accepted: AcceptedSemanticResult };
+
+const humanReviewEntries = (items: readonly SemanticReviewItem[]): HumanReviewEntry[] => items
   .filter((item) => item.status === 'reviewed')
   .map((item) => ({ item, accepted: humanReviewResult(item) }))
-  .filter((entry): entry is { item: SemanticReviewItem; accepted: AcceptedSemanticResult } => entry.accepted !== undefined)
+  .filter((entry): entry is HumanReviewEntry => entry.accepted !== undefined);
+
+const latestHumanReviewEntry = (
+  items: readonly SemanticReviewItem[],
+): HumanReviewEntry | undefined => humanReviewEntries(items)
   .sort((left, right) => (left.item.reviewedAt || left.item.createdAt).localeCompare(right.item.reviewedAt || right.item.createdAt)
     || left.item.id.localeCompare(right.item.id))
-  .at(-1)?.accepted;
+  .at(-1);
+
+const latestHumanReview = (
+  items: readonly SemanticReviewItem[],
+): AcceptedSemanticResult | undefined => latestHumanReviewEntry(items)?.accepted;
 
 /**
  * Resolves the trusted semantic source in the required order. This helper is
@@ -201,11 +228,16 @@ export const resolveAcceptedSemanticResult = (
   const reviewedItems = reviews.filter((item) => item.status === 'reviewed');
   if (reviewedItems.some((item) => !humanReviewResult(item))) return undefined;
   const reviewed = latestHumanReview(reviewedItems);
-  if (reviewed) return reviewed;
+  if (reviewed) {
+    const reviewedItem = latestHumanReviewEntry(reviewedItems)?.item;
+    const currentAudit = reviewedItem ? currentAuditForReviewItem(reviewedItem) : undefined;
+    if (currentAudit && !auditPassed(currentAudit)) return undefined;
+    return reviewed;
+  }
 
   if (input.semanticResult?.status === 'resolved'
     && !input.semanticResult.resolverErrorCode
-    && auditPassed(input.audit)) {
+    && auditPassed(currentAuditForResult(input.semanticResult, input.semanticAuditContext, input.audit))) {
     try {
       const result = parseSemanticResolutionResult(input.semanticResult);
       return semanticResultHasCriticalUnclear(result)
@@ -291,6 +323,11 @@ export const evaluateAnalyticsAdmission = (
     if (reviewedResults.some((item) => 'resolverErrorCode' in item.result && item.result.resolverErrorCode)) {
       addReason(reasons, 'technical_failure');
     }
+    const latestReviewedItem = latestHumanReviewEntry(reviewedItems)?.item;
+    const reviewedAudit = latestReviewedItem ? currentAuditForReviewItem(latestReviewedItem) : undefined;
+    if (reviewedAudit && !auditPassed(reviewedAudit)) {
+      addReason(reasons, 'audit_failed');
+    }
     if (reasons.size === 0) {
       return {
         status: 'eligible',
@@ -310,10 +347,15 @@ export const evaluateAnalyticsAdmission = (
   }
 
   if (input.semanticResult) {
+    const currentAudit = currentAuditForResult(
+      input.semanticResult,
+      input.semanticAuditContext,
+      input.audit,
+    );
     if (input.semanticResult.resolverErrorCode) addReason(reasons, 'technical_failure');
     if (input.semanticResult.status === 'unresolved') addReason(reasons, 'semantic_unresolved');
-    if (!input.audit) addReason(reasons, 'missing_accepted_semantic_result');
-    else if (!auditPassed(input.audit)) addReason(reasons, 'audit_failed');
+    if (!currentAudit) addReason(reasons, 'missing_accepted_semantic_result');
+    else if (!auditPassed(currentAudit)) addReason(reasons, 'audit_failed');
     if (input.semanticResult.status === 'resolved'
       && (semanticResultHasCriticalUnclear(input.semanticResult)
       || recordHasCriticalUnclear(input.record))) {

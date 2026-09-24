@@ -147,7 +147,7 @@ export const LaborInfoParserTest: React.FC = () => {
           <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div>
             <span className="font-semibold">纯测试环境提示：</span>
-            本阶段为<strong>独立的解析质量与字段完整率测试</strong>。完全不触碰现有 <code>ArbitrationCase</code> 统计库、不生成胜诉率分析、不生成研判报告，仅验证 <code>LaborInfoParserAdapter</code> 的精准提取能力。
+            本阶段为<strong>独立的解析质量与字段完整率测试</strong>。完全不触碰现有 <code>ArbitrationCase</code> 统计库、不生成案件结果比例分析、不生成研判报告，仅验证 <code>LaborInfoParserAdapter</code> 的精准提取能力。
           </div>
         </div>
       </div>
@@ -161,7 +161,7 @@ export const LaborInfoParserTest: React.FC = () => {
               从本地 IndexedDB 选取工劳网原始案例 (RawDocument)
             </h2>
             <span className="text-2xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-mono">
-              共 {storedDocs.length} 篇已入库 / 已选 {selectedDocIds.length} 篇
+              共 {storedDocs.length} 份文书已入库 / 已选 {selectedDocIds.length} 份文书
             </span>
           </div>
           <button
@@ -262,7 +262,7 @@ export const LaborInfoParserTest: React.FC = () => {
             <div className="text-2xl font-bold font-mono text-purple-600 mt-1">
               {aggregateStats.totalWords.toLocaleString()} <span className="text-xs text-slate-400 font-normal">字</span>
             </div>
-            <div className="text-2xs text-slate-500 mt-0.5">{parsedResults.length} 篇全部成功转换</div>
+            <div className="text-2xs text-slate-500 mt-0.5">{parsedResults.length} 个案例全部成功转换</div>
           </div>
         </div>
       )}
@@ -366,12 +366,12 @@ export const LaborInfoParserTest: React.FC = () => {
                       : 'bg-slate-100 text-slate-700'
                   }`}>
                     {activeResult.overallResult === 'supported'
-                      ? '支持 (supported)'
+                       ? '获得支持'
                       : activeResult.overallResult === 'partially_supported'
-                      ? '部分支持 (partially_supported)'
+                       ? '部分支持'
                       : activeResult.overallResult === 'not_supported'
-                      ? '驳回 (not_supported)'
-                      : '不明确 (unclear)'}
+                       ? '未获支持'
+                       : '结果不明确'}
                   </span>
                 </div>
               </div>
@@ -507,7 +507,7 @@ export const LaborInfoParserTest: React.FC = () => {
                                 ? 'bg-rose-100 text-rose-800'
                                 : 'bg-slate-100 text-slate-700'
                             }`}>
-                              {c.supportStatus === 'supported' ? '✅ 支持 (supported)' : c.supportStatus === 'partially_supported' ? '⚖️ 部分支持' : c.supportStatus === 'not_supported' ? '❌ 驳回 (not_supported)' : '❓ 未明确'}
+                              {c.supportStatus === 'supported' ? '✅ 获得支持' : c.supportStatus === 'partially_supported' ? '⚖️ 部分支持' : c.supportStatus === 'not_supported' ? '❌ 未获支持' : '❓ 结果不明确'}
                             </span>
                           </td>
                         </tr>

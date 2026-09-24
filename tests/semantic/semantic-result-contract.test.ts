@@ -8,6 +8,8 @@ import {
 import {
   isResolvedSemanticResult,
   isUnresolvedSemanticTask,
+  auditSemanticResolutionResult,
+  validateSemanticTaskContract,
   type SemanticRuleResult,
 } from '../../src/services/semantic';
 
@@ -65,6 +67,59 @@ describe('Semantic Result strict contract', () => {
     const parsed = parseSemanticResolutionResult(validResult());
     expect(parsed.status).toBe('resolved');
     expect(parsed.claimResolutions[0].sourceEvidence?.text).toContain('支付');
+  });
+
+  it('accepts an empty claimText as unavailable request provenance', () => {
+    const parsed = parseSemanticResolutionResult(validResult({
+      claims: [{ ...validResult().claims[0], claimText: '' }],
+    }));
+    expect(parsed.claims[0].claimText).toBe('');
+  });
+
+  it('keeps missing, null, and non-string claimText invalid', () => {
+    const missing = { ...validResult(), claims: [{ ...validResult().claims[0] }] } as Record<string, unknown>;
+    delete (missing.claims as Array<Record<string, unknown>>)[0].claimText;
+    expectSchemaError(missing);
+    expectSchemaError({ ...validResult(), claims: [{ ...validResult().claims[0], claimText: null }] });
+    expectSchemaError({ ...validResult(), claims: [{ ...validResult().claims[0], claimText: 123 }] });
+    expectSchemaError({ ...validResult(), claims: [{ ...validResult().claims[0], claimText: {} }] });
+    expectSchemaError({ ...validResult(), claims: [{ ...validResult().claims[0], claimText: [] }] });
+  });
+
+  it('does not relax other claim predicates when claimText is empty', () => {
+    const claim = { ...validResult().claims[0], claimText: '' };
+    expectSchemaError({ ...validResult(), claims: [{ ...claim, sourceEvidence: { text: '' } }] });
+    expectSchemaError({ ...validResult(), claims: [{ ...claim, claimantRole: 'invalid' as never }] });
+    expectSchemaError({ ...validResult(), claims: [{ ...claim, extra: true } as never] });
+  });
+
+  it('allows a missing-provenance benchmark candidate to continue through contract and audit layers', () => {
+    const parsed = parseSemanticResolutionResult(validResult({
+      claims: [{ ...validResult().claims[0], claimText: '' }],
+    }));
+    const task = {
+      status: 'unresolved' as const,
+      caseId: 'henan-chengxin-li-jianfa',
+      reasonCodes: ['claim_judgment_match_unclear' as const],
+      rawText: [
+        ...parsed.parties.map((item) => item.sourceEvidence?.text || ''),
+        ...parsed.claims.map((item) => item.sourceEvidence?.text || ''),
+        ...parsed.judgmentItems.map((item) => item.sourceEvidence?.text || ''),
+      ].join(''),
+      knownParties: parsed.parties,
+      knownClaims: parsed.claims,
+      knownJudgmentItems: parsed.judgmentItems,
+      unresolvedTargets: [{ type: 'claim_resolution' as const, id: 'claim-1', reasonCode: 'claim_judgment_match_unclear' as const }],
+    };
+    expect(validateSemanticTaskContract(task, parsed).valid).toBe(true);
+    expect(auditSemanticResolutionResult(parsed, {
+      rawText: task.rawText,
+      knownParties: task.knownParties,
+      knownClaims: task.knownClaims,
+      knownJudgmentItems: task.knownJudgmentItems,
+      requiredClaimResolutionIds: ['claim-1'],
+    }).decision).toBe('pass');
+    expect((parsed as unknown as Record<string, unknown>).accepted).toBeUndefined();
   });
 
   it('rejects unsupported outcome and role enum values', () => {

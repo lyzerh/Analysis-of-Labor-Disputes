@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  BarChart3,
   TrendingUp,
   PieChart as PieIcon,
   Tag,
@@ -78,15 +77,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
   }
 
   return (
-    <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="min-h-full bg-slate-50/80 p-6 lg:p-8 max-w-7xl mx-auto space-y-8" data-testid="analytics-view">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-600" />
-            多维法务裁判规则与统计分析
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+            基础统计分析
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 mt-2 max-w-2xl leading-6">
             聚合深圳各区劳动人事争议仲裁裁决倾向、年度案件趋势、高频抗辩要点与法条援引排行榜，支持点击图表项下钻检索。
           </p>
         </div>
@@ -95,13 +93,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
       {/* Row 1: Year Trends + Decision Outcomes */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Year Trends (7 cols) */}
-        <div className="lg:col-span-7 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+        <div className="lg:col-span-7 bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)] flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4 text-blue-600" />
               年度仲裁结果分布趋势
             </h3>
-            <span className="text-2xs text-slate-400 font-mono">单位: 件</span>
+            <span className="text-2xs text-slate-400 font-mono">单位：个案例</span>
           </div>
 
           <div className="h-64 w-full">
@@ -119,20 +117,20 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
-                <Bar dataKey="win" name="用人单位胜诉" fill="#10b981" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="win" name="用人单位结果偏有利" fill="#10b981" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="partial" name="部分支持" fill="#3b82f6" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="loss" name="用人单位败诉" fill="#ef4444" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="loss" name="用人单位结果偏不利" fill="#ef4444" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Decision Breakdown (5 cols) */}
-        <div className="lg:col-span-5 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+        <div className="lg:col-span-5 bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)] flex flex-col">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
               <PieIcon className="w-4 h-4 text-emerald-600" />
-              用人单位胜诉率与裁判倾向
+              用人单位结果分布与裁判倾向
             </h3>
           </div>
 
@@ -153,7 +151,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(val: any, name: any) => [`${val} 篇`, name]}
+                  formatter={(val: any, name: any) => [`${val} 个案例`, name]}
                   contentStyle={{
                     backgroundColor: '#0f172a',
                     border: 'none',
@@ -177,7 +175,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                   <span className="text-slate-700 truncate">{item.name}</span>
                 </div>
-                <span className="font-bold text-slate-900 font-mono text-2xs">{item.value}件</span>
+                <span className="font-bold text-slate-900 font-mono text-2xs">{item.value} 个案例</span>
               </button>
             ))}
           </div>
@@ -187,11 +185,11 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
       {/* Row 2: Committees Distribution + Dispute Tags */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Committee Distribution (6 cols) */}
-        <div className="lg:col-span-6 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+        <div className="lg:col-span-6 bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)] flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
               <Building2 className="w-4 h-4 text-indigo-600" />
-              各区仲裁委案件量与胜诉率分布
+              各区仲裁委案例量与结果偏有利比例
             </h3>
             <span className="text-2xs text-slate-400">点击下钻</span>
           </div>
@@ -207,9 +205,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
                   <span className="font-semibold text-slate-800">{com.committee}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-2xs text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                      胜诉率: {com.winRate}%
+                      结果偏有利比例: {com.winRate}%
                     </span>
-                    <span className="font-mono font-bold text-slate-700">{com.count} 件</span>
+                    <span className="font-mono font-bold text-slate-700">{com.count} 个案例</span>
                   </div>
                 </div>
                 <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden flex">
@@ -223,7 +221,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
         </div>
 
         {/* Dispute Tag Frequency (6 cols) */}
-        <div className="lg:col-span-6 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+        <div className="lg:col-span-6 bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)] flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
               <Tag className="w-4 h-4 text-amber-600" />
@@ -249,7 +247,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
                   <div className="w-24 bg-slate-100 h-1.5 rounded-full overflow-hidden hidden sm:block">
                     <div className="bg-amber-500 h-full rounded-full" style={{ width: `${t.percent}%` }} />
                   </div>
-                  <span className="text-xs font-mono font-bold text-slate-900">{t.count} 篇</span>
+                   <span className="text-xs font-mono font-bold text-slate-900">{t.count} 个案例涉及</span>
                 </div>
               </div>
             ))}
@@ -260,7 +258,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
       {/* Row 3: Keywords & Legal Basis Citations */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Keywords Top 14 (6 cols) */}
-        <div className="lg:col-span-6 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="lg:col-span-6 bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-900">核心合规抗辩关键词排行榜</h3>
             <span className="text-2xs text-slate-400">点击关键词直接精准筛选</span>
@@ -278,7 +276,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
                   <span className="text-xs font-bold text-slate-800 truncate">{kw.keyword}</span>
                 </div>
                 <span className="text-2xs font-mono font-semibold text-blue-600 shrink-0">
-                  {kw.count} 篇
+                   {kw.count} 个案例
                 </span>
               </button>
             ))}
@@ -286,7 +284,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onDrilldown }) => 
         </div>
 
         {/* Legal Basis Citations (6 cols) */}
-        <div className="lg:col-span-6 bg-white p-5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="lg:col-span-6 bg-white/80 backdrop-blur-xl p-6 rounded-[24px] border border-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
               <BookOpen className="w-4 h-4 text-emerald-600" />

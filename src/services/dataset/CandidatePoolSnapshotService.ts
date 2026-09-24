@@ -6,6 +6,7 @@ import type {
   CandidatePoolSnapshot,
   CandidatePoolSnapshotHeader,
   CandidatePoolSnapshotStatus,
+  ResearchPopulationLifecycleStatus,
   DocumentMetadata,
   LaborInfoSearchParams,
   LaborInfoSearchResult,
@@ -19,6 +20,11 @@ import {
 } from '../dataSource/LaborInfoAdapter';
 import { isExcludedLaborInfoTestCase } from '../dataSource/LaborInfoEligibility';
 import { deriveRegionFilters, matchesRegionSelection } from '../research/RegionSelection';
+import {
+  filterRecordsByResearchGeographicScope,
+  normalizeResearchGeographicScope,
+  type ResearchGeographicScope,
+} from '../research/ResearchGeographicScope';
 import { hashString } from '../crypto/HashUtils';
 
 export const CANDIDATE_POOL_SNAPSHOT_VERSION = 'candidate-pool-v1' as const;
@@ -32,6 +38,8 @@ export interface CandidateFilterInput {
   q?: string;
   cities?: string | string[];
   regionIds?: string[];
+  /** Research-design geography, kept separate from LaborInfo acquisition provinces. */
+  geographicScope?: ResearchGeographicScope;
 }
 
 export interface CandidatePoolProgress {
@@ -56,6 +64,7 @@ export interface CandidatePoolSnapshotStore {
   save(snapshot: CandidatePoolSnapshot): Promise<void>;
   get(id: string): Promise<CandidatePoolSnapshot | undefined>;
   list(): Promise<CandidatePoolSnapshotHeader[]>;
+  delete?(id: string): Promise<void>;
 }
 
 interface ServiceRuntime {
@@ -91,10 +100,18 @@ function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+function filterLocalDateRange(records: AnalysisCaseRecord[], startDate?: string, endDate?: string): AnalysisCaseRecord[] {
+  if (!startDate && !endDate) return records;
+  const startYear = startDate ? Number(startDate.slice(0, 4)) : Number.NEGATIVE_INFINITY;
+  const endYear = endDate ? Number(endDate.slice(0, 4)) : Number.POSITIVE_INFINITY;
+  return records.filter((record) => record.year !== null && record.year >= startYear && record.year <= endYear);
+}
+
 export function normalizeCandidateFilters(input: CandidateFilterInput): NormalizedCandidateFilters {
   const startDate = normalizeDate(input.startDate);
   const endDate = normalizeDate(input.endDate);
   const regionFilters = input.regionIds === undefined ? null : deriveRegionFilters(input.regionIds);
+  const geographicScope = normalizeResearchGeographicScope(input.geographicScope);
   return {
     remoteFilters: {
       provinces: regionFilters?.provinces ?? normalizeList(input.province),
@@ -107,6 +124,7 @@ export function normalizeCandidateFilters(input: CandidateFilterInput): Normaliz
       cities: regionFilters?.cities ?? normalizeList(input.cities, (city) => city.replace(/市$/, '')),
       ...(regionFilters ? { regions: regionFilters.regions } : {}),
     },
+    ...(geographicScope ? { geographicScope } : {}),
   };
 }
 
@@ -135,7 +153,7 @@ function normalizeCandidate(metadata: DocumentMetadata): CandidateMetadata {
     ...(metadata.caseLevel ? { caseLevel: metadata.caseLevel } : {}),
     ...(metadata.court ? { court: metadata.court } : {}),
     ...(city ? { city } : {}),
-    ...(region.province ? { province: region.province } : {}),
+    ...((region.province ?? metadata.province?.trim()) ? { province: region.province ?? metadata.province?.trim() } : {}),
   };
 }
 
@@ -192,6 +210,13 @@ export class DexieCandidatePoolSnapshotStore implements CandidatePoolSnapshotSto
   public async list(): Promise<CandidatePoolSnapshotHeader[]> {
     return db.candidatePoolSnapshots.orderBy('createdAt').reverse().toArray();
   }
+
+  public async delete(id: string): Promise<void> {
+    await db.transaction('rw', db.candidatePoolSnapshots, db.candidatePoolEntries, async () => {
+      await db.candidatePoolEntries.where('snapshotId').equals(id).delete();
+      await db.candidatePoolSnapshots.delete(id);
+    });
+  }
 }
 
 export function assertSnapshotReadyForSampling(snapshot: CandidatePoolSnapshot): void {
@@ -200,6 +225,13 @@ export function assertSnapshotReadyForSampling(snapshot: CandidatePoolSnapshot):
   }
   if (snapshot.candidateCount < 1) {
     throw new Error('Candidate Pool Snapshot must contain at least one candidate');
+  }
+}
+
+/** New SamplingRun/AnalysisRun creation is blocked for archived populations. */
+export function assertSnapshotActiveForNewResearch(snapshot: CandidatePoolSnapshot): void {
+  if (snapshot.lifecycleStatus === 'archived') {
+    throw new Error('该研究总体已归档，请先恢复后再创建新的研究运行。');
   }
 }
 
@@ -215,12 +247,12 @@ export class CandidatePoolSnapshotService {
     input: CandidateFilterInput,
   ): Promise<CandidatePoolSnapshot> {
     const filters = normalizeCandidateFilters(input);
-    const filteredRecords = filterAnalysisCaseRecords(records, {
+    const filteredRecords = filterRecordsByResearchGeographicScope(filterLocalDateRange(filterAnalysisCaseRecords(records, {
       ...(input.regionIds === undefined ? { city: filters.localEligibilityRules.cities } : {}),
       caseLevel: filters.remoteFilters.caseLevels,
       keyword: filters.remoteFilters.q,
       ...(input.regionIds !== undefined ? { regionIds: input.regionIds } : {}),
-    });
+    }), filters.remoteFilters.startDate, filters.remoteFilters.endDate), filters.geographicScope);
     const candidatesById = new Map<string, CandidateMetadata>();
 
     for (const record of filteredRecords) {
@@ -244,7 +276,7 @@ export class CandidatePoolSnapshotService {
     }
 
     if (candidatesById.size === 0) {
-      throw new Error(input.regionIds?.length
+      throw new Error(input.regionIds?.length || (filters.geographicScope && filters.geographicScope.mode !== 'all')
         ? '当前本地案例库中没有符合该地区条件的案例。'
         : '当前本地案例库在所选条件下为空，无法创建研究总体');
     }
@@ -369,6 +401,7 @@ export class CandidatePoolSnapshotService {
       }
       return true;
     }).sort((left, right) => compareText(left.caseId, right.caseId));
+    const geographicallyFilteredCandidates = filterRecordsByResearchGeographicScope(candidates, filters.geographicScope);
     const actualDuplicateCount = Math.max(0, returnedItemCount - rawUniqueCount);
     const status: CandidatePoolSnapshotStatus = cancelled
       ? 'cancelled'
@@ -380,7 +413,7 @@ export class CandidatePoolSnapshotService {
     return this.persistSnapshot({
       sourceMode: 'remote',
       filters,
-      candidates,
+      candidates: geographicallyFilteredCandidates,
       status,
       expectedPages,
       fetchedPages,
@@ -438,6 +471,8 @@ export class CandidatePoolSnapshotService {
       limitedByMaxPages: input.limitedByMaxPages,
       exclusions: input.exclusions,
       distribution,
+      lifecycleStatus: 'active',
+      ...(input.filters.geographicScope ? { geographicScope: input.filters.geographicScope } : {}),
     };
     await this.store.save(snapshot);
     return snapshot;
@@ -449,5 +484,37 @@ export class CandidatePoolSnapshotService {
 
   public listSnapshots(): Promise<CandidatePoolSnapshotHeader[]> {
     return this.store.list();
+  }
+
+  public async archiveSnapshot(id: string, archivedAt = this.runtime.now()): Promise<CandidatePoolSnapshot> {
+    return this.updateLifecycle(id, 'archived', archivedAt);
+  }
+
+  public async restoreSnapshot(id: string): Promise<CandidatePoolSnapshot> {
+    return this.updateLifecycle(id, 'active');
+  }
+
+  public async deleteSnapshot(id: string): Promise<void> {
+    const snapshot = await this.store.get(id);
+    if (!snapshot) throw new Error(`Candidate Pool Snapshot not found: ${id}`);
+    if (!this.store.delete) throw new Error('当前存储不支持删除研究总体');
+    await this.store.delete(id);
+  }
+
+  private async updateLifecycle(
+    id: string,
+    lifecycleStatus: ResearchPopulationLifecycleStatus,
+    archivedAt?: string,
+  ): Promise<CandidatePoolSnapshot> {
+    const snapshot = await this.store.get(id);
+    if (!snapshot) throw new Error(`Candidate Pool Snapshot not found: ${id}`);
+    const updated: CandidatePoolSnapshot = {
+      ...snapshot,
+      lifecycleStatus,
+      ...(lifecycleStatus === 'archived' && archivedAt ? { archivedAt } : {}),
+    };
+    if (lifecycleStatus === 'active') delete updated.archivedAt;
+    await this.store.save(updated);
+    return updated;
   }
 }

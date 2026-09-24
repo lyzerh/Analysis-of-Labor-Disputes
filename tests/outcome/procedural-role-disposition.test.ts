@@ -160,6 +160,6 @@ describe('Batch 4 procedural-role and claim-disposition contract', () => {
     expect(source).toMatch(/未识别/);
     expect(source).toMatch(/proceduralRoles/);
     expect(source).toMatch(/PipelineWorkspace/);
-    expect(source).toMatch(/无法确定：/);
+    expect(source).toMatch(/当前语义结果尚未明确：/);
   });
 });

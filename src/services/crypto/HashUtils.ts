@@ -111,6 +111,16 @@ function sha256Fallback(message: Uint8Array): string {
     .join('');
 }
 
+/**
+ * Synchronous SHA-256 for small deterministic identity contracts.  The
+ * persisted claim identity hash must be available while building a Gold
+ * annotation (whose storage API is synchronous), so it deliberately uses the
+ * same pure TypeScript implementation as the async/browser fallback.
+ */
+export function hashStringSync(value: string): string {
+  return sha256Fallback(new TextEncoder().encode(value));
+}
+
 export async function hashString(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
   const subtle = globalThis.crypto?.subtle;

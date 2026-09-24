@@ -128,6 +128,7 @@ Return JSON only; do not include markdown or chain-of-thought.`,
   user: `Stage 1 target task:\n${JSON.stringify(task)}`,
 });
 
+/** Diagnostic-only Stage 1 experiment policy; not the production admission gate. */
 export const JUDGMENT_RELATIONSHIP_SELECTION_CONFIDENCE_THRESHOLD = 0.9;
 
 export interface JudgmentRelationshipSelectionContractResult {

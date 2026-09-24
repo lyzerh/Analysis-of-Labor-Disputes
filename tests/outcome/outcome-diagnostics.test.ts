@@ -6,6 +6,9 @@ import {
   outcomeReviewItemId,
   outcomeReviewEvidenceFields,
   outcomeReviewSourceSnippet,
+  outcomeDiagnosticCategory,
+  outcomeReviewSearchText,
+  matchesOutcomeDiagnosticFilter,
   outcomeReviewSuggestionForDisplay,
   outcomeReviewUserStatus,
   shouldMarkOutcomeReviewItemViewed,
@@ -284,6 +287,36 @@ describe('Outcome diagnostics and review queue contract', () => {
     expect(filterOutcomeReviewQueue(queue, 'needs_review', 'missing_claim_owner', 'manual_review')).toHaveLength(1);
     expect(filterOutcomeReviewQueue(queue, 'all', 'source_text_missing', '')).toHaveLength(1);
     expect(queue).toHaveLength(2);
+  });
+
+  it('classifies diagnostic clues and searches case, claim, reason, and typed evidence text', () => {
+    const [item] = buildOutcomeReviewQueue([analysisRecord('diagnostic-search-case', 'unclear', {
+      title: '甲公司与张某劳动争议',
+      caseNumber: '（2023）粤01民初1号',
+      outcomeDiagnostics: [{
+        claimId: 'claim-wage', claimType: 'wage', outcome: 'unclear', needsReview: true,
+        reasonCode: 'source_text_missing', reasonMessage: '证据片段无法定位',
+        evidence: { claimText: '请求支付工资1000元', diagnosticText: '请核对原文。' },
+      }],
+    })]);
+    expect(outcomeDiagnosticCategory(item)).toBe('evidence');
+    expect(outcomeReviewSearchText(item)).toContain('diagnostic-search-case');
+    expect(outcomeReviewSearchText(item)).toContain('请求支付工资1000元');
+    expect(matchesOutcomeDiagnosticFilter(item, 'needs_review')).toBe(true);
+    expect(matchesOutcomeDiagnosticFilter(item, 'evidence')).toBe(true);
+    expect(matchesOutcomeDiagnosticFilter(item, 'relationship')).toBe(false);
+  });
+
+  it('keeps unresolved and relationship diagnostic categories distinct', () => {
+    const [relationship, technical] = buildOutcomeReviewQueue([analysisRecord('diagnostic-categories', 'unclear', {
+      outcomeDiagnostics: [
+        { target: 'employee', outcome: 'unclear', needsReview: true, reasonCode: 'missing_claim_owner' },
+        { target: 'employer', outcome: 'unclear', needsReview: true, reasonCode: 'low_confidence' },
+      ],
+    })]);
+    expect(outcomeDiagnosticCategory(relationship)).toBe('relationship');
+    expect(outcomeDiagnosticCategory(technical)).toBe('unclear');
+    expect(matchesOutcomeDiagnosticFilter(technical, 'unclear')).toBe(true);
   });
 
   it('defaults UI review state to unseen and filters every local status', () => {

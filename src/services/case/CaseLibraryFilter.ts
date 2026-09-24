@@ -39,6 +39,26 @@ function normalizeFilterValues(value: string | string[] | null | undefined): str
   return Array.isArray(value) ? value.filter((item) => item && item !== 'all') : [value];
 }
 
+/**
+ * Build the dispute-type selector from the records actually loaded into the
+ * case library. Older records used `disputeTypes`; current records use the
+ * canonical `disputeType` array. Empty values are ignored and labels are
+ * de-duplicated without changing the stored record.
+ */
+export function getAvailableDisputeTypes(records: AnalysisCaseRecord[]): string[] {
+  const available = new Set<string>();
+  records.forEach((record) => {
+    const legacyRecord = record as AnalysisCaseRecord & { disputeTypes?: string[] };
+    const values = Array.isArray(record.disputeType) && record.disputeType.length > 0
+      ? record.disputeType
+      : legacyRecord.disputeTypes;
+    (values ?? []).forEach((value) => {
+      if (typeof value === 'string' && value.trim()) available.add(value.trim());
+    });
+  });
+  return Array.from(available).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+}
+
 export function filterAnalysisCaseRecords(
   records: AnalysisCaseRecord[],
   filters: CaseLibraryFilters,
@@ -58,7 +78,14 @@ export function filterAnalysisCaseRecords(
 
   return regionFilteredRecords.filter((record) => {
     const legacyRecord = record as AnalysisCaseRecord & { caseNumber?: string; disputeTypes?: string[] };
-    const disputeTypes = record.disputeType || legacyRecord.disputeTypes || [];
+    const disputeTypes = Array.isArray(record.disputeType) && record.disputeType.length > 0
+      ? record.disputeType
+      : (legacyRecord.disputeTypes || []);
+    const partyNames = [
+      record.employeeParty,
+      record.employerParty,
+      ...(record.parties || []).map((party) => party.name),
+    ].filter((name): name is string => Boolean(name));
     if (cities.size > 0 && !cities.has(record.city)) return false;
     if (year !== null && record.year !== year) return false;
     if (caseLevels.size > 0 && !caseLevels.has(normalizeCaseLevel(record.caseLevel) as Exclude<CanonicalCaseLevel, 'unknown'>)) return false;
@@ -66,7 +93,9 @@ export function filterAnalysisCaseRecords(
     if (keyword
       && !legacyRecord.caseNumber?.toLowerCase().includes(keyword)
       && !record.title?.toLowerCase().includes(keyword)
-      && !record.court?.toLowerCase().includes(keyword)) return false;
+      && !record.court?.toLowerCase().includes(keyword)
+      && !record.caseId.toLowerCase().includes(keyword)
+      && !partyNames.some((name) => name.toLowerCase().includes(keyword))) return false;
     return true;
   });
 }

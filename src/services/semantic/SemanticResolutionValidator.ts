@@ -1,4 +1,8 @@
 import { OrdinalReferenceResolver } from './OrdinalReferenceResolver';
+import {
+  SEMANTIC_AUTO_ACCEPT_CONFIDENCE,
+  SEMANTIC_HUMAN_REVIEW_CONFIDENCE,
+} from './SemanticConfidenceConfig';
 import type {
   CourtTreatment,
   SemanticResolutionCandidate,
@@ -8,8 +12,8 @@ import type {
 } from './types';
 
 export const SEMANTIC_CONFIDENCE_THRESHOLDS = Object.freeze({
-  accepted: 0.90,
-  humanReview: 0.70,
+  accepted: SEMANTIC_AUTO_ACCEPT_CONFIDENCE,
+  humanReview: SEMANTIC_HUMAN_REVIEW_CONFIDENCE,
 });
 
 const COURT_TREATMENTS = new Set<CourtTreatment>([

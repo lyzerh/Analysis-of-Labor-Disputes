@@ -5,7 +5,6 @@ import {
   Download,
   Trash2,
   RefreshCw,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -16,7 +15,6 @@ import {
   FileSpreadsheet,
   FileCode,
   Tag,
-  Scale,
   X,
   AlertTriangle,
 } from 'lucide-react';
@@ -180,13 +178,13 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
       case '用人单位胜诉':
         return (
           <span className="inline-flex items-center px-2 py-0.5 rounded text-2xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            用人单位胜诉
+            用人单位结果偏有利
           </span>
         );
       case '用人单位败诉':
         return (
           <span className="inline-flex items-center px-2 py-0.5 rounded text-2xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-            用人单位败诉
+            用人单位结果偏不利
           </span>
         );
       case '部分支持':
@@ -227,15 +225,15 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
   };
 
   return (
-    <div className="p-4 lg:p-8 max-w-[1920px] mx-auto space-y-5">
+    <div className="min-h-full bg-slate-50/80 p-6 lg:p-8 max-w-[1920px] mx-auto space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
+      <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.05)] flex flex-col sm:flex-row sm:items-center justify-between gap-5">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <Scale className="w-5 h-5 text-blue-600" />
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">LawLens · 研究资料库</p>
+          <h2 className="text-2xl font-semibold text-slate-950 tracking-tight mt-1">
             案例数据库
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 mt-2 max-w-2xl leading-6">
             共收录 <span className="font-semibold text-slate-900 font-mono">{total}</span> 份本地裁决案例，支持多字段组合检索、批处理及要素导出
           </p>
         </div>
@@ -248,9 +246,8 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
               <button
                 id="btn-batch-ai"
                 onClick={() => setShowAiModal(true)}
-                className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-medium flex items-center gap-1 transition-colors"
+                className="lawlens-primary-button px-2 py-0.5 rounded font-medium flex items-center gap-1"
               >
-                <Sparkles className="w-3 h-3" />
                 批量分析 (预留)
               </button>
               <button
@@ -292,11 +289,28 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
         </div>
       </div>
 
-      {/* Main Grid: Left Filter Panel (lg: 3 cols) + Right Table (lg: 9 cols) */}
+      <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.55fr)_minmax(16rem,0.8fr)] gap-4">
+        <div className="rounded-[24px] bg-white/80 border border-white/80 p-6 shadow-[0_12px_32px_rgba(31,45,73,0.045)]">
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">案例库概况</p>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-4xl font-semibold tracking-tight text-slate-950 tabular-nums">{total}</span>
+            <span className="text-sm text-slate-500">个案例</span>
+          </div>
+          <p className="mt-2 text-sm text-slate-500">当前页展示 {cases.length} 个案例，表格保留完整检索与操作入口。</p>
+        </div>
+        <div className="rounded-[20px] bg-slate-100/70 border border-slate-200/70 p-5">
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">当前检索范围</p>
+          <p className="mt-2 text-base font-semibold text-slate-800">{filter.year === '全部' ? '全部年份' : filter.year}</p>
+          <p className="mt-1 text-sm text-slate-500">{filter.committee === '全部' ? '全部仲裁机构' : filter.committee}</p>
+          <p className="mt-3 text-xs text-slate-400">数据来自本地案例库，不改变原始文书。</p>
+        </div>
+      </section>
+
+      {/* Main Grid: the case table is the primary surface; filters remain a compact utility rail. */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Filter Sidebar */}
         <div
-          className={`lg:col-span-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-4 ${
+          className={`lg:order-2 lg:col-span-3 bg-white/70 border border-slate-200/70 p-5 rounded-[22px] shadow-sm space-y-4 ${
             showFilterDrawer ? 'block' : 'hidden lg:block'
           }`}
         >
@@ -435,9 +449,9 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
               className="w-full py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="全部">全部结果</option>
-              <option value="用人单位胜诉">用人单位胜诉 (全驳回)</option>
+              <option value="用人单位胜诉">用人单位结果偏有利</option>
               <option value="部分支持">部分支持</option>
-              <option value="用人单位败诉">用人单位败诉 (全额裁付)</option>
+              <option value="用人单位败诉">用人单位结果偏不利</option>
               <option value="调解/其他">调解/其他</option>
             </select>
           </div>
@@ -486,7 +500,7 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
         </div>
 
         {/* Right Table Section */}
-        <div className="lg:col-span-9 bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
+        <div className="lg:order-1 lg:col-span-9 bg-white rounded-[24px] border border-slate-200/70 shadow-[0_14px_36px_rgba(31,45,73,0.055)] overflow-hidden flex flex-col">
           {/* Table Toolbar */}
           <div className="p-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between text-xs text-slate-600">
             <div className="flex items-center gap-2">
@@ -516,7 +530,7 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
           <div className="overflow-x-auto min-h-[420px]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-700 font-semibold select-none">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold select-none">
                   <th className="py-2.5 px-3 w-10 text-center">#</th>
                   <th className="py-2.5 px-3 w-40">案号</th>
                   <th className="py-2.5 px-3 w-40">仲裁委员会</th>
@@ -560,7 +574,7 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
                       <tr
                         key={c.id}
                         onClick={() => onSelectCase(c)}
-                        className={`hover:bg-blue-50/40 cursor-pointer transition-colors ${
+                        className={`lawlens-table-row hover:bg-blue-50/40 cursor-pointer transition-colors ${
                           isSelected ? 'bg-blue-50/60' : ''
                         }`}
                       >
@@ -688,19 +702,15 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
       {showAiModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-              <Sparkles className="w-6 h-6" />
-            </div>
             <div className="text-center">
-              <h3 className="text-base font-bold text-slate-900">AI 批量深度分析模块（第二阶段预留）</h3>
+              <h3 className="text-base font-bold text-slate-900">AI 批量分析模块（暂未启用）</h3>
               <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                当前系统正处于【第一阶段本地极速模式】，所有数据检索、要素抽取与统计分析均在浏览器 IndexedDB
-                本地计算完成，不依赖外部 API。AI 批量研判与败诉风险推演将在第二阶段统一接入。
+                案例数据默认保存在本机。规则解析与确定性统计可在本地执行；启用 AI 语义分析后，相关文本会通过用户配置的 AI 服务处理。当前批量 AI 功能仍未启用。
               </p>
             </div>
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1">
               <div className="font-semibold text-slate-800">当前已选择案例：</div>
-              <div>共勾选 {selectedIds.length} 篇裁决书</div>
+              <div>共勾选 {selectedIds.length} 个案例</div>
               <div className="text-slate-500 text-2xs mt-1">
                 您可以随时使用「导出 CSV / JSON」或「统计分析」进行本地多维法务研判。
               </div>
@@ -709,7 +719,7 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
               <button
                 id="btn-close-ai-modal"
                 onClick={() => setShowAiModal(false)}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold"
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold"
               >
                 我知道了
               </button>
@@ -728,7 +738,7 @@ export const CaseDatabase: React.FC<CaseDatabaseProps> = ({
             <div className="text-center">
               <h3 className="text-sm font-bold text-slate-900">确认批量删除所选案例？</h3>
               <p className="text-xs text-slate-500 mt-1">
-                即将从本地 IndexedDB 永久删除 {selectedIds.length} 篇案例及对应的原始文书记录。
+                即将从本地 IndexedDB 永久删除 {selectedIds.length} 个案例及对应的原始文书记录。
               </p>
             </div>
             <div className="flex items-center gap-2 pt-2">

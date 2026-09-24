@@ -4,7 +4,6 @@ import {
   Clock,
   ExternalLink,
   Layers,
-  Database,
   Search,
   RefreshCw,
   Hash,
@@ -99,68 +98,67 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* 顶部统计卡片群 (符合需求十二：工劳网文书总数、2021、2022、2023 统计) */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div className="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl">
+        <div className="p-5 bg-indigo-50/70 border border-indigo-100 rounded-2xl shadow-sm">
           <div className="text-2xs font-semibold text-indigo-700 uppercase tracking-wide">
             工劳网文书总数
           </div>
           <div className="text-2xl font-bold font-mono text-indigo-900 mt-1">
-            {stats.total.toLocaleString()} <span className="text-xs font-normal text-indigo-600">篇</span>
+            {stats.total.toLocaleString()} <span className="text-xs font-normal text-indigo-600">份文书</span>
           </div>
         </div>
 
-        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+        <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm">
           <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
             2023 年文书
           </div>
           <div className="text-xl font-bold font-mono text-slate-800 mt-1">
-            {stats.year2023.toLocaleString()} <span className="text-xs font-normal text-slate-500">篇</span>
+            {stats.year2023.toLocaleString()} <span className="text-xs font-normal text-slate-500">份文书</span>
           </div>
         </div>
 
-        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+        <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm">
           <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
             2022 年文书
           </div>
           <div className="text-xl font-bold font-mono text-slate-800 mt-1">
-            {stats.year2022.toLocaleString()} <span className="text-xs font-normal text-slate-500">篇</span>
+            {stats.year2022.toLocaleString()} <span className="text-xs font-normal text-slate-500">份文书</span>
           </div>
         </div>
 
-        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+        <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm">
           <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
             2021 年文书
           </div>
           <div className="text-xl font-bold font-mono text-slate-800 mt-1">
-            {stats.year2021.toLocaleString()} <span className="text-xs font-normal text-slate-500">篇</span>
+            {stats.year2021.toLocaleString()} <span className="text-xs font-normal text-slate-500">份文书</span>
           </div>
         </div>
 
-        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+        <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm">
           <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
             其他年份
           </div>
           <div className="text-xl font-bold font-mono text-slate-800 mt-1">
-            {stats.otherYears.toLocaleString()} <span className="text-xs font-normal text-slate-500">篇</span>
+            {stats.otherYears.toLocaleString()} <span className="text-xs font-normal text-slate-500">份文书</span>
           </div>
         </div>
       </div>
 
       {/* 头部统计与操作过滤条 */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-5 bg-white/80 border border-white/80 rounded-[24px] shadow-sm">
         <div className="flex items-center gap-2.5">
-          <Database className="w-5 h-5 text-indigo-600 shrink-0" />
           <div>
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              工劳网原始文书案例库 (RawDocument)
+              已导入文书
               <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-mono font-bold rounded-full">
-                显示 {filteredDocs.length} / 共 {documents.length} 篇
+                显示 {filteredDocs.length} / 共 {documents.length} 份文书
               </span>
             </h3>
             <p className="text-2xs text-slate-500">
-              采用纯本地 IndexedDB 存储，fbqw 全文字符严格校验，不污染分析模型
+              原始文书保存在本地浏览器，可在此筛选、查看与追溯导入记录
             </p>
           </div>
         </div>
@@ -218,11 +216,11 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
             : '没有匹配当前筛选条件的案例记录'}
         </div>
       ) : (
-        <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-2xs">
+        <div className="overflow-x-auto border border-slate-200 rounded-[24px] bg-white shadow-sm">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
               <tr>
-                <th className="px-3.5 py-2.5">ID / 来源ID</th>
+                <th className="px-3.5 py-2.5">来源</th>
                 <th className="px-3.5 py-2.5">文书标题</th>
                 <th className="px-3.5 py-2.5">案号</th>
                 <th className="px-3.5 py-2.5">审理法院</th>
@@ -241,9 +239,13 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
 
                 return (
                   <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-3.5 py-2.5 font-mono text-slate-500">
-                      <div className="font-semibold text-slate-700">{doc.sourceId || doc.id}</div>
-                      <div className="text-2xs text-slate-400 truncate max-w-[100px]">{doc.id}</div>
+                    <td className="px-3.5 py-2.5 text-slate-600">
+                      <div className="font-semibold text-slate-700">工劳网</div>
+                      <details className="text-2xs text-slate-400">
+                        <summary className="cursor-pointer select-none">技术详情</summary>
+                        <div className="mt-1 font-mono truncate max-w-[150px]">sourceId: {doc.sourceId || '-'}</div>
+                        <div className="font-mono truncate max-w-[150px]">raw ID: {doc.id}</div>
+                      </details>
                     </td>
                     <td className="px-3.5 py-2.5 font-medium text-slate-900 max-w-xs truncate" title={doc.title}>
                       {doc.title}

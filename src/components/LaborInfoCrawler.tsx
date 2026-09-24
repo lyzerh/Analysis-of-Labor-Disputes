@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  DownloadCloud,
   Play,
   Pause,
   Square,
   RefreshCw,
   Layers,
-  Database,
   CheckCircle2,
   AlertTriangle,
   XCircle,
@@ -181,14 +179,11 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
     : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* 顶部标题与说明卡片 */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+      <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20 shrink-0">
-              <DownloadCloud className="w-6 h-6" />
-            </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight">
@@ -199,12 +194,12 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
-                合规节流串行分页抓取工劳网裁判文书全文 (fbqw)，采用
-                <code className="text-slate-700 font-bold px-1 bg-slate-100 rounded">sourceId + SHA-256</code>
-                双重严格去重入库至本地 IndexedDB
-                <code className="text-slate-700 font-bold px-1 bg-slate-100 rounded">rawDocuments</code>
-                表，并可直通解析、质检评估与可分析案例集构建。
+                按条件获取工劳网裁判文书，保存到本地后继续进行解析、质量检查与案例集构建。
               </p>
+              <details className="mt-2 text-2xs text-slate-400">
+                <summary className="cursor-pointer select-none">技术详情</summary>
+                <p className="mt-1 font-mono">来源字段、内容哈希与 RawDocument 仅用于去重和追溯。</p>
+              </details>
             </div>
           </div>
 
@@ -238,58 +233,59 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
 
       {/* 数据链路全景概览 (Data Pipeline Health Status) */}
       {pipelineHealthView && (
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 rounded-2xl p-6 text-white shadow-md">
-          <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+        <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[24px] p-6 text-slate-900 shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
             <div className="flex items-center gap-2">
-              <Cpu className="w-5 h-5 text-indigo-400" />
-              <h2 className="text-sm font-bold text-white tracking-wide">
+              <Cpu className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-sm font-bold text-slate-900 tracking-wide">
                 数据处理全链路实时流通状态
               </h2>
             </div>
-            <span className="text-2xs text-slate-300 font-mono">
-              RawDocument → Parser → Evaluator → AnalysisCaseRecord
-            </span>
+            <details className="text-2xs text-slate-500">
+              <summary className="cursor-pointer select-none">查看处理链路</summary>
+              <span className="mt-1 block font-mono text-slate-400">RawDocument → Parser → Evaluator → AnalysisCaseRecord</span>
+            </details>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-3.5 bg-white/5 rounded-xl border border-white/10">
-              <div className="text-2xs text-slate-400 font-semibold uppercase">原始裁判文书总库</div>
-              <div className="text-xl font-bold font-mono text-white mt-1">
-                {pipelineHealthView.rawCount} <span className="text-xs font-normal text-slate-400">篇</span>
+            <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-100">
+              <div className="text-2xs text-slate-500 font-semibold uppercase">原始裁判文书总库</div>
+              <div className="text-xl font-bold font-mono text-slate-900 mt-1">
+                {pipelineHealthView.rawCount} <span className="text-xs font-normal text-slate-500">份文书</span>
               </div>
-              <div className="text-2xs text-emerald-400 mt-1 flex items-center gap-1">
+              <div className="text-2xs text-emerald-700 mt-1 flex items-center gap-1">
                 <Check className="w-3 h-3" />
                 正文完整率 {pipelineHealthView.rawCompletenessRate}%
               </div>
             </div>
 
-            <div className="p-3.5 bg-white/5 rounded-xl border border-white/10">
-              <div className="text-2xs text-slate-400 font-semibold uppercase">规则提取解析完成</div>
-              <div className="text-xl font-bold font-mono text-cyan-300 mt-1">
-                {pipelineHealthView.parsedCount} <span className="text-xs font-normal text-slate-400">篇</span>
+            <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-100">
+              <div className="text-2xs text-slate-500 font-semibold uppercase">规则提取解析完成</div>
+              <div className="text-xl font-bold font-mono text-slate-900 mt-1">
+                {pipelineHealthView.parsedCount} <span className="text-xs font-normal text-slate-500">个案例</span>
               </div>
-              <div className="text-2xs text-cyan-400 mt-1">
+              <div className="text-2xs text-cyan-700 mt-1">
                 解析成功率 {pipelineHealthView.parseSuccessRate}%
               </div>
             </div>
 
-            <div className="p-3.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-              <div className="text-2xs text-emerald-400 font-semibold uppercase">正式可分析案例集</div>
-              <div className="text-xl font-bold font-mono text-emerald-300 mt-1 flex items-center gap-1.5">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                {pipelineHealthView.availableCount} <span className="text-xs font-normal text-emerald-400/70">篇</span>
+            <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-100">
+              <div className="text-2xs text-emerald-700 font-semibold uppercase">正式可分析案例集</div>
+              <div className="text-xl font-bold font-mono text-emerald-800 mt-1 flex items-center gap-1.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                {pipelineHealthView.availableCount} <span className="text-xs font-normal text-emerald-700/70">个案例</span>
               </div>
-              <div className="text-2xs text-emerald-400/80 mt-1">
+              <div className="text-2xs text-emerald-700/80 mt-1">
                 准入率 {pipelineHealthView.analysisAvailabilityRate}% (≥80分或已审核)
               </div>
             </div>
 
-            <div className="p-3.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
-              <div className="text-2xs text-amber-400 font-semibold uppercase">待优化 / 待质检池</div>
-              <div className="text-xl font-bold font-mono text-amber-300 mt-1">
-                {pipelineHealthView.pendingCount} <span className="text-xs font-normal text-amber-400/70">篇</span>
+            <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-100">
+              <div className="text-2xs text-amber-700 font-semibold uppercase">待优化 / 待质检池</div>
+              <div className="text-xl font-bold font-mono text-amber-800 mt-1">
+                {pipelineHealthView.pendingCount} <span className="text-xs font-normal text-amber-700/70">个案例</span>
               </div>
-              <div className="text-2xs text-amber-400/80 mt-1">
+              <div className="text-2xs text-amber-700/80 mt-1">
                 严格隔离，不参与生产级统计与抗辩矩阵
               </div>
             </div>
@@ -298,7 +294,7 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
       )}
 
       {/* 第一部分：采集配置表单 */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
+      <div className="bg-white/80 border border-white/80 rounded-[24px] p-6 shadow-sm space-y-5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <Filter className="w-4 h-4 text-indigo-600" />
@@ -378,7 +374,7 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
           {/* 省份 */}
           <div>
             <label className="block text-2xs font-semibold text-slate-600 uppercase mb-1.5">
-              目标省份
+              数据采集省份
             </label>
             <div className="flex flex-wrap gap-1.5">
               {['广东省', '北京市', '上海市', '浙江省', '江苏省'].map((prov) => {
@@ -400,6 +396,7 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
                 );
               })}
             </div>
+            <p className="text-2xs text-slate-500 mt-1.5">用于限定文书获取范围；城市级研究范围可在研究工作区进一步定义。</p>
           </div>
 
           {/* 审级 */}
@@ -546,7 +543,7 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
           <div className="text-2xs text-slate-500 flex items-center gap-1.5">
             <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
             <span>
-              已内置节流（搜索 800ms / 详情 500ms），自动过滤 5 篇固定测试样本，遭遇限流自动挂起。
+              已内置节流（搜索 800ms / 详情 500ms），自动过滤 5 份固定测试文书，遭遇限流自动挂起。
             </span>
           </div>
 
@@ -597,14 +594,15 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
 
       {/* 第二部分：实时状态监控看板 */}
       {currentTask && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
+        <div className="bg-white/80 border border-white/80 rounded-[24px] p-6 shadow-sm space-y-5">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <RefreshCw className={`w-4 h-4 text-indigo-600 ${isRunning ? 'animate-spin' : ''}`} />
               实时采集监控看板
-              <span className="text-2xs font-mono text-slate-400 font-normal">
-                (Task ID: {currentTask.id})
-              </span>
+              <details className="text-2xs font-normal text-slate-400">
+                <summary className="cursor-pointer select-none">任务详情</summary>
+                <span className="mt-1 block font-mono">Task ID: {currentTask.id}</span>
+              </details>
             </h2>
             <div className="text-xs font-mono text-slate-600 font-semibold">
               目标上限: {currentTask.params.maxCases} 篇
@@ -768,7 +766,7 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
       )}
 
       {/* 第三部分：历史任务管理 */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+      <div className="bg-white/80 border border-white/80 rounded-[24px] p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-indigo-600" />
@@ -797,7 +795,7 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                 <tr>
-                  <th className="px-3.5 py-2.5">任务 ID</th>
+                  <th className="px-3.5 py-2.5">采集任务</th>
                   <th className="px-3.5 py-2.5">条件范围</th>
                   <th className="px-3.5 py-2.5">目标/已入库</th>
                   <th className="px-3.5 py-2.5">重复/过滤</th>
@@ -817,8 +815,12 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
                         isCurrent ? 'bg-indigo-50/40' : ''
                       }`}
                     >
-                      <td className="px-3.5 py-2.5 font-mono text-slate-600 font-semibold">
-                        {task.id}
+                      <td className="px-3.5 py-2.5 text-slate-600 font-semibold">
+                        <div>批量采集</div>
+                        <details className="text-2xs text-slate-400 font-normal">
+                          <summary className="cursor-pointer select-none">技术详情</summary>
+                          <span className="mt-1 block font-mono">Task ID: {task.id}</span>
+                        </details>
                       </td>
                       <td className="px-3.5 py-2.5 text-slate-600">
                         <div className="font-medium text-slate-800">
@@ -887,7 +889,7 @@ export const LaborInfoCrawlerComponent: React.FC = () => {
       </div>
 
       {/* 第四部分：已入库的本地案例库 */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+      <div className="bg-white/80 border border-white/80 rounded-[24px] p-6 shadow-sm">
         <LaborInfoImportHistory onRefreshTrigger={refreshTrigger} />
       </div>
     </div>

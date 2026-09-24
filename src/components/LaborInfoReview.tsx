@@ -45,7 +45,11 @@ import { LaborInfoParserAdapter } from '../services/parser/LaborInfoParserAdapte
 import { ParserEvaluator } from '../services/parser/ParserEvaluator';
 import { ReviewStorageService } from '../services/data/ReviewStorageService';
 
-export const LaborInfoReview: React.FC = () => {
+interface LaborInfoReviewProps {
+  onDataChanged?: () => void;
+}
+
+export const LaborInfoReview: React.FC<LaborInfoReviewProps> = ({ onDataChanged }) => {
   // 原始工劳网案例列表
   const [rawDocs, setRawDocs] = useState<RawDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,6 +74,11 @@ export const LaborInfoReview: React.FC = () => {
   const [editReviewStatus, setEditReviewStatus] = useState<ReviewStatus>('pending');
   const [editCustomNotes, setEditCustomNotes] = useState<string>('');
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+  const [showReparseConfirm, setShowReparseConfirm] = useState(false);
+  const [isReparsing, setIsReparsing] = useState(false);
+  const [reparseProgress, setReparseProgress] = useState({ current: 0, total: 0 });
+  const [reparseSummary, setReparseSummary] = useState<{ total: number; succeeded: number; failed: number; failures: Array<{ caseId: string; error: string }> } | null>(null);
+  const [reparseError, setReparseError] = useState<string | null>(null);
 
   // 加载数据
   const loadData = async () => {
@@ -110,6 +119,27 @@ export const LaborInfoReview: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleReparseLocalCases = async () => {
+    setShowReparseConfirm(false);
+    setIsReparsing(true);
+    setReparseError(null);
+    setReparseSummary(null);
+    setReparseProgress({ current: 0, total: 0 });
+
+    try {
+      const result = await DataService.reparseAllCases((current, total) => {
+        setReparseProgress({ current, total });
+      });
+      setReparseSummary(result);
+      await loadData();
+      onDataChanged?.();
+    } catch (error) {
+      setReparseError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsReparsing(false);
+    }
+  };
 
   // 当切换选中案例时，初始化表单状态
   const handleSelectDoc = (index: number) => {
@@ -337,14 +367,25 @@ export const LaborInfoReview: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={loadData}
-            disabled={isLoading}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-2 transition-colors cursor-pointer self-start md:self-auto"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            重新评估全部案例
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+            <button
+              onClick={loadData}
+              disabled={isLoading || isReparsing}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              重新评估全部案例
+            </button>
+            <button
+              id="btn-reparse-local-cases"
+              onClick={() => setShowReparseConfirm(true)}
+              disabled={isLoading || isReparsing}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isReparsing ? 'animate-spin' : ''}`} />
+              重新解析本地案例
+            </button>
+          </div>
         </div>
 
         {/* 隔离保护提示 */}
@@ -353,8 +394,28 @@ export const LaborInfoReview: React.FC = () => {
           <div>
             <span className="font-semibold">零污染与数据安全原则：</span>
             本模块用于<strong>评估解析准确度与录入人工校验反馈</strong>。人工修改保存在独立的质检结构中，<strong>绝不覆盖原始文书</strong>，且<strong>不干扰后续多维统计与研判</strong>。
+            <div className="mt-1 text-indigo-800">重新解析本地案例只读取 IndexedDB 中已保存的 RawDocument，不会联网、不会重新下载文书，也不会调用 AI。</div>
           </div>
         </div>
+
+        {isReparsing && (
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900" role="status">
+            正在重新解析 {reparseProgress.current} / {reparseProgress.total || '…'}
+          </div>
+        )}
+        {reparseSummary && (
+          <div className={`mt-3 p-3 rounded-xl border text-xs ${reparseSummary.failed > 0 ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`} role="status">
+            重新解析完成：成功 {reparseSummary.succeeded}，失败 {reparseSummary.failed}（共 {reparseSummary.total}）
+            {reparseSummary.failures.length > 0 && (
+              <div className="mt-1 text-2xs">处理失败的案例已跳过并记录，不会中止其他案例。</div>
+            )}
+          </div>
+        )}
+        {reparseError && (
+          <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900" role="alert">
+            重新解析失败：{reparseError}
+          </div>
+        )}
       </div>
 
       {/* 批量概览指标看板 (基于前 10 份默认测试数据) */}
@@ -431,7 +492,7 @@ export const LaborInfoReview: React.FC = () => {
         <div className="flex items-center justify-between text-xs text-slate-600">
           <div className="flex items-center gap-2 font-semibold">
             <Database className="w-4 h-4 text-indigo-600" />
-            <span>选择待审核工劳网案例 (共 {rawDocs.length} 篇)</span>
+            <span>选择待审核工劳网文书 (共 {rawDocs.length} 份)</span>
           </div>
           <span className="text-2xs text-slate-400">点击卡片切换当前比对案件</span>
         </div>
@@ -612,7 +673,7 @@ export const LaborInfoReview: React.FC = () => {
                       ? 'bg-blue-100 text-blue-800'
                       : 'bg-amber-100 text-amber-800'
                   }`}>
-                    {editReviewStatus === 'approved' ? '已核准 (approved)' : editReviewStatus === 'modified' ? '已修改 (modified)' : '待核验 (pending)'}
+                    {editReviewStatus === 'approved' ? '已核准' : editReviewStatus === 'modified' ? '已修改' : '待核验'}
                   </span>
                 </div>
               </div>
@@ -758,10 +819,10 @@ export const LaborInfoReview: React.FC = () => {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
                   {[
-                    { val: 'supported' as LegalOutcomeType, label: '全部支持 (supported)', color: 'border-emerald-300 text-emerald-900 bg-emerald-50/60' },
-                    { val: 'partially_supported' as LegalOutcomeType, label: '部分支持 (partial)', color: 'border-amber-300 text-amber-900 bg-amber-50/60' },
-                    { val: 'not_supported' as LegalOutcomeType, label: '全部驳回 (not_supported)', color: 'border-rose-300 text-rose-900 bg-rose-50/60' },
-                    { val: 'unclear' as LegalOutcomeType, label: '未明确 (unclear)', color: 'border-slate-300 text-slate-800 bg-slate-100' },
+                    { val: 'supported' as LegalOutcomeType, label: '获得支持', color: 'border-emerald-300 text-emerald-900 bg-emerald-50/60' },
+                    { val: 'partially_supported' as LegalOutcomeType, label: '部分支持', color: 'border-amber-300 text-amber-900 bg-amber-50/60' },
+                    { val: 'not_supported' as LegalOutcomeType, label: '未获支持', color: 'border-rose-300 text-rose-900 bg-rose-50/60' },
+                    { val: 'unclear' as LegalOutcomeType, label: '结果不明确', color: 'border-slate-300 text-slate-800 bg-slate-100' },
                   ].map((item) => (
                     <button
                       key={item.val}
@@ -836,10 +897,10 @@ export const LaborInfoReview: React.FC = () => {
                               : 'bg-slate-100 text-slate-700 border-slate-300'
                           }`}
                         >
-                          <option value="supported">✅ 支持 (supported)</option>
-                          <option value="partially_supported">⚖️ 部分支持 (partial)</option>
-                          <option value="not_supported">❌ 驳回 (not_supported)</option>
-                          <option value="unclear">❓ 未明确 (unclear)</option>
+                          <option value="supported">✅ 获得支持</option>
+                          <option value="partially_supported">⚖️ 部分支持</option>
+                          <option value="not_supported">❌ 未获支持</option>
+                          <option value="unclear">❓ 结果不明确</option>
                         </select>
 
                         {/* 删除按钮 */}
@@ -994,6 +1055,37 @@ export const LaborInfoReview: React.FC = () => {
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 leading-relaxed"
                 />
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showReparseConfirm && (
+        <div className="fixed inset-0 z-50 bg-slate-950/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="reparse-confirm-title">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl p-5 space-y-4">
+            <div>
+              <h2 id="reparse-confirm-title" className="text-base font-bold text-slate-900">重新解析本地案例</h2>
+              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                将使用当前版本解析器重新生成本地结构化案例。不会重新下载原始文书，已有原始文书不会被修改。
+              </p>
+              <p className="mt-2 text-xs text-indigo-700 leading-relaxed">
+                仅读取 IndexedDB RawDocument；不会调用远程 API、不会发起网络请求、不会调用 LLM。已有人工复核记录和冻结 AnalysisRun 不会被改写。
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowReparseConfirm(false)}
+                className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleReparseLocalCases}
+                className="px-3 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg"
+              >
+                开始重新解析
+              </button>
             </div>
           </div>
         </div>

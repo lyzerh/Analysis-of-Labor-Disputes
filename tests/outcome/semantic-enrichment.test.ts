@@ -110,7 +110,7 @@ describe('SemanticEnrichmentService pipeline', () => {
   it('retains human review without applying a claim relationship or outcome', async () => {
     const original = fixture();
     const resolver = new MockSemanticResolver({
-      candidates: [candidate('semantic_fragment_1', ['claim_1'], rejectText, 0.8)],
+      candidates: [candidate('semantic_fragment_1', ['claim_1'], rejectText, 0.79)],
     });
     const enriched = await SemanticEnrichmentService.enrich(original, { semanticResolver: resolver });
 
@@ -196,7 +196,7 @@ describe('SemanticEnrichmentService pipeline', () => {
     const resolver = new MockSemanticResolver({ candidates: [
       candidate('semantic_fragment_1', ['claim_1']),
       candidate('semantic_fragment_2', ['claim_3'], supportText, 0.95, 'accepted'),
-      candidate('semantic_fragment_3', ['claim_2'], reviewText, 0.8, 'unclear'),
+      candidate('semantic_fragment_3', ['claim_2'], reviewText, 0.79, 'unclear'),
     ] });
     const enriched = await SemanticEnrichmentService.enrich(original, { semanticResolver: resolver });
 

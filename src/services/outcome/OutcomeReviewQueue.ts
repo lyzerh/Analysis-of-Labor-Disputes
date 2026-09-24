@@ -16,6 +16,8 @@ export type OutcomeReviewUserStatus =
 
 export type OutcomeReviewStatusFilter = 'all' | 'needs_review' | OutcomeReviewUserStatus;
 export type OutcomeReviewStatusMap = Record<string, OutcomeReviewUserStatus>;
+export type OutcomeDiagnosticFilter = 'all' | 'needs_review' | 'unclear' | 'evidence' | 'relationship' | 'technical';
+export type OutcomeDiagnosticCategory = Exclude<OutcomeDiagnosticFilter, 'all' | 'needs_review'>;
 
 export const outcomeReviewStatusStorageKey = 'labor-analysis-review-status-v1';
 
@@ -44,6 +46,69 @@ export const outcomeReviewReasonLabels: Record<OutcomeUnclearReasonCode, string>
   low_confidence: '解析置信度较低',
   unknown: '其他原因',
 };
+
+export const outcomeDiagnosticFilterLabels: Record<OutcomeDiagnosticFilter, string> = {
+  all: '全部',
+  needs_review: '需要人工复核',
+  unclear: '未明确',
+  evidence: '证据问题',
+  relationship: '关系问题',
+  technical: '技术问题',
+};
+
+const evidenceDiagnosticReasons = new Set<OutcomeUnclearReasonCode>([
+  'source_text_missing',
+  'missing_disposition_text',
+  'amount_conflict',
+]);
+
+const relationshipDiagnosticReasons = new Set<OutcomeUnclearReasonCode>([
+  'missing_party_roles',
+  'missing_labor_role',
+  'missing_claim_owner',
+  'disposition_not_matched',
+  'payment_beneficiary_unclear',
+  'rejection_owner_unclear',
+  'appeal_inheritance_unclear',
+  'ambiguous_multiple_claims',
+]);
+
+export function outcomeDiagnosticCategory(item: Pick<OutcomeReviewItem, 'reasonCode' | 'outcome'>): OutcomeDiagnosticCategory {
+  if (item.reasonCode && evidenceDiagnosticReasons.has(item.reasonCode)) return 'evidence';
+  if (item.reasonCode && relationshipDiagnosticReasons.has(item.reasonCode)) return 'relationship';
+  if (item.reasonCode && /technical|schema|network|timeout/i.test(item.reasonCode)) return 'technical';
+  return 'unclear';
+}
+
+export function outcomeReviewSearchText(item: OutcomeReviewItem): string {
+  const evidence = outcomeReviewEvidence(item);
+  return [
+    item.caseId,
+    item.title,
+    item.caseNumber,
+    item.claimType,
+    item.claimId,
+    item.target,
+    item.reasonCode,
+    item.reasonMessage,
+    item.reasonCode ? outcomeReviewReasonLabels[item.reasonCode] : undefined,
+    evidence.claimText,
+    evidence.dispositionText,
+    evidence.reasoningText,
+    evidence.partyText,
+    evidence.amountText,
+    evidence.diagnosticText,
+  ].filter(Boolean).join('\n').toLocaleLowerCase();
+}
+
+export function matchesOutcomeDiagnosticFilter(
+  item: OutcomeReviewItem,
+  filter: OutcomeDiagnosticFilter,
+): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'needs_review') return item.needsReview;
+  return outcomeDiagnosticCategory(item) === filter;
+}
 
 export const outcomeReviewSuggestionLabels: Record<OutcomeReviewSuggestion, string> = {
   rule_improvement: '建议规则库改进',

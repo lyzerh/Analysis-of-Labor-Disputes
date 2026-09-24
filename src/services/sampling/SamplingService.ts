@@ -12,6 +12,7 @@ import type {
 } from '../../types';
 import {
   assertSnapshotReadyForSampling,
+  assertSnapshotActiveForNewResearch,
   DexieCandidatePoolSnapshotStore,
 } from '../dataset/CandidatePoolSnapshotService';
 import { hashString } from '../crypto/HashUtils';
@@ -310,6 +311,7 @@ export class SamplingService {
     const snapshot = await this.snapshotStore.get(snapshotId);
     if (!snapshot) throw new Error(`Candidate Pool Snapshot not found: ${snapshotId}`);
     assertSnapshotReadyForSampling(snapshot);
+    assertSnapshotActiveForNewResearch(snapshot);
     if (snapshot.candidateCount !== snapshot.candidates.length) {
       throw new Error('Candidate Pool Snapshot candidateCount does not match stored candidate entries');
     }

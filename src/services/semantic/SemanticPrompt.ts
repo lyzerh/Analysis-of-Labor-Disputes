@@ -6,8 +6,10 @@ export const SEMANTIC_PROMPT_VERSION = 'semantic-reference-v1';
 /** Version of the strict SemanticResolutionResult contract sent to the active provider. */
 export const SEMANTIC_RESULT_PROMPT_VERSION = 'semantic-result-contract-v2';
 /** Official competition BYOK provider and fixed model. */
-export const SEMANTIC_LLM_PROVIDER = 'deepseek' as const;
-export const SEMANTIC_LLM_MODEL = 'deepseek-flash' as const;
+export const SEMANTIC_LLM_PROVIDER = 'xai' as const;
+export const SEMANTIC_LLM_MODEL = 'grok-4.20-0309-reasoning' as const;
+export const XAI_API_BASE_URL = 'https://api.x.ai/v1' as const;
+/** Historical DeepSeek endpoint retained for the archived adapter only. */
 export const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com' as const;
 /** Historical OpenRouter experiment identifiers; not used by the formal runtime. */
 export const SEMANTIC_OPENROUTER_PROVIDER = 'openrouter' as const;

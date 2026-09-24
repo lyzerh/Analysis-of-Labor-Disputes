@@ -12,6 +12,7 @@ import type {
 } from '../../types';
 import {
   assertSnapshotReadyForSampling,
+  assertSnapshotActiveForNewResearch,
   DexieCandidatePoolSnapshotStore,
 } from '../dataset/CandidatePoolSnapshotService';
 import {
@@ -250,6 +251,7 @@ export class AnalysisRunService {
     const snapshot = await this.snapshotStore.get(input.snapshotId);
     if (!snapshot) throw new Error(`Candidate Pool Snapshot not found: ${input.snapshotId}`);
     const snapshotCaseIds = await validateSnapshot(snapshot);
+    assertSnapshotActiveForNewResearch(snapshot);
     const engineVersions = normalizeEngineVersions(input.engineVersions);
     const semantic = normalizeSemanticConfig(input.semantic);
 
@@ -299,6 +301,7 @@ export class AnalysisRunService {
       status: 'pending',
       createdAt: this.runtime.now(),
       provenanceHash,
+      ...(snapshot.geographicScope ? { geographicScope: snapshot.geographicScope } : {}),
     };
     await this.runStore.save(run);
     return run;

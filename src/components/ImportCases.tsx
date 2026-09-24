@@ -158,14 +158,13 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
   };
 
   return (
-    <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-8">
       {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <UploadCloud className="w-5 h-5 text-blue-600" />
+      <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
           数据导入与本地解析中心
         </h2>
-        <p className="text-xs text-slate-500 mt-1">
+        <p className="text-sm text-slate-500 mt-2 leading-6">
           支持从 PC 浏览器将下载或保存的 .html、.txt、.pdf 裁判文书直接拖入，通过本地规则引擎自动提取案号、当事人、仲裁请求与裁判说理并保存至 IndexedDB
         </p>
       </div>
@@ -261,7 +260,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
 
       {/* Main Upload Box */}
       {importType !== 'paste' ? (
-        <div className="bg-white p-8 rounded-2xl border-2 border-dashed border-slate-300 hover:border-blue-500 transition-colors text-center space-y-4 shadow-2xs">
+        <div className="bg-white/80 p-8 rounded-[24px] border-2 border-dashed border-slate-300 hover:border-blue-500 transition-colors text-center space-y-4 shadow-sm">
           <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
             <UploadCloud className="w-8 h-8" />
           </div>
@@ -305,7 +304,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
           )}
         </div>
       ) : (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+        <div className="bg-white/80 p-6 rounded-[24px] border border-white/80 shadow-sm space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-800 mb-1">
               文书标题（可选，留空将自动从内容识别）

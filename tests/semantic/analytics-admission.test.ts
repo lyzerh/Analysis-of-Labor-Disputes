@@ -12,7 +12,11 @@ import type {
   SemanticResolutionResult,
 } from '../../src/services/semantic/SemanticResult';
 import type { SemanticLocalAuditResult } from '../../src/services/semantic/SemanticResultAudit';
-import type { SemanticReviewItem } from '../../src/services/semantic/SemanticReviewQueue';
+import {
+  createSemanticReviewItemFromAudit,
+  reviewSemanticReviewItem,
+  type SemanticReviewItem,
+} from '../../src/services/semantic/SemanticReviewQueue';
 import { writeSemanticReviewItems } from '../../src/services/semantic/SemanticReviewStorage';
 
 const semanticResult = (
@@ -56,7 +60,7 @@ const unresolvedReference = {
 const audit = (decision: SemanticLocalAuditResult['decision']): SemanticLocalAuditResult => ({
   decision,
   reasonCodes: decision === 'pass' ? [] : ['source_evidence_not_found'],
-  admissionConfidenceThreshold: 0.9,
+  admissionConfidenceThreshold: 0.8,
 });
 
 const reviewItem = (result: SemanticResolutionResult): SemanticReviewItem => ({
@@ -67,6 +71,30 @@ const reviewItem = (result: SemanticResolutionResult): SemanticReviewItem => ({
   audit: audit('fail'),
   createdAt: '2026-09-17T00:00:00.000Z',
 });
+
+const currentAuditContext = (result: SemanticResolutionResult) => ({
+  rawText: '乙某请求支付工资。判决甲公司支付乙某工资。',
+  knownParties: result.parties,
+  knownClaims: result.claims,
+  knownJudgmentItems: result.judgmentItems,
+  requiredClaimResolutionIds: ['claim-1'],
+});
+
+const createReviewItemWithContext = (result: SemanticResolutionResult): SemanticReviewItem => {
+  const item = createSemanticReviewItemFromAudit({
+    caseId: 'case-human-current-audit',
+    result,
+    audit: {
+      decision: 'fail',
+      reasonCodes: ['confidence_below_admission_threshold'],
+      admissionConfidenceThreshold: 0.9,
+    },
+    auditContext: currentAuditContext(result),
+    createdAt: '2026-09-17T00:00:00.000Z',
+  });
+  if (!item) throw new Error('expected review item');
+  return item;
+};
 
 describe('Analytics Gate admission contract', () => {
   it('admits a resolved deterministic rule result', () => {
@@ -84,6 +112,93 @@ describe('Analytics Gate admission contract', () => {
       audit: audit('pass'),
     });
     expect(result).toMatchObject({ status: 'eligible', source: 'llm', reasonCodes: [] });
+  });
+
+  it('recomputes a historical .90 audit with the current .80 threshold', () => {
+    const result = semanticResult({
+      confidence: 0.85,
+      claimResolutions: [{ ...semanticResult().claimResolutions[0], confidence: 0.85 }],
+    });
+    const historicalAudit: SemanticLocalAuditResult = {
+      decision: 'fail',
+      reasonCodes: ['confidence_below_admission_threshold'],
+      admissionConfidenceThreshold: 0.9,
+    };
+    const admission = evaluateAnalyticsAdmission({
+      record: analysisRecord('stale-threshold', 'supported'),
+      semanticResult: result,
+      audit: historicalAudit,
+      semanticAuditContext: currentAuditContext(result),
+    });
+    expect(admission).toMatchObject({ status: 'eligible', source: 'llm', reasonCodes: [] });
+    expect(historicalAudit.admissionConfidenceThreshold).toBe(0.9);
+  });
+
+  it('keeps a result below the current .80 threshold blocked', () => {
+    const result = semanticResult({
+      confidence: 0.75,
+      claimResolutions: [{ ...semanticResult().claimResolutions[0], confidence: 0.75 }],
+    });
+    const admission = evaluateAnalyticsAdmission({
+      record: analysisRecord('current-threshold-fail', 'supported'),
+      semanticResult: result,
+      audit: { decision: 'pass', reasonCodes: [], admissionConfidenceThreshold: 0.9 },
+      semanticAuditContext: currentAuditContext(result),
+    });
+    expect(admission.status).toBe('blocked');
+    expect(admission.reasonCodes).toContain('audit_failed');
+  });
+
+  it('keeps an unresolved result blocked after current-rule recomputation', () => {
+    const result = semanticResult({ status: 'unresolved', confidence: 0.85 });
+    const admission = evaluateAnalyticsAdmission({
+      record: analysisRecord('stale-unresolved', 'supported'),
+      semanticResult: result,
+      audit: { decision: 'pass', reasonCodes: [], admissionConfidenceThreshold: 0.9 },
+      semanticAuditContext: currentAuditContext(result),
+    });
+    expect(admission.status).toBe('blocked');
+    expect(admission.reasonCodes).toContain('semantic_unresolved');
+  });
+
+  it('keeps invalid evidence blocked even when historical audit passed', () => {
+    const base = semanticResult();
+    const result = semanticResult({
+      claims: [{ ...base.claims[0], sourceEvidence: { text: '不存在于原文的证据' } }],
+    });
+    const admission = evaluateAnalyticsAdmission({
+      record: analysisRecord('stale-evidence', 'supported'),
+      semanticResult: result,
+      audit: { decision: 'pass', reasonCodes: [], admissionConfidenceThreshold: 0.9 },
+      semanticAuditContext: currentAuditContext(result),
+    });
+    expect(admission.status).toBe('blocked');
+    expect(admission.reasonCodes).toContain('audit_failed');
+  });
+
+  it('keeps a current structural relationship error blocked despite an old pass', () => {
+    const result = semanticResult({
+      claimResolutions: [{ ...semanticResult().claimResolutions[0], judgmentItemIds: [] }],
+    });
+    const admission = evaluateAnalyticsAdmission({
+      record: analysisRecord('stale-structure', 'supported'),
+      semanticResult: result,
+      audit: { decision: 'pass', reasonCodes: [], admissionConfidenceThreshold: 0.9 },
+      semanticAuditContext: currentAuditContext(result),
+    });
+    expect(admission.status).toBe('blocked');
+    expect(admission.reasonCodes).toContain('audit_failed');
+  });
+
+  it('re-audits a human-approved result with current source context', () => {
+    const candidate = semanticResult({ confidence: 0.85 });
+    const pending = createReviewItemWithContext(candidate);
+    const reviewed = reviewSemanticReviewItem(pending, {}, '2026-09-17T01:00:00.000Z', { reviewAction: 'accept' });
+    const admission = evaluateAnalyticsAdmission({
+      record: analysisRecord('case-human-current-audit', 'supported', { isIncludedInAnalysisSet: false }),
+      reviewItems: [reviewed],
+    });
+    expect(admission).toMatchObject({ status: 'eligible', source: 'human_review', reasonCodes: [] });
   });
 
   it('blocks an LLM result when the audit fails', () => {
