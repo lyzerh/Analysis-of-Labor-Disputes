@@ -122,24 +122,24 @@ describe('Case Library filter contract', () => {
   });
 
   it('supports case-local search by title, party name, and caseId', () => {
-    const target = analysisRecord('case-li-chengyun', 'supported', {
-      title: '李成云与关兴教育培训中心工伤保险待遇纠纷',
-      employeeParty: '李成云',
-      employerParty: '上海浦东新区关兴教育培训中心',
+    const target = analysisRecord('case-fixture-001', 'supported', {
+      title: '劳动者甲与某教育培训中心工伤保险待遇纠纷',
+      employeeParty: '劳动者甲',
+      employerParty: '某教育培训中心',
     });
     const other = analysisRecord('case-other', 'supported', {
       title: '其他劳动争议',
-      employeeParty: '林振兴',
+      employeeParty: '劳动者乙',
       employerParty: '其他公司',
     });
     const source = [target, other];
 
-    expect(filterAnalysisCaseRecords(source, { keyword: '李成云' }).map((record) => record.caseId))
-      .toEqual(['case-li-chengyun']);
-    expect(filterAnalysisCaseRecords(source, { keyword: 'CASE-LI' }).map((record) => record.caseId))
-      .toEqual(['case-li-chengyun']);
-    expect(filterAnalysisCaseRecords(source, { keyword: '关兴教育' }).map((record) => record.caseId))
-      .toEqual(['case-li-chengyun']);
+    expect(filterAnalysisCaseRecords(source, { keyword: '劳动者甲' }).map((record) => record.caseId))
+      .toEqual(['case-fixture-001']);
+    expect(filterAnalysisCaseRecords(source, { keyword: 'CASE-FIXTURE' }).map((record) => record.caseId))
+      .toEqual(['case-fixture-001']);
+    expect(filterAnalysisCaseRecords(source, { keyword: '某教育培训中心' }).map((record) => record.caseId))
+      .toEqual(['case-fixture-001']);
     expect(filterAnalysisCaseRecords(source, { keyword: '不存在的案件' })).toEqual([]);
   });
 

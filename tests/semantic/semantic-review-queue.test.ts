@@ -365,12 +365,12 @@ describe('Semantic human review queue', () => {
       failureStage: 'provider',
       failureCode: 'provider_error',
       httpStatus: 401,
-      errorSummary: 'Authorization: Bearer sk-or-v1-secret-value',
+      errorSummary: 'Authorization: Bearer test-review-token',
       timestamp: '2026-09-17T05:05:00.000Z',
     }, storage);
     const raw = storage.getItem(semanticTechnicalFailureStorageKey) || '';
-    expect(raw).not.toContain('sk-or-v1-secret-value');
-    expect(raw).not.toContain('Bearer sk-or-v1-secret-value');
+    expect(raw).not.toContain('Authorization: Bearer');
+    expect(raw).not.toContain('Bearer test-review-token');
     expect(readSemanticTechnicalFailures(storage)[0]).toMatchObject({ caseId: 'case-secret', failureCode: 'provider_error', httpStatus: 401 });
   });
 });

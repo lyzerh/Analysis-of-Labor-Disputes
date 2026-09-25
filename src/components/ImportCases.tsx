@@ -139,7 +139,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
           doc.rawText,
           doc.title,
           doc.fileName,
-          '深圳市人力资源和社会保障局（示范集）'
+          '合成演示数据（Synthetic Demo Fixture）'
         );
         newCases.push(res.parsedCase);
       }
@@ -147,7 +147,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
       setImportedCases(newCases);
       setNotice({
         type: 'success',
-        message: `🎉 成功载入 ${newCases.length} 份深圳真实劳动争议仲裁裁决书测试集！`,
+        message: `🎉 成功载入 ${newCases.length} 份合成演示文书！仅用于界面与流程演示，不作为研究分析数据。`,
       });
       onImportComplete?.();
     } catch (err: any) {
@@ -353,10 +353,10 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
             <span className="px-2 py-0.5 rounded text-2xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
               离线测试专用
             </span>
-            <span className="text-xs text-slate-300 font-bold">深圳典型劳动仲裁裁决书示范集</span>
+              <span className="text-xs text-slate-300 font-bold">合成劳动争议演示集</span>
           </div>
           <p className="text-2xs text-slate-400 mt-1 max-w-xl">
-            内置 5 份深圳真实劳动争议文书（含违法解除、年终奖、特殊工时加班费、未签合同二倍工资、调岗降薪争议），可一键载入测试解析与统计功能。
+            内置 5 份合成演示文书（含违法解除、年终奖、特殊工时加班费、未签合同二倍工资、调岗降薪争议），仅用于界面与流程演示，不作为研究分析数据。
           </p>
         </div>
 

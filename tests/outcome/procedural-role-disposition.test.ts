@@ -33,11 +33,11 @@ describe('Batch 4 procedural-role and claim-disposition contract', () => {
   });
 
   it('maps employee plaintiff and employer defendant', () => {
-    const parties = LaborInfoParserAdapter.recognizeParties('原告：侯小军。被告：东莞市汇成模具科技有限公司。');
+    const parties = LaborInfoParserAdapter.recognizeParties('原告：劳动者甲。被告：某公司。');
     expect(parties.applicantRole).toBe('employee');
     expect(parties.parties).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: '侯小军', laborRole: 'employee', proceduralRoles: expect.arrayContaining(['plaintiff']) }),
-      expect.objectContaining({ name: '东莞市汇成模具科技有限公司', laborRole: 'employer', proceduralRoles: expect.arrayContaining(['defendant']) }),
+      expect.objectContaining({ name: '劳动者甲', laborRole: 'employee', proceduralRoles: expect.arrayContaining(['plaintiff']) }),
+      expect.objectContaining({ name: '某公司', laborRole: 'employer', proceduralRoles: expect.arrayContaining(['defendant']) }),
     ]));
   });
 
@@ -59,25 +59,25 @@ describe('Batch 4 procedural-role and claim-disposition contract', () => {
   });
 
   it('resolves explicit wage and payment dispositive text', () => {
-    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('wage-payment', '原告：侯小军。被告：甲有限公司。原告请求支付劳动报酬。判决如下：被告支付原告劳动报酬57060元。'));
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('wage-payment', '原告：劳动者甲。被告：甲有限公司。原告请求支付劳动报酬。判决如下：被告支付原告劳动报酬57060元。'));
     expect(result.claims).toContainEqual(expect.objectContaining({ claimName: '拖欠/未付劳动报酬', supportStatus: 'supported', awardedAmount: 57060 }));
   });
 
   it('resolves double-wage difference as partial when awarded below requested', () => {
-    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('double-wage-partial', '原告：黄玉东。被告：甲有限公司。原告请求支付未签订书面劳动合同二倍工资差额50000元。判决如下：被告支付原告未签订书面劳动合同二倍工资差额33040元。'));
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('double-wage-partial', '原告：劳动者丁。被告：甲有限公司。原告请求支付未签订书面劳动合同二倍工资差额50000元。判决如下：被告支付原告未签订书面劳动合同二倍工资差额33040元。'));
     expect(result.claims).toContainEqual(expect.objectContaining({ claimName: '未签书面劳动合同二倍工资差额', supportStatus: 'partially_supported', requestedAmount: 50000, awardedAmount: 33040 }));
   });
 
   it('does not let reject-other-claims erase an explicitly paid claim', () => {
-    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('reject-other', '原告：黄玉东。被告：甲有限公司。原告请求支付停工工资、二倍工资差额及其他请求。判决如下：被告支付原告停工工资7798元；驳回原告其他诉讼请求。'));
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('reject-other', '原告：劳动者丁。被告：甲有限公司。原告请求支付停工工资、二倍工资差额及其他请求。判决如下：被告支付原告停工工资7798元；驳回原告其他诉讼请求。'));
     expect(result.claims.find((claim) => claim.claimName === '拖欠/未付劳动报酬')?.supportStatus).toBe('supported');
   });
 
   it.each([
-    ['（2021）粤19民终3199号 李仙浓', '上诉人：甲有限公司。被上诉人：李仙浓。上诉人请求撤销原判。原审判决如下：确认双方劳动合同关系已经解除；甲有限公司支付李仙浓经济补偿金52584元。二审判决如下：驳回上诉，维持原判。', '李仙浓', 52584],
-    ['（2021）粤19民终3310号 何明贵', '上诉人：甲有限公司。被上诉人：何明贵。上诉人请求撤销原判。原审判决如下：确认双方劳动合同关系已经解除；甲有限公司支付何明贵经济补偿金69000元。二审判决如下：驳回上诉，维持原判。', '何明贵', 69000],
+    ['DEMO-APPEAL-001 劳动者乙', '上诉人：甲有限公司。被上诉人：劳动者乙。上诉人请求撤销原判。原审判决如下：确认双方劳动合同关系已经解除；甲有限公司支付劳动者乙经济补偿金52584元。二审判决如下：驳回上诉，维持原判。', '劳动者乙', 52584],
+    ['DEMO-APPEAL-002 劳动者丙', '上诉人：甲有限公司。被上诉人：劳动者丙。上诉人请求撤销原判。原审判决如下：确认双方劳动合同关系已经解除；甲有限公司支付劳动者丙经济补偿金69000元。二审判决如下：驳回上诉，维持原判。', '劳动者丙', 69000],
   ] as const)('%s resolves maintained appeal and employee result', (_label, text, employee, amount) => {
-    const result = LaborInfoParserAdapter.parseDetailed(rawDocument(`real-${employee}`, text));
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument(`fixture-${employee}`, text));
     expect(result.employeeParty).toBe(employee);
     expect(result.claims).toEqual(expect.arrayContaining([
       expect.objectContaining({ claimName: '劳动关系解除确认', supportStatus: 'supported' }),
@@ -89,11 +89,11 @@ describe('Batch 4 procedural-role and claim-disposition contract', () => {
   });
 
   it.each([
-    ['李仙浓', '（2021）粤19民终3199号', 52584],
-    ['何明贵', '（2021）粤19民终3310号', 69000],
-  ] as const)('%s recognizes a real LaborInfo heading without a line break before 上诉人', (employee, caseNumber, amount) => {
-    const text = `广东省东莞市中级人民法院民事判决书${caseNumber}上诉人（原审原告）：星星精密科技（东莞）有限公司，被上诉人（原审被告）：${employee}。星星精密科技（东莞）有限公司向原审法院提出诉讼请求：无需向${employee}支付经济补偿金${amount}元。原审法院判决如下：确认星星精密科技（东莞）有限公司与${employee}的劳动合同关系已经解除；限星星精密科技（东莞）有限公司向${employee}支付经济补偿金${amount}元。二审判决如下：驳回上诉，维持原判。`;
-    const result = LaborInfoParserAdapter.parseDetailed(rawDocument(`real-heading-${employee}`, text));
+    ['劳动者乙', '（2024）示范终0001号', 52584],
+    ['劳动者丙', '（2024）示范终0002号', 69000],
+  ] as const)('%s recognizes a synthetic LaborInfo heading without a line break before 上诉人', (employee, caseNumber, amount) => {
+    const text = `合成民事判决书${caseNumber}上诉人（原审原告）：某精密科技公司，被上诉人（原审被告）：${employee}。某精密科技公司向原审法院提出诉讼请求：无需向${employee}支付经济补偿金${amount}元。原审法院判决如下：确认某精密科技公司与${employee}的劳动合同关系已经解除；限某精密科技公司向${employee}支付经济补偿金${amount}元。二审判决如下：驳回上诉，维持原判。`;
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument(`fixture-heading-${employee}`, text));
 
     expect(result.applicantRole).toBe('employer');
     expect(result.claims).toEqual(expect.arrayContaining([
@@ -106,8 +106,8 @@ describe('Batch 4 procedural-role and claim-disposition contract', () => {
 
   it('does not misclassify an employee wage claim as a defendant counterclaim', () => {
     const result = LaborInfoParserAdapter.parseDetailed(rawDocument(
-      'real-wage-14860-heading',
-      '广东省东莞市第二人民法院民事判决书（2020）粤1972民初14860号原告：侯小军，男。被告：东莞市汇成模具科技有限公司。原告因被告拖欠劳动报酬未付，向法院提起诉讼，请求判令：被告向原告支付业务提成费57060元。本院认为被告应向原告支付业务费57060元。判决如下：被告向原告支付业务费用57060元。',
+      'fixture-wage-heading',
+      '合成民事判决书（2024）示范初0001号原告：劳动者甲，男。被告：某公司。原告因被告拖欠劳动报酬未付，向法院提起诉讼，请求判令：被告向原告支付业务提成费57060元。本院认为被告应向原告支付业务费57060元。判决如下：被告向原告支付业务费用57060元。',
     ));
     expect(result.applicantRole).toBe('employee');
     expect(result.claims).toContainEqual(expect.objectContaining({
@@ -119,14 +119,14 @@ describe('Batch 4 procedural-role and claim-disposition contract', () => {
     expect(result.employeeOutcome).toBe('supported');
   });
 
-  it('resolves 侯小军 14860 payment as an employee claim', () => {
-    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('real-（2020）粤1972民初14860号', '原告：侯小军。被告：东莞市汇成模具科技有限公司。原告请求支付业务提成/劳动报酬57060元。判决如下：被告支付原告业务提成/劳动报酬57060元。'));
+  it('resolves the synthetic payment fixture as an employee claim', () => {
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('fixture-payment', '原告：劳动者甲。被告：某公司。原告请求支付业务提成/劳动报酬57060元。判决如下：被告支付原告业务提成/劳动报酬57060元。'));
     expect(result.claims).toContainEqual(expect.objectContaining({ claimName: '拖欠/未付劳动报酬', claimant: 'employee', supportStatus: 'supported', awardedAmount: 57060 }));
     expect(result.employeeOutcome).toBe('supported');
   });
 
-  it('resolves 黄玉东 4065 mixed payment items independently', () => {
-    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('real-（2023）粤1972民初4065号', '原告：黄玉东。被告：甲有限公司。原告请求确认劳动关系解除、停工工资7798元及未签订书面劳动合同二倍工资差额50000元。判决如下：确认双方劳动关系于2022年4月29日解除；被告支付原告停工工资7798元；被告支付原告未签订书面劳动合同二倍工资差额33040元；驳回原告其他诉讼请求。'));
+  it('resolves the synthetic mixed payment fixture independently', () => {
+    const result = LaborInfoParserAdapter.parseDetailed(rawDocument('fixture-partial', '原告：劳动者丁。被告：甲有限公司。原告请求确认劳动关系解除、停工工资7798元及未签订书面劳动合同二倍工资差额50000元。判决如下：确认双方劳动关系于2022年4月29日解除；被告支付原告停工工资7798元；被告支付原告未签订书面劳动合同二倍工资差额33040元；驳回原告其他诉讼请求。'));
     expect(result.claims).toEqual(expect.arrayContaining([
       expect.objectContaining({ claimName: '劳动关系解除确认', supportStatus: 'supported' }),
       expect.objectContaining({ claimName: '拖欠/未付劳动报酬', claimantRole: 'employee', supportStatus: 'supported', awardedAmount: 7798 }),

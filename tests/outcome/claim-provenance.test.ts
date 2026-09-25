@@ -75,7 +75,7 @@ describe('claim request provenance', () => {
   ])('rejects reasoning and issue-focus sentences as request text', (reasoning) => {
     const parsed = LaborInfoParserAdapter.parseDetailed(raw(
       'reasoning-only',
-      `原告：林振兴。被告：福美公司。${reasoning.replace('年休假工资请求', '未休年休假工资请求')}判决如下：驳回原告其他诉讼请求。`,
+      `原告：劳动者甲。被告：某公司。${reasoning.replace('年休假工资请求', '未休年休假工资请求')}判决如下：驳回原告其他诉讼请求。`,
     ));
     const claim = parsed.claims.find((item) => item.claimType === 'annual_leave_pay');
     expect(claim?.sourceText || '').toBe('');
@@ -85,7 +85,7 @@ describe('claim request provenance', () => {
   it('keeps the claim label when no reliable request text exists', () => {
     const parsed = LaborInfoParserAdapter.parseDetailed(raw(
       'reasoning-only-label',
-      '原告：林振兴。被告：福美公司。本院认为，未休年休假工资请求不予支持。判决如下：驳回原告其他诉讼请求。',
+      '原告：劳动者甲。被告：某公司。本院认为，未休年休假工资请求不予支持。判决如下：驳回原告其他诉讼请求。',
     ));
     const claim = parsed.claims.find((item) => item.claimType === 'annual_leave_pay');
     expect(claim?.claimName).toBe('未休年休假工资');
@@ -95,7 +95,7 @@ describe('claim request provenance', () => {
   it('keeps rejected reasoning available as court reasoning evidence', () => {
     const parsed = LaborInfoParserAdapter.parseDetailed(raw(
       'reasoning-evidence',
-      '原告：林振兴。被告：福美公司。本院认为，未休年休假工资请求证据不足，本院不予支持。判决如下：驳回原告其他诉讼请求。',
+      '原告：劳动者甲。被告：某公司。本院认为，未休年休假工资请求证据不足，本院不予支持。判决如下：驳回原告其他诉讼请求。',
     ));
     expect(parsed.courtReasoning).toContain('未休年休假工资请求');
     expect(parsed.claims.find((item) => item.claimType === 'annual_leave_pay')?.sourceText).toBe('');
@@ -104,7 +104,7 @@ describe('claim request provenance', () => {
   it('rejects work-injury defence and argument text while preserving a clear request sentence', () => {
     const parsed = LaborInfoParserAdapter.parseDetailed(raw(
       'work-injury-defence-provenance',
-      '工伤保险待遇纠纷。原告：李成云。被告：上海浦东新区关兴教育培训中心。'
+      '工伤保险待遇纠纷。原告：劳动者甲。被告：某教育培训中心。'
         + '关于一次性伤残补助金，因为原告在交通事故中没有主张。'
         + '原告针对被告的诉讼请求辩称，仲裁关于一次性伤残补助金和劳动能力鉴定费的认定不应支持。'
         + '原告向本院提出诉讼请求，判令被告支付停工留薪期工资10000元。'
@@ -137,11 +137,11 @@ describe('claim request provenance', () => {
   it('binds an explicit counterclaim request to the counterclaim plaintiff', () => {
     const parsed = LaborInfoParserAdapter.parseDetailed(raw(
       'counterclaim-request',
-      '原告：甲公司。被告：颜铮。被告反诉请求支付经济补偿金144420元。判决如下：反诉被告支付反诉原告经济补偿金144420元。',
+      '原告：甲公司。被告：劳动者乙。被告反诉请求支付经济补偿金144420元。判决如下：反诉被告支付反诉原告经济补偿金144420元。',
     ));
     const claim = parsed.claims.find((item) => item.claimType === 'economic_compensation');
     expect(claim).toMatchObject({ claimantRole: 'employee', proceduralBasis: 'counterclaim', claimSourceKind: 'litigation_request' });
-    expect(parsed.parties?.find((party) => party.name === '颜铮')?.proceduralRoles).toContain('counterclaimPlaintiff');
+    expect(parsed.parties?.find((party) => party.name === '劳动者乙')?.proceduralRoles).toContain('counterclaimPlaintiff');
   });
 
   it('keeps an employee arbitration request separate from an employer appeal applicant', () => {

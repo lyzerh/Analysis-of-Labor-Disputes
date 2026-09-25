@@ -1,250 +1,216 @@
-# Analysis of Labor Disputes
+# LawLens
 
-> A local-first legal analytics tool for analyzing Chinese labor dispute cases, with reproducible sampling, research provenance, and quality-aware statistical analysis.
+劳动争议裁判文书可信智能解析与实证研究平台
+*Trustworthy AI-assisted Legal Analytics for Labor Dispute Judgments*
 
-Designed to help legal and HR users explore dispute patterns, compare case groups, and inspect employer-side defense outcomes without treating statistical associations as legal advice.
+LawLens 面向劳动争议实证研究，将非结构化裁判文书转换为可核验、可追溯、可统计的结构化研究数据。系统使用规则和语义解析生成候选，再由程序约束、人工复核和准入流程决定哪些记录可以进入确定性统计。
 
-[Live Demo](https://lyzerh.github.io/Analysis-of-Labor-Disputes/) · [Current Milestone: v0.5.0-stage5](https://github.com/lyzerh/Analysis-of-Labor-Disputes/tree/v0.5.0-stage5) · [Repository](https://github.com/lyzerh/Analysis-of-Labor-Disputes)
+> **AI generates candidates. Programs validate constraints. Humans resolve uncertainty.**
 
-## Overview
+## Demo
 
-Analysis of Labor Disputes is a local-first LegalTech project that turns public Chinese labor-dispute data into structured, inspectable analysis. It supports fixed case populations, full-corpus or sampled analysis, comparisons by city, year, and court level, employer-side outcome and defense associations, and traceable research inputs.
+[打开 GitHub Pages Demo](https://lyzerh.github.io/Analysis-of-Labor-Disputes/)
 
-The project is built for exploration and research, not automated legal judgment. Its statistics describe patterns in the selected cases; they are not legal advice or predictions of future court outcomes.
+无需 API Key 即可查看本地案例管理、研究工作区和确定性分析流程。启用 AI 语义解析时，用户需要在系统设置中自行配置 xAI API Key；仓库不内置密钥。
 
-## Why This Project
+## Why LawLens
 
-Traditional case analysis can become difficult to trust when the remote dataset changes, sampling choices are undocumented, analysis inputs are not fixed, or unrelated local records silently enter a calculation. Results can also be misleading when sample size, missing records, and unclear outcomes are hidden.
+劳动争议裁判文书通常具有非结构化、主体视角复杂、诉求与裁判结果跨段落、原诉 / 反诉 / 上诉语境交织等特点。实证研究还需要固定研究总体、保留来源和身份信息，并能解释哪些记录被排除以及为什么排除。
 
-This project separates four steps so each formal result has a stable and reviewable basis:
+LawLens 的目标不是自动作出法律判断，而是把文书整理成研究者可以检查、复核和回溯的研究数据。
 
-```text
-Candidate Snapshot
-        → Reproducible Sampling
-        → Fixed Analysis Run
-        → Quality-aware Analytics
-```
-
-## Core Workflow
+## Core Architecture
 
 ```text
-LaborInfoCN metadata
-        ↓
-Candidate Pool Snapshot
-        ↓
-Full Corpus or Reproducible Sample
-        ↓
-Fixed AnalysisRun Inputs
-        ↓
-Research-aware Analytics
-        ↓
-Quality Guardrails + Provenance
+Judgment
+   ↓
+Rules / Parser
+   ↓
+LLM Semantic Resolver
+   ↓
+Structured Candidate
+   ↓
+Claim Identity
+   ↓
+Schema / Validator / Audit
+   ↓
+Human Review / Analytics Gate
+   ↓
+Deterministic Analytics
 ```
 
-When cases are prepared for analysis, the selected IDs remain authoritative:
+LLM 输出是候选，不是研究事实。确定性程序负责字段、身份、证据和关系约束；无法安全确认的记录保留为未决或进入人工复核，不静默进入统计。
 
-```text
-Selected case IDs
-        → Exact-ID preparation
-        → Structured AnalysisCaseRecord
-```
+## Trustworthy AI Workflow
 
-## Current Features
+- **Deterministic program**：解析稳定字段、校验 schema、检查身份和来源证据，并执行 Analytics Gate。
+- **LLM**：只对指定的未决语义关系提出候选，不创建新的案件、诉求、金额或案件级结论。
+- **Human review**：处理低置信、冲突、上下文不足和上诉依赖等情况，并决定是否可以进入研究总体。
 
-### Dataset and Reproducibility
+核心原则：**AI 负责提出候选；程序负责验证约束；人工负责处理不确定性。**
 
-- Candidate Pool Snapshots with fixed candidate IDs
-- Candidate hashes and dataset fingerprints
-- Metadata-only candidate enumeration
-- Explicit complete, partial, failed, and cancelled snapshot states
+## Evaluation
 
-### Sampling
+当前材料记录的 Gold Set 包含 10 个案例；正式 Benchmark 只纳入其中身份已核验的实体性诉求。
 
-- Seeded random sampling
-- Stratified seeded sampling
-- Proportional and balanced allocation
-- Deterministic sample hashes
-- Stored sampling provenance
+- **8 / 8 invocation success**：8 条身份已核验诉求均完成调用。
+- **5 / 8 explicit candidate coverage = 62.5%**：5 条形成明确候选，3 条保持未决。
+- **5 / 5 explicit candidates matched human Gold = 100%**：明确候选子集全部与人工 Gold 一致。
+- **3 / 8 unresolved / human review = 37.5%**：未决记录保留人工复核路径。
+- **explicit candidate incorrect = 0 / 5**：明确候选中没有错误匹配。
 
-### Analysis
+5/5 只表示形成明确候选的 5 条诉求均与人工 Gold 一致，不代表系统总体准确率为 100%。这是小规模方法验证，不能外推为全部劳动争议裁判文书上的总体模型准确率。
 
-- Exhaustive corpus analysis
-- Reproducible sampled analysis
-- Fixed AnalysisRun inputs
-- Isolation of a sample from unrelated local records
-- City, year, and court-level composition
-- Employer-side outcome and defense association analysis
+## Rules-only Baseline
 
-### Quality and Auditability
+在人工标注的 26 条已抽取实体性诉求中：
 
-- Small-sample and unclear-outcome warnings
-- Missing-record and failed-record warnings
-- Stratum attrition checks
-- AnalysisRun provenance
-- Visible input N, usable N, and unknown-outcome N
+- correct：12
+- wrong_type：4
+- spurious：10
+- 12 / 26 = 46.2%
 
-### Local-first Architecture
-
-- Browser-based storage with IndexedDB and Dexie
-- PWA-oriented local-first frontend
-- No API key stored in the static client
-- Deterministic legal-outcome and analytics logic
-- Optional semantic resolver isolated from the GitHub Pages client build
-
-## Research Reliability
-
-### Case Scope
-
-The system first freezes the candidate population. Later analysis therefore does not silently change when remote data changes or when unrelated cases are added to the local database. Internally, this frozen scope is stored as a `CandidatePoolSnapshot`.
-
-### Analysis Method
-
-Users can analyze all eligible cases, create a reproducible random sample, or build a stratified comparison sample. The sample definition and its provenance are stored as a `SamplingRun`.
-
-### Analysis Run
-
-Each formal analysis stores:
-
-- Fixed case IDs
-- Dataset fingerprint
-- Sampling provenance
-- Parser and ruleset versions
-- Semantic configuration
-- Result summary
-
-This record is an `AnalysisRun`. The same research design can be reproduced later instead of silently re-querying a changing dataset.
-
-## Example Use Cases
-
-- Compare labor-dispute patterns across Guangzhou, Shenzhen, and Dongguan
-- Compare first-instance and second-instance cases
-- Inspect the distribution of dispute types
-- Examine employer-favorable and employer-unfavorable outcome patterns
-- Review defense-strategy co-occurrence with case outcomes
-- Build a reproducible comparison sample instead of manually selecting cases
-
-Defense findings are associations and co-occurrences in the analyzed cases. They do not establish court adoption, causal effects, winning strategies, or predictive power.
+该比例不是完整 extraction accuracy，因为当前材料没有统计 missed claims / recall。Rules-only 基线与 Benchmark 的分母、对象和任务不同，不能直接比较为“46.2% 到 100%”。
 
 ## Screenshots
 
-> Screenshots will be updated during the upcoming frontend stabilization phase.
+以下截图来自当前本地 LawLens 界面，不包含 API Key、学校、指导教师或个人信息。
 
-## Tech Stack
+### Human Review / Case Library
 
-- React 19
-- TypeScript
-- Vite
-- IndexedDB and Dexie
-- PWA / local-first architecture
-- LaborInfoCN public data API
-- Vitest
-- GitHub Actions
-- GitHub Pages
-- Optional Gemini-based semantic resolution for ambiguous references
+![LawLens case library](docs/screenshots/lawlens-dashboard.png)
 
-The Gemini resolver is disabled by default, runs server-side only, and is not included as a runtime dependency of the static GitHub Pages client. Final legal outcomes and statistical results remain deterministic.
+### Research Analytics Workspace
 
-## Architecture Principle
+![LawLens research workspace](docs/screenshots/research-workspace.png)
 
-> LLMs may help resolve ambiguous semantic relationships, but deterministic code decides legal outcomes and statistical results.
+### Gold Benchmark Workspace
 
-> The agent or model can decide what to inspect; deterministic functions decide what is true.
+![LawLens Gold benchmark workspace](docs/screenshots/gold-benchmark.png)
 
-## Validation
+## Research Workflow
 
-The `v0.5.0-stage5` baseline was validated with:
+```text
+Document Acquisition
+   → Parsing
+   → Semantic Candidate
+   → Validation
+   → Human Review
+   → Research Population Snapshot
+   → AnalysisRun
+   → Deterministic Analytics
+```
 
-- 297 / 297 tests passed
-- 17 / 17 test files passed
-- Production build passed
-- GitHub Pages build and asset-path verification passed
-- Real-browser exhaustive analysis E2E passed
-- Real-browser sampled analysis E2E passed
-- Sample isolation verified
-- Browser persistence after reload verified
-- No runtime browser errors observed in the final E2E
+## Data Sources
 
-## Current Release
+| Source | Purpose | Status | Notes |
+| --- | --- | --- | --- |
+| LaborInfoCN / 工劳网 | 公共劳动争议文书的候选检索、元数据和文书详情 | Current | 上游可用性、覆盖和元数据质量取决于来源；不宣称其为官方政府数据库 |
+| Synthetic Demo Fixture | UI、解析和流程演示 | Synthetic | 合成内容，仅用于界面与流程演示，不作为研究分析数据；不使用仿真政务 URL |
+| Shenzhen HRSS adapter | 旧的政务网页采集兼容链路 | Legacy / separate adapter | 保留用于兼容和历史工作流说明，不等同于本研究叙事中的当前 LaborInfoCN 来源 |
+| Local document import | 用户自行提供的 HTML、MHT、TXT 或 PDF 文书 | Local input | 处理和存储在浏览器本地；来源真实性由使用者负责核验 |
 
-### [v0.5.0-stage5](https://github.com/lyzerh/Analysis-of-Labor-Disputes/tree/v0.5.0-stage5)
+## AI Provider
 
-The published milestone tag establishes the reproducible legal analytics research foundation:
+### Current formal browser path
 
-- Candidate Snapshot
-- Reproducible Sampling
-- AnalysisRun provenance
-- Research-aware Analytics
-- Quality Guardrails
-- Research Workspace
-- Real-browser E2E validation
+- Provider: **xAI**
+- Model: **grok-4.20-0309-reasoning**
+- Endpoint: `https://api.x.ai/v1/chat/completions`
+- Runtime path: `LlmRuntimeService → BrowserXaiSemanticClient`
+- Key model: BYOK（Bring Your Own Key）
+- Key storage: `sessionStorage`
+
+### Legacy / historical paths
+
+Gemini 的 server-side resolver、DeepSeek adapter 和其他实验 provider 仅作为 legacy / historical compatibility 或实验记录保留；它们不是当前 GitHub Pages 浏览器端正式语义服务。`server.ts` 与 `scripts/semantic-smoke.ts` 中的 Gemini 路径需要单独的 legacy `GEMINI_API_KEY`，不属于打开 Demo 的必要条件。
+
+## Privacy & Data Boundary
+
+除 AI 语义解析步骤外，案例管理、人工复核、研究总体冻结和确定性统计均在本地完成。启用 AI 语义解析时，待解析文本将发送至用户自行配置的 xAI API 服务。
+
+LawLens 不声称完全离线、绝对安全或零隐私风险。API Key 只保存在当前浏览器会话的 `sessionStorage` 中；用户应自行评估发送文本和使用第三方服务的适当性。
 
 ## Quick Start
 
-To run the project locally:
+CI 当前使用 Node.js 22；本地建议使用兼容的 Node.js 22 环境和 npm。
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-Then use the research workflow:
+打开 `http://localhost:3000/`。不配置 API Key 也可以查看本地工作流；需要语义解析时，在系统设置中启用 xAI BYOK。
 
-1. Open **Research Workspace**.
-2. Define a case scope.
-3. Create a Candidate Snapshot.
-4. Prepare the selected cases by their exact IDs.
-5. Choose full-corpus analysis or a reproducible sample.
-6. Create an `AnalysisRun` and run the analysis.
-7. Review the analytics, quality warnings, and provenance.
-
-Application data is stored in the browser's IndexedDB. Clearing site data or switching browsers can remove or separate the local workspace.
-
-Useful validation commands:
+常用验证命令：
 
 ```bash
-npm run test:outcome
 npm run lint
+npm test
 npm run build
 npm run build:pages
 ```
 
-## Data Source
+## Verification
 
-The project uses the LaborInfoCN public API as a public labor-dispute data source. Remote availability, metadata quality, and coverage depend on the upstream source; LaborInfoCN is not presented here as an official government database.
+当前公开基线：`47d2bd653a3ad949b0bb6622ed126ffc548a66e8`
+提交：`feat: complete trustworthy legal analytics research workflow`
 
-## Known Limitations
+当前基线验证记录：
 
-- Year-filter interaction bug
-- Case-level filter interaction bug
-- Data-management count semantics need redesign
-- Pending-review cases cannot currently be opened or processed from the case-library UI. The page reports a pending/manual-review count, but only renders records already admitted to the analysis set; users cannot inspect exclusion reasons, correct extracted fields, approve a record, or reject it. The labels are also misleading because "structured" includes both admitted and pending records while the visible list contains admitted records only.
-- The raw-judgment viewer is planned for removal
-- Research terminology is currently too technical for ordinary users
-- The sampling workflow needs UX simplification
-- GitHub Pages remote Snapshot creation has not yet been fully validated against the deployed origin
-- Weighted analytics are not implemented
-- Confidence intervals are not implemented
-- Formal AnalysisResult persistence is not implemented
+- `npm run lint`：PASS
+- `npm test`：61 files / 849 tests PASS
+- `npm run build`：PASS
+- `npm run build:pages`：PASS；Pages base path 与静态资源检查通过
 
-## Next Phase
+这些是工程和方法链验证，不是总体法律结果准确率声明。
 
-### Product Reality & Frontend Debug Unit
+## Technology
 
-The next phase will focus on product and frontend reality rather than expanding the research architecture:
+- React
+- TypeScript / JavaScript
+- Vite
+- IndexedDB / Dexie
+- PWA manifest and local-first browser workflow
+- LaborInfoCN public data API
+- xAI API（BYOK semantic resolution）
+- Vitest
+- GitHub Actions / GitHub Pages
 
-- Fix frontend interaction bugs
-- Simplify user-facing terminology
-- Audit practical applicability for HR and legal users
-- Balance rigorous sampling with practical workflows
-- Remove low-value UI
-- Improve first-time usability
+## Project Scope
 
-The underlying reproducibility contract will remain intact.
+LawLens 是一个 **Research / Legal Analytics** 项目，关注劳动争议裁判文书的结构化、复核、研究总体冻结和确定性统计。
+
+它不是：
+
+- 法律意见或个案法律咨询
+- 案件结果预测系统
+- 自动司法或仲裁决定系统
+- 无人工复核的全自动法律 AI
+
+## Limitations
+
+- Gold Set 和正式 Benchmark 规模较小，当前结果只支持方法边界验证。
+- 未决和人工复核仍然是正式工作流的一部分。
+- 启用语义解析时需要用户自行配置外部 xAI 服务。
+- 当前材料不支持总体准确率、召回率或跨来源泛化结论。
+
+更完整的已知限制、未实现分析能力和历史兼容路径记录在 [`docs/limitations.md`](docs/limitations.md)。
+
+## Repository Structure
+
+```text
+src/       application and research workflow
+tests/     deterministic regression and contract tests
+scripts/   smoke checks and evaluation utilities
+docs/      validation, experiments, and limitations
+public/    PWA manifest and static assets
+```
+
+## License
+
+License: Not specified yet.
 
 ## Disclaimer
-
-> This project is intended for educational, research, and legal-analytics demonstration purposes only.
-
-> Statistical associations shown by the system do not constitute legal advice, do not predict case outcomes, and should not be interpreted as causal relationships.
 
 本项目仅用于教育、研究与法律数据分析演示。系统展示的统计关联不构成法律意见，不预测案件结果，也不应被解释为因果关系。

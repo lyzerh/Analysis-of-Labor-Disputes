@@ -13,12 +13,12 @@ const parse = (id: string, body: string, ssjl?: string, title = `${id}工伤保�
 } as RawDocument);
 
 describe('work-injury claim vocabulary', () => {
-  it('covers the 李成云与上海浦东新区关兴教育培训中心工伤待遇 case shape', () => {
+  it('covers a synthetic work-injury claim shape', () => {
     const result = parse(
       'raw_laborinfo_lcy_work_injury',
       '本案系工伤保险待遇纠纷。原告：李某。被告：甲公司。原告请求支付一次性伤残补助金41825元、劳动能力鉴定费350元、停工留薪期工资、工伤医疗费、护理费、住院伙食补助费、交通费及食宿费。判决如下：被告支付一次性伤残补助金41825元及劳动能力鉴定费350元，驳回其他诉讼请求。',
       undefined,
-      '李成云与上海浦东新区关兴教育培训中心工伤保险待遇纠纷一案',
+      '劳动者甲与某教育培训中心工伤保险待遇纠纷一案',
     );
 
     expect(result.claims.map((claim) => claim.claimType)).toEqual(expect.arrayContaining([

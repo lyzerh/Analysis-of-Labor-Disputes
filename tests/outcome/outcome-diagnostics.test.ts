@@ -232,10 +232,10 @@ describe('Outcome diagnostics and review queue contract', () => {
 
   it('keeps Batch 4 outcomes and Shanghai party-noise regression deterministic', () => {
     const realCases = [
-      ['real-li', '上诉人：甲有限公司。被上诉人：李仙浓。上诉人请求撤销原判。原审判决如下：确认双方劳动合同关系已经解除；甲有限公司支付李仙浓经济补偿金52584元。二审判决如下：驳回上诉，维持原判。', 'supported'],
-      ['real-he', '上诉人：甲有限公司。被上诉人：何明贵。上诉人请求撤销原判。原审判决如下：确认双方劳动合同关系已经解除；甲有限公司支付何明贵经济补偿金69000元。二审判决如下：驳回上诉，维持原判。', 'supported'],
-      ['real-hou', '原告：侯小军。被告：东莞市汇成模具科技有限公司。原告请求支付业务提成费57060元。判决如下：被告支付原告业务费用57060元。', 'supported'],
-      ['real-huang', '原告：黄玉东。被告：甲有限公司。原告请求确认劳动关系解除、停工工资7798元及未签订书面劳动合同二倍工资差额50000元。判决如下：确认双方劳动关系于2022年4月29日解除；被告支付原告停工工资7798元；被告支付原告未签订书面劳动合同二倍工资差额33040元；驳回原告其他诉讼请求。', 'partially_supported'],
+      ['fixture-appeal-a', '上诉人：甲有限公司。被上诉人：劳动者甲。上诉人请求撤销原判。原审判决如下：确认双方劳动合同关系已经解除；甲有限公司支付劳动者甲经济补偿金52584元。二审判决如下：驳回上诉，维持原判。', 'supported'],
+      ['fixture-appeal-b', '上诉人：甲有限公司。被上诉人：劳动者乙。上诉人请求撤销原判。原审判决如下：确认双方劳动合同关系已经解除；甲有限公司支付劳动者乙经济补偿金69000元。二审判决如下：驳回上诉，维持原判。', 'supported'],
+      ['fixture-payment', '原告：劳动者丙。被告：某公司。原告请求支付业务提成费57060元。判决如下：被告支付原告业务费用57060元。', 'supported'],
+      ['fixture-partial', '原告：劳动者丁。被告：甲有限公司。原告请求确认劳动关系解除、停工工资7798元及未签订书面劳动合同二倍工资差额50000元。判决如下：确认双方劳动关系于2022年4月29日解除；被告支付原告停工工资7798元；被告支付原告未签订书面劳动合同二倍工资差额33040元；驳回原告其他诉讼请求。', 'partially_supported'],
     ] as const;
     for (const [id, text, expectedEmployeeOutcome] of realCases) {
       const parsed = LaborInfoParserAdapter.parseDetailed(rawDocument(id, text));
@@ -244,14 +244,14 @@ describe('Outcome diagnostics and review queue contract', () => {
     }
 
     const roles = LaborInfoParserAdapter.recognizeParties([
-      '原告：上海广万东建筑设计咨询有限公司。',
-      '被告：吴利国。',
+      '原告：某设计咨询公司。',
+      '被告：劳动者戊。',
       '庭审记录：被告：效益工资是根据公司的经济状况。被告：对呀。',
     ].join(''));
     expect(roles.parties).toHaveLength(2);
     expect(roles.parties?.map((party) => party.name)).toEqual([
-      '上海广万东建筑设计咨询有限公司',
-      '吴利国',
+      '某设计咨询公司',
+      '劳动者戊',
     ]);
   });
 

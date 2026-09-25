@@ -14,20 +14,20 @@ if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
 } else {
   const task: UnresolvedSemanticTask = {
     status: 'unresolved',
-    caseId: 'real-（2020）粤1972民初14860号',
+    caseId: 'fixture-case-001',
     reasonCodes: ['payment_direction_unclear'],
-    rawText: '广东省东莞市第二人民法院民事判决书（2020）粤1972民初14860号原告：侯小军，男。被告：东莞市汇成模具科技有限公司。原告因被告拖欠劳动报酬未付，向法院提起诉讼，请求判令：被告向原告支付业务提成费57060元。本院认为被告应向原告支付业务费57060元。判决如下：被告向原告支付业务费用57060元。',
+    rawText: '合成劳动争议演示文书。原告：劳动者甲。被告：某公司。原告因被告拖欠劳动报酬未付，向法院提起诉讼，请求判令：被告向原告支付业务提成费57060元。本院认为被告应向原告支付业务费57060元。判决如下：被告向原告支付业务费用57060元。',
     context: '判决如下：被告向原告支付业务费用57060元。',
     knownParties: [
       {
         id: 'party-employee',
-        name: '侯小军',
+        name: '劳动者甲',
         laborRole: 'employee',
         proceduralRoles: ['plaintiff'],
       },
       {
         id: 'party-employer',
-        name: '东莞市汇成模具科技有限公司',
+        name: '某公司',
         laborRole: 'employer',
         proceduralRoles: ['defendant'],
       },

@@ -1,7 +1,7 @@
 {
-  "name": "深圳劳动仲裁文书本地研究库",
-  "short_name": "深圳仲裁库",
-  "description": "专为企业法务打造的深圳公开劳动仲裁裁决书本地解析、检索、质量校验、统计分析与离线研究系统",
+  "name": "LawLens",
+  "short_name": "LawLens",
+  "description": "劳动争议裁判文书可信智能解析与实证研究平台",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

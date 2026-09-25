@@ -19,7 +19,7 @@ describe('xAI activation contract', () => {
     expect(smokeSource).toContain("process.env.GEMINI_API_KEY");
     expect(smokeSource).toContain('new GeminiSemanticResultResolver');
     expect(smokeSource).toContain('auditSemanticResolutionResult');
-    expect(smokeSource).toContain("caseId: 'real-（2020）粤1972民初14860号'");
+    expect(smokeSource).toContain("caseId: 'fixture-case-001'");
     expect(smokeSource).not.toContain('VITE_GEMINI_API_KEY');
     expect(smokeSource).not.toContain('Promise.all');
   });

@@ -4,17 +4,18 @@ import { ParserUtils } from '../parser/ParserUtils';
 
 export class MockDataSourceAdapter implements DataSourceAdapter {
   readonly id = 'mock_shenzhen_hrss';
-  readonly name = '深圳市人力资源和社会保障局（公开文书测试集）';
-  readonly baseUrl = 'https://hrss.sz.gov.cn/ztfw/cjjy/wsgk/';
+  readonly name = '合成演示数据（Synthetic Demo Fixture）';
+  readonly baseUrl = 'synthetic://lawlens/demo/';
 
   private mockDocsData = [
     {
       title: '张某与深圳市某精密制造有限公司劳动人事争议仲裁裁决书',
-      url: 'https://hrss.sz.gov.cn/ztfw/cjjy/wsgk/doc/2024/03/t20240315_1001.html',
-      caseNumber: '深劳人仲案[2024]1208号',
+      url: 'synthetic://lawlens/demo/case-001',
+      caseNumber: 'DEMO-LABOR-001',
       publishedAt: '2024-03-15',
       committee: '深圳市劳动人事争议仲裁委员会',
-      rawText: `深圳市劳动人事争议仲裁委员会
+      rawText: `[Synthetic Demo Fixture] 仅用于界面与流程演示，不作为研究分析数据。
+深圳市劳动人事争议仲裁委员会
 仲 裁 裁 决 书
 深劳人仲案[2024]1208号
 
@@ -52,11 +53,12 @@ export class MockDataSourceAdapter implements DataSourceAdapter {
     },
     {
       title: '刘某与深圳市某智能科技有限公司劳动人事争议仲裁裁决书',
-      url: 'https://hrss.sz.gov.cn/ztfw/cjjy/wsgk/doc/2024/05/t20240520_1002.html',
-      caseNumber: '深南劳人仲案[2024]3042号',
+      url: 'synthetic://lawlens/demo/case-002',
+      caseNumber: 'DEMO-LABOR-002',
       publishedAt: '2024-05-20',
       committee: '深圳市南山区劳动人事争议仲裁委员会',
-      rawText: `深圳市南山区劳动人事争议仲裁委员会
+      rawText: `[Synthetic Demo Fixture] 仅用于界面与流程演示，不作为研究分析数据。
+深圳市南山区劳动人事争议仲裁委员会
 仲 裁 裁 决 书
 深南劳人仲案[2024]3042号
 
@@ -86,11 +88,12 @@ export class MockDataSourceAdapter implements DataSourceAdapter {
     },
     {
       title: '周某与深圳市某物流供应链有限公司劳动人事争议仲裁裁决书',
-      url: 'https://hrss.sz.gov.cn/ztfw/cjjy/wsgk/doc/2023/11/t20231108_1003.html',
-      caseNumber: '深宝劳人仲案[2023]5188号',
+      url: 'synthetic://lawlens/demo/case-003',
+      caseNumber: 'DEMO-LABOR-003',
       publishedAt: '2023-11-08',
       committee: '深圳市宝安区劳动人事争议仲裁委员会',
-      rawText: `深圳市宝安区劳动人事争议仲裁委员会
+      rawText: `[Synthetic Demo Fixture] 仅用于界面与流程演示，不作为研究分析数据。
+深圳市宝安区劳动人事争议仲裁委员会
 仲 裁 裁 决 书
 深宝劳人仲案[2023]5188号
 
@@ -117,11 +120,12 @@ export class MockDataSourceAdapter implements DataSourceAdapter {
     },
     {
       title: '孙某与深圳市某电子技术有限公司劳动争议仲裁裁决书',
-      url: 'https://hrss.sz.gov.cn/ztfw/cjjy/wsgk/doc/2024/01/t20240118_1004.html',
-      caseNumber: '深华劳人仲案[2024]1890号',
+      url: 'synthetic://lawlens/demo/case-004',
+      caseNumber: 'DEMO-LABOR-004',
       publishedAt: '2024-01-18',
       committee: '深圳市龙华区劳动人事争议仲裁委员会',
-      rawText: `深圳市龙华区劳动人事争议仲裁委员会
+      rawText: `[Synthetic Demo Fixture] 仅用于界面与流程演示，不作为研究分析数据。
+深圳市龙华区劳动人事争议仲裁委员会
 仲 裁 裁 决 书
 深华劳人仲案[2024]1890号
 
@@ -147,11 +151,12 @@ export class MockDataSourceAdapter implements DataSourceAdapter {
     },
     {
       title: '何某与深圳市某半导体器件有限公司劳动争议仲裁裁决书',
-      url: 'https://hrss.sz.gov.cn/ztfw/cjjy/wsgk/doc/2023/09/t20230912_1005.html',
-      caseNumber: '深劳人仲案[2023]4301号',
+      url: 'synthetic://lawlens/demo/case-005',
+      caseNumber: 'DEMO-LABOR-005',
       publishedAt: '2023-09-12',
       committee: '深圳市劳动人事争议仲裁委员会',
-      rawText: `深圳市劳动人事争议仲裁委员会
+      rawText: `[Synthetic Demo Fixture] 仅用于界面与流程演示，不作为研究分析数据。
+深圳市劳动人事争议仲裁委员会
 仲 裁 裁 决 书
 深劳人仲案[2023]4301号
 
@@ -225,7 +230,7 @@ export class MockDataSourceAdapter implements DataSourceAdapter {
       const contentHash = await ParserUtils.calculateContentHash(d.rawText);
       results.push({
         id: `sample_sz_${i + 1}`,
-        source: '深圳市人力资源和社会保障局（示范文书）',
+        source: '合成演示数据（Synthetic Demo Fixture）',
         sourceUrl: d.url,
         title: d.title,
         publishedAt: d.publishedAt,

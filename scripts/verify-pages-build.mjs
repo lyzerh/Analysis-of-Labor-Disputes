@@ -4,6 +4,18 @@ import { resolve } from 'node:path';
 const pagesBase = '/Analysis-of-Labor-Disputes/';
 const outputDirectory = resolve('dist-pages');
 const indexHtml = await readFile(resolve(outputDirectory, 'index.html'), 'utf8');
+const manifest = JSON.parse(await readFile(resolve(outputDirectory, 'manifest.json'), 'utf8'));
+
+const title = indexHtml.match(/<title>([^<]*)<\/title>/i)?.[1] || '';
+if (!title.includes('LawLens')) {
+  throw new Error(`Pages browser title must identify LawLens; received: ${title}`);
+}
+if (manifest.name !== 'LawLens' || manifest.short_name !== 'LawLens') {
+  throw new Error('Pages manifest must use LawLens for both name and short_name');
+}
+if (/深圳劳动仲裁文书本地研究库|深圳仲裁库/.test(`${indexHtml}\n${JSON.stringify(manifest)}`)) {
+  throw new Error('Pages build contains the retired product brand');
+}
 
 const localReferences = [...indexHtml.matchAll(/(?:src|href)="([^"]+)"/g)]
   .map((match) => match[1])

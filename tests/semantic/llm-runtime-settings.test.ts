@@ -83,7 +83,7 @@ describe('browser LLM runtime settings contract', () => {
       },
       dispatchEvent: vi.fn(),
     });
-    const settings = { enabled: true, apiKey: 'sk-or-runtime-test' };
+    const settings = { enabled: true, apiKey: 'test-runtime-key' };
 
     writeLlmRuntimeSettings(settings);
     expect(values.has(LLM_RUNTIME_SETTINGS_STORAGE_KEY)).toBe(true);
@@ -127,7 +127,7 @@ describe('browser LLM runtime settings contract', () => {
       },
       dispatchEvent: vi.fn(),
     });
-    writeLlmRuntimeSettings({ enabled: true, apiKey: 'sk-configured-provider-test' });
+    writeLlmRuntimeSettings({ enabled: true, apiKey: 'test-token' });
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { content: '{"ok":true}' } }],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
@@ -135,6 +135,6 @@ describe('browser LLM runtime settings contract', () => {
 
     await expect(testConfiguredLlmConnection()).resolves.toBe('available');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer sk-configured-provider-test');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer test-token');
   });
 });
