@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface CollapsibleTextProps {
   text?: string | null;
@@ -32,9 +33,10 @@ export const CollapsibleText: React.FC<CollapsibleTextProps> = ({
   text,
   collapsedLines = 4,
   className = '',
-  expandLabel = '展开',
-  collapseLabel = '收起',
+  expandLabel,
+  collapseLabel,
 }) => {
+  const { t } = useTranslation();
   const normalized = text?.trim() || '';
   const lines = clampCollapsedLines(collapsedLines);
   const collapsible = shouldCollapseText(normalized, lines);
@@ -67,7 +69,7 @@ export const CollapsibleText: React.FC<CollapsibleTextProps> = ({
         }}
         onKeyDown={(event) => event.stopPropagation()}
       >
-        {expanded ? collapseLabel : expandLabel}
+        {expanded ? (collapseLabel || t('common.collapse')) : (expandLabel || t('common.expand'))}
       </button>
     </span>
   );

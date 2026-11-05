@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   HardDrive,
   Cpu,
@@ -25,9 +26,10 @@ interface SettingsViewProps {
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide }) => {
+  const { t } = useTranslation();
   const [storageInfo, setStorageInfo] = useState<{ used: string; quota: string; percent: number }>({
-    used: '计算中...',
-    quota: '计算中...',
+    used: t('settings.calculating'),
+    quota: t('settings.calculating'),
     percent: 0,
   });
   const [counts, setCounts] = useState<{ cases: number; raw: number; tasks: number }>({
@@ -70,21 +72,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
   };
 
   const connectionStatusLabels: Record<LlmConnectionStatus, string> = {
-    unknown: '尚未测试',
-    testing: '测试连接中…',
-    available: '连接成功',
-    invalid_key: '连接失败：API Key 无效或无权限',
-    permission: '连接失败：API Key 无权限',
-    model_unavailable: '连接失败：当前模型不可用',
-    rate_limited: '连接失败：额度不足或已限流',
-    provider_unavailable: '连接失败：xAI 服务暂时不可用',
-    network_error: '连接失败：网络错误',
-    timeout: '连接失败：请求超时',
-    output_truncated: '连接失败：模型输出被截断，请重试',
-    unknown_error: '连接失败：未知连接错误',
+    unknown: t('settings.notTested'),
+    testing: t('settings.testing'),
+    available: t('settings.connected'),
+    invalid_key: `${t('settings.connectionFailed')}: API Key invalid or unauthorized`,
+    permission: `${t('settings.connectionFailed')}: API Key unauthorized`,
+    model_unavailable: `${t('settings.connectionFailed')}: model unavailable`,
+    rate_limited: `${t('settings.connectionFailed')}: quota or rate limit`,
+    provider_unavailable: `${t('settings.connectionFailed')}: xAI temporarily unavailable`,
+    network_error: `${t('settings.connectionFailed')}: network error`,
+    timeout: `${t('settings.connectionFailed')}: request timed out`,
+    output_truncated: `${t('settings.connectionFailed')}: output truncated; retry`,
+    unknown_error: `${t('settings.connectionFailed')}: unknown error`,
   };
   const connectionStatusText = connectionStatus === 'available'
-    ? `连接成功｜服务：${provider.providerLabel}｜模型：${provider.model}`
+    ? `${t('settings.connected')} | ${t('settings.provider')}: ${provider.providerLabel} | ${t('settings.currentModel')}: ${provider.model}`
     : connectionStatusLabels[connectionStatus];
 
   const handleTestConnection = async () => {
@@ -111,10 +113,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-          设置
+          {t('settings.title')}
         </h2>
         <p className="text-sm text-slate-500 mt-2">
-          查看本地 IndexedDB 存储资源占用、规则解析引擎运行状态以及离线运行策略。
+          {t('settings.description')}
         </p>
       </div>
 
@@ -124,18 +126,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
         <div className="flex items-center justify-between pb-2 border-b border-blue-200/50">
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-blue-600" />
-            使用教程
+            {t('settings.guide')}
           </h3>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
-            提供从案例采集到案例分析的完整使用流程。对于第一次使用系统的用户，建议点击右侧按钮查看，快速了解如何使用各项法务工具。
+            {t('settings.guideDescription')}
           </p>
           <button 
             onClick={() => onNavigateToGuide && onNavigateToGuide()}
             className="lawlens-primary-button px-4 py-2 text-xs font-semibold rounded-lg flex items-center justify-center shrink-0"
           >
-            查看教程
+            {t('settings.viewGuide')}
           </button>
         </div>
       </div>
@@ -145,10 +147,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
             <Cpu className="w-4 h-4 text-blue-600" />
-            数据处理与 AI 设置
+            {t('settings.dataAndAi')}
           </h3>
           <span className="text-2xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-semibold">
-            本地数据与可选 AI
+            {t('settings.localData')}
           </span>
         </div>
 
@@ -156,20 +158,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
             <div className="font-bold text-slate-900 flex items-center gap-1.5">
               <WifiOff className="w-3.5 h-3.5 text-emerald-600" />
-              本地数据存储
+              {t('settings.localData')}
             </div>
             <p className="text-2xs text-slate-500 leading-relaxed">
-              原始文书与结构化案例默认保存在浏览器 IndexedDB。本地规则解析与统计可在本机执行；启用 AI 语义分析后，相关文本会按配置发送至所选 AI 服务。
+              {t('settings.localDataDescription')}
             </p>
           </div>
 
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
             <div className="font-bold text-slate-900 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-indigo-600" />
-              本地规则解析
+              {t('settings.localParsing')}
             </div>
             <p className="text-2xs text-slate-500 leading-relaxed">
-              基于深圳各区劳动人事争议裁决文书结构特征定制正则表达式抽取器，支持案号、日期、当事人、查明事实与裁判说理秒级提取。
+              {t('settings.closure.parserDescription')}
             </p>
           </div>
         </div>
@@ -180,23 +182,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
             <Sparkles className="w-4 h-4 text-purple-600" />
-            AI 语义分析
+            {t('settings.semanticAnalysis')}
           </h3>
           <div className="flex items-center gap-1.5">
             <span className="text-2xs bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded font-semibold">{provider.providerLabel}</span>
             <span className={`text-2xs px-2 py-0.5 rounded font-semibold ${settings.enabled && settings.apiKey ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-              {settings.enabled && settings.apiKey ? '已启用' : '未启用'}
+              {settings.enabled && settings.apiKey ? t('settings.enabled') : t('settings.disabled')}
             </span>
           </div>
         </div>
 
         <div className="rounded-xl border border-purple-200/60 bg-purple-50/40 p-4 text-xs text-slate-700 space-y-3">
-          <p className="leading-relaxed">使用您自己的 xAI API Key 启用复杂语义分析。密钥仅保存在当前浏览器会话中，并直接用于调用 xAI API；浏览器端 BYOK 不代表绝对安全，请仅使用您愿意在本机浏览器中使用的 Key。</p>
+          <p className="leading-relaxed">{t('settings.apiKeyDescription')}</p>
           <label className="flex items-center justify-between gap-3 rounded-lg border border-white/80 bg-white/70 px-3 py-2">
-            <span className="font-semibold text-slate-800">启用 AI 语义分析</span>
+            <span className="font-semibold text-slate-800">{t('settings.enableSemantic')}</span>
             <input
               type="checkbox"
-              aria-label="启用 AI 语义分析"
+              aria-label="{t('settings.enableSemantic')}"
               checked={settings.enabled}
               onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })}
               className="h-4 w-4 accent-indigo-600"
@@ -211,16 +213,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
               value={settings.apiKey || ''}
               onChange={(event) => persistApiKeyInput(event.target.value)}
               onBlur={(event) => persistApiKeyInput(event.currentTarget.value)}
-              placeholder="输入您的 xAI API Key"
+              placeholder={t('settings.apiKeyPlaceholder')}
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={handleTestConnection} disabled={!settings.apiKey || connectionStatus === 'testing'} className="lawlens-primary-button inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed">
-              {connectionStatus === 'testing' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}测试连接
+              {connectionStatus === 'testing' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{t('settings.testConnection')}
             </button>
             <button type="button" onClick={handleClearKey} disabled={!settings.apiKey} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
-              <Trash2 className="h-3.5 w-3.5" />清除 Key
+              <Trash2 className="h-3.5 w-3.5" />{t('settings.clearKey')}
             </button>
             <span role="status" className={`text-xs ${connectionStatus === 'available' ? 'text-emerald-700' : connectionStatus === 'unknown' ? 'text-slate-500' : 'text-amber-700'}`}>
               {connectionStatusText}
@@ -228,7 +230,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
           </div>
           <div className="flex items-center gap-1.5 text-2xs text-slate-500">
             <CheckCircle className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-            <span>服务提供商：{provider.providerLabel}｜当前模型：{provider.modelLabel}（{provider.model}）</span>
+            <span>{t('settings.provider')}：{provider.providerLabel}｜{t('settings.currentModel')}：{provider.modelLabel}（{provider.model}）</span>
           </div>
         </div>
       </div>
@@ -238,21 +240,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigateToGuide })
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
             <HardDrive className="w-4 h-4 text-emerald-600" />
-            浏览器 IndexedDB 存储资源
+            {t('settings.storageResources')}
           </h3>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
-            <span className="text-2xs text-slate-500">已入库案例数</span>
-            <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">{counts.cases} 个案例</div>
+            <span className="text-2xs text-slate-500">{t('settings.storedCases')}</span>
+            <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">{t('settings.caseCount', { count: counts.cases })}</div>
           </div>
           <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
-            <span className="text-2xs text-slate-500">原始文书(RawDocument)</span>
-            <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">{counts.raw} 份文书</div>
+            <span className="text-2xs text-slate-500">{t('settings.rawDocuments')} (RawDocument)</span>
+            <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">{t('settings.documentCount', { count: counts.raw })}</div>
           </div>
           <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
-            <span className="text-2xs text-slate-500">已使用存储空间</span>
+            <span className="text-2xs text-slate-500">{t('settings.storageUsed')}</span>
             <div className="text-lg font-bold font-mono text-blue-600 mt-0.5">{storageInfo.used}</div>
           </div>
         </div>

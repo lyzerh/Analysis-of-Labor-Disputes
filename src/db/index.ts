@@ -1,4 +1,5 @@
 import Dexie, { Table } from 'dexie';
+import type { DocumentTranslation } from '../services/translation/TranslationTypes';
 import { RawDocument, ArbitrationCase, SyncTask, SyncLog, AppSettings, DocumentTask, LaborInfoCrawlTask, CandidatePoolSnapshotHeader, CandidatePoolEntry, SamplingRun, AnalysisRun } from '../types';
 
 export class ShenzhenArbitrationDatabase extends Dexie {
@@ -12,6 +13,7 @@ export class ShenzhenArbitrationDatabase extends Dexie {
   candidatePoolEntries!: Table<CandidatePoolEntry, string>;
   samplingRuns!: Table<SamplingRun, string>;
   analysisRuns!: Table<AnalysisRun, string>;
+  documentTranslations!: Table<DocumentTranslation, string>;
   settings!: Table<{ key: string; value: any }, string>;
 
   constructor() {
@@ -87,6 +89,11 @@ export class ShenzhenArbitrationDatabase extends Dexie {
           'ShenzhenArbitrationDB upgraded to version 7 (added reproducible AnalysisRun table)'
         );
       });
+
+    // Additive store: existing documents, cases, and research runs are untouched.
+    this.version(8).stores({
+      documentTranslations: 'id, rawDocumentId, sourceTextHash, targetLanguage, provider, model, promptVersion, status, updatedAt',
+    });
   }
 }
 

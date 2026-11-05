@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   HardDrive,
   Download,
@@ -31,6 +32,7 @@ interface DataManagementProps {
 }
 
 export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'backup' | 'crawler' | 'import' | 'quality' | 'semanticReview' | 'advanced'>('crawler');
 
   return (
@@ -38,7 +40,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
       {/* Management Top Nav */}
       <div className="bg-white/90 backdrop-blur-xl border-b border-white/80 px-6 py-4 flex items-center gap-4 shrink-0 overflow-x-auto">
         <h2 className="text-lg font-bold text-slate-900 mr-4">
-          数据管理
+          {t('dataManagement.title')}
         </h2>
         
         <button
@@ -50,7 +52,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
           }`}
         >
           <CloudDownload className="w-4 h-4" />
-          工劳网采集
+          {t('dataManagement.crawler')}
         </button>
         
         <button
@@ -62,7 +64,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
           }`}
         >
           <UploadCloud className="w-4 h-4" />
-          本地文件导入
+          {t('dataManagement.import')}
         </button>
 
         <button
@@ -74,7 +76,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
           }`}
         >
           <HardDrive className="w-4 h-4" />
-          备份与恢复
+          {t('dataManagement.backup')}
         </button>
         
         <button
@@ -86,7 +88,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
           }`}
         >
           <ShieldCheck className="w-4 h-4" />
-          数据质量监控
+          {t('dataManagement.quality')}
         </button>
 
         <button
@@ -98,7 +100,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
           }`}
         >
           <ShieldCheck className="w-4 h-4" />
-          语义人工复核
+          {t('dataManagement.semanticReview')}
         </button>
 
         <button
@@ -110,7 +112,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
           }`}
         >
           <ShieldAlert className="w-4 h-4" />
-          高级测试工具
+          {t('dataManagement.tools')}
         </button>
       </div>
 
@@ -127,6 +129,7 @@ export const DataManagement: React.FC<DataManagementProps> = ({ onDataChanged })
 };
 
 const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataChanged }) => {
+  const { t } = useTranslation();
   const [exporting, setExporting] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -141,12 +144,12 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `劳动争议案例库_全量案例_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `lawlens-cases-full-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      setMessage({ type: 'success', text: `成功导出 ${allCases.length} 个案例为 CSV 文件！` });
+      setMessage({ type: 'success', text: t('dataManagement.exportSuccess', { count: allCases.length }) });
     } catch (err: any) {
-      setMessage({ type: 'error', text: `导出 CSV 失败: ${err.message}` });
+      setMessage({ type: 'error', text: `${t('dataManagement.exportFailed')}: ${err.message}` });
     } finally {
       setExporting(false);
     }
@@ -162,12 +165,12 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `劳动争议案例库_结构化数据_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `lawlens-cases-structured-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      setMessage({ type: 'success', text: `成功导出 ${allCases.length} 个结构化案例为 JSON 文件！` });
+      setMessage({ type: 'success', text: t('dataManagement.exportSuccess', { count: allCases.length }) });
     } catch (err: any) {
-      setMessage({ type: 'error', text: `导出 JSON 失败: ${err.message}` });
+      setMessage({ type: 'error', text: `${t('dataManagement.exportFailed')}: ${err.message}` });
     } finally {
       setExporting(false);
     }
@@ -181,12 +184,12 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `劳动争议案例库_完整备份_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `lawlens-cases-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      setMessage({ type: 'success', text: '已成功生成全库完整备份文件！' });
+      setMessage({ type: 'success', text: t('dataManagement.backupSuccess') });
     } catch (err: any) {
-      setMessage({ type: 'error', text: `导出备份失败: ${err.message}` });
+      setMessage({ type: 'error', text: `${t('dataManagement.exportFailed')}: ${err.message}` });
     } finally {
       setExporting(false);
     }
@@ -201,11 +204,11 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
       const result = await DataService.restoreDatabaseBackup(content);
       setMessage({
         type: 'success',
-        text: `🎉 成功从备份文件恢复 ${result.importedCount} 个裁决案例及原始文书！`,
+        text: t('dataManagement.restoreSuccess', { cases: result.importedCount }),
       });
       onDataChanged?.();
     } catch (err: any) {
-      setMessage({ type: 'error', text: `恢复失败: ${err.message}` });
+      setMessage({ type: 'error', text: `${t('dataManagement.exportFailed')}: ${err.message}` });
     } finally {
       setRestoring(false);
     }
@@ -215,10 +218,10 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
     try {
       await DataService.clearAllDatabase();
       setShowClearConfirm(false);
-      setMessage({ type: 'success', text: '本地 IndexedDB 数据库已全部清空。' });
+      setMessage({ type: 'success', text: t('dataManagement.clearSuccess') });
       onDataChanged?.();
     } catch (err: any) {
-      setMessage({ type: 'error', text: `清空失败: ${err.message}` });
+      setMessage({ type: 'error', text: t('dataManagement.closure.clearFailed', { message: err.message }) });
     }
   };
 
@@ -227,10 +230,10 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
       <div>
         <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
           <HardDrive className="w-5 h-5 text-blue-600" />
-          备份与恢复
+          {t('dataManagement.backup')}
         </h2>
         <p className="text-xs text-slate-500 mt-1">
-          管理本地案例库的数据备份，支持全量导出和恢复。
+          {t('dataManagement.backupDescription')}
         </p>
       </div>
 
@@ -256,9 +259,9 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
             <Download className="w-4 h-4 text-blue-600" />
-            导出案例库
+            {t('dataManagement.exportCases')}
           </h3>
-          <span className="text-2xs text-slate-400">支持 Excel 兼容格式</span>
+          <span className="text-2xs text-slate-400">{t('dataManagement.spreadsheet')}</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -268,7 +271,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
             className="p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 text-left transition-all group"
           >
             <FileSpreadsheet className="w-5 h-5 text-emerald-600 mb-2" />
-            <div className="text-xs font-bold text-slate-900 group-hover:text-emerald-700">导出全量案例 (CSV)</div>
+            <div className="text-xs font-bold text-slate-900 group-hover:text-emerald-700">{t('dataManagement.exportCsv')}</div>
           </button>
 
           <button
@@ -277,7 +280,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
             className="p-4 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-left transition-all group"
           >
             <FileCode className="w-5 h-5 text-blue-600 mb-2" />
-            <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">导出结构化数据 (JSON)</div>
+            <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">{t('dataManagement.exportJson')}</div>
           </button>
 
           <button
@@ -286,7 +289,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
             className="p-4 rounded-xl border border-slate-200 hover:border-purple-500 hover:bg-purple-50 text-left transition-all group"
           >
             <Layers className="w-5 h-5 text-purple-600 mb-2" />
-            <div className="text-xs font-bold text-slate-900 group-hover:text-purple-700">完整案例库备份 (JSON)</div>
+            <div className="text-xs font-bold text-slate-900 group-hover:text-purple-700">{t('dataManagement.exportBackup')}</div>
           </button>
         </div>
       </div>
@@ -296,7 +299,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
             <Upload className="w-4 h-4 text-blue-600" />
-            恢复案例库
+            {t('dataManagement.restoreCases')}
           </h3>
         </div>
 
@@ -311,15 +314,15 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
           {restoring ? (
             <div className="flex flex-col items-center gap-2">
               <RotateCcw className="w-6 h-6 text-blue-600 animate-spin" />
-              <span className="text-xs text-blue-700 font-bold">正在恢复数据库...</span>
+              <span className="text-xs text-blue-700 font-bold">{t('dataManagement.restoring')}</span>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
               <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-xs text-blue-600 border border-slate-200">
                 <UploadCloud className="w-5 h-5" />
               </div>
-              <span className="text-xs font-bold text-slate-700 mt-2">点击或拖拽备份文件 (.json) 恢复数据</span>
-              <span className="text-2xs text-slate-500">此操作将覆盖已有同ID数据</span>
+              <span className="text-xs font-bold text-slate-700 mt-2">{t('dataManagement.clickRestore')}</span>
+              <span className="text-2xs text-slate-500">{t('dataManagement.overwrite')}</span>
             </div>
           )}
         </div>
@@ -329,6 +332,7 @@ const BackupRestorePanel: React.FC<{ onDataChanged?: () => void }> = ({ onDataCh
 };
 
 const AdvancedToolsPanel: React.FC = () => {
+  const { t } = useTranslation();
   const [tool, setTool] = useState<'api' | 'parser' | 'dataset'>('api');
 
   return (
@@ -336,10 +340,10 @@ const AdvancedToolsPanel: React.FC = () => {
       <div>
         <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
           <ShieldAlert className="w-5 h-5 text-rose-600" />
-          高级测试与开发工具
+          {t('dataManagement.closure.advancedHeading')}
         </h2>
         <p className="text-xs text-slate-500 mt-1">
-          本页面仅限开发、测试及维护人员使用。请谨慎操作，部分功能可能产生高额API请求开销。
+          {t('dataManagement.advancedWarning')}
         </p>
       </div>
 
@@ -350,7 +354,7 @@ const AdvancedToolsPanel: React.FC = () => {
             tool === 'api' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
-          API通道测试 (工劳网)
+          {t('dataManagement.apiTest')}
         </button>
         <button
           onClick={() => setTool('parser')}
@@ -358,7 +362,7 @@ const AdvancedToolsPanel: React.FC = () => {
             tool === 'parser' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
-          Parser 正则解析测试
+          {t('dataManagement.parserTest')}
         </button>
         <button
           onClick={() => setTool('dataset')}
@@ -366,7 +370,7 @@ const AdvancedToolsPanel: React.FC = () => {
             tool === 'dataset' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
-          数据集重建
+          {t('dataManagement.rebuild')}
         </button>
       </div>
 

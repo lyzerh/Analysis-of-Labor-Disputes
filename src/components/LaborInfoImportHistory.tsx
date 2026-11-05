@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FileText,
   Clock,
@@ -23,6 +24,7 @@ interface LaborInfoImportHistoryProps {
 }
 
 export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ onRefreshTrigger }) => {
+  const { t } = useTranslation();
   const [documents, setDocuments] = useState<RawDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDoc, setSelectedDoc] = useState<RawDocument | null>(null);
@@ -102,47 +104,37 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
       {/* 顶部统计卡片群 (符合需求十二：工劳网文书总数、2021、2022、2023 统计) */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="p-5 bg-indigo-50/70 border border-indigo-100 rounded-2xl shadow-sm">
-          <div className="text-2xs font-semibold text-indigo-700 uppercase tracking-wide">
-            工劳网文书总数
-          </div>
+          <div className="text-2xs font-semibold text-indigo-700 uppercase tracking-wide">{t('dataManagement.importHistoryUi.copy001')}{' '}</div>
           <div className="text-2xl font-bold font-mono text-indigo-900 mt-1">
-            {stats.total.toLocaleString()} <span className="text-xs font-normal text-indigo-600">份文书</span>
+            {stats.total.toLocaleString()} <span className="text-xs font-normal text-indigo-600">{t('dataManagement.importHistoryUi.copy002')}</span>
           </div>
         </div>
 
         <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm">
-          <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
-            2023 年文书
-          </div>
+          <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">{t('dataManagement.importHistoryUi.copy003')}{' '}</div>
           <div className="text-xl font-bold font-mono text-slate-800 mt-1">
-            {stats.year2023.toLocaleString()} <span className="text-xs font-normal text-slate-500">份文书</span>
+            {stats.year2023.toLocaleString()} <span className="text-xs font-normal text-slate-500">{t('dataManagement.importHistoryUi.copy002')}</span>
           </div>
         </div>
 
         <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm">
-          <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
-            2022 年文书
-          </div>
+          <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">{t('dataManagement.importHistoryUi.copy004')}{' '}</div>
           <div className="text-xl font-bold font-mono text-slate-800 mt-1">
-            {stats.year2022.toLocaleString()} <span className="text-xs font-normal text-slate-500">份文书</span>
+            {stats.year2022.toLocaleString()} <span className="text-xs font-normal text-slate-500">{t('dataManagement.importHistoryUi.copy002')}</span>
           </div>
         </div>
 
         <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm">
-          <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
-            2021 年文书
-          </div>
+          <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">{t('dataManagement.importHistoryUi.copy005')}{' '}</div>
           <div className="text-xl font-bold font-mono text-slate-800 mt-1">
-            {stats.year2021.toLocaleString()} <span className="text-xs font-normal text-slate-500">份文书</span>
+            {stats.year2021.toLocaleString()} <span className="text-xs font-normal text-slate-500">{t('dataManagement.importHistoryUi.copy002')}</span>
           </div>
         </div>
 
         <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm">
-          <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">
-            其他年份
-          </div>
+          <div className="text-2xs font-semibold text-slate-500 uppercase tracking-wide">{t('dataManagement.importHistoryUi.copy006')}{' '}</div>
           <div className="text-xl font-bold font-mono text-slate-800 mt-1">
-            {stats.otherYears.toLocaleString()} <span className="text-xs font-normal text-slate-500">份文书</span>
+            {stats.otherYears.toLocaleString()} <span className="text-xs font-normal text-slate-500">{t('dataManagement.importHistoryUi.copy002')}</span>
           </div>
         </div>
       </div>
@@ -151,15 +143,9 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-5 bg-white/80 border border-white/80 rounded-[24px] shadow-sm">
         <div className="flex items-center gap-2.5">
           <div>
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              已导入文书
-              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-mono font-bold rounded-full">
-                显示 {filteredDocs.length} / 共 {documents.length} 份文书
-              </span>
+            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">{t('dataManagement.importHistoryUi.copy007')}{' '}<span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-mono font-bold rounded-full">{t('dataManagement.importHistoryUi.copy008')}{' '}{filteredDocs.length}{t('dataManagement.importHistoryUi.copy009')}{' '}{documents.length}{t('dataManagement.importHistoryUi.copy002')}{' '}</span>
             </h3>
-            <p className="text-2xs text-slate-500">
-              原始文书保存在本地浏览器，可在此筛选、查看与追溯导入记录
-            </p>
+            <p className="text-2xs text-slate-500">{t('dataManagement.importHistoryUi.copy010')}{' '}</p>
           </div>
         </div>
 
@@ -172,11 +158,11 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
               onChange={(e) => setSelectedYear(e.target.value)}
               className="text-xs text-slate-700 bg-transparent border-none focus:outline-none cursor-pointer"
             >
-              <option value="ALL">全部年份</option>
-              <option value="2023">2023 年 ({stats.year2023})</option>
-              <option value="2022">2022 年 ({stats.year2022})</option>
-              <option value="2021">2021 年 ({stats.year2021})</option>
-              <option value="OTHER">其他年份 ({stats.otherYears})</option>
+              <option value="ALL">{t('dataManagement.importHistoryUi.copy011')}</option>
+              <option value="2023">{t('dataManagement.importHistoryUi.copy012')}{stats.year2023})</option>
+              <option value="2022">{t('dataManagement.importHistoryUi.copy013')}{stats.year2022})</option>
+              <option value="2021">{t('dataManagement.importHistoryUi.copy014')}{stats.year2021})</option>
+              <option value="OTHER">{t('dataManagement.importHistoryUi.copy015')}{stats.otherYears})</option>
             </select>
           </div>
 
@@ -187,7 +173,7 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
               type="text"
               value={filterKeyword}
               onChange={(e) => setFilterKeyword(e.target.value)}
-              placeholder="搜索标题 / 法院 / 案号 / sourceId..."
+              placeholder={t('dataManagement.importHistoryUi.copy016')}
               className="pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-56"
             />
           </div>
@@ -196,7 +182,7 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
             onClick={loadDocumentsAndStats}
             disabled={loading}
             className="p-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-600 transition-colors cursor-pointer"
-            title="刷新案例库"
+            title={t('dataManagement.importHistoryUi.copy017')}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -206,28 +192,26 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
       {/* 历史列表表格 */}
       {loading ? (
         <div className="text-center py-12 text-xs text-slate-400">
-          <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-indigo-500" />
-          正在读取本地数据库中的工劳网案例库...
-        </div>
+          <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-indigo-500" />{t('dataManagement.importHistoryUi.copy018')}{' '}</div>
       ) : filteredDocs.length === 0 ? (
         <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-400">
           {documents.length === 0
-            ? '暂无已入库的工劳网文书，可在上方启动「工劳网案例批量采集」进行下载入库'
-            : '没有匹配当前筛选条件的案例记录'}
+            ? t('dataManagement.importHistoryUi.emptyLibrary')
+            : t('dataManagement.importHistoryUi.noMatches')}
         </div>
       ) : (
         <div className="overflow-x-auto border border-slate-200 rounded-[24px] bg-white shadow-sm">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
               <tr>
-                <th className="px-3.5 py-2.5">来源</th>
-                <th className="px-3.5 py-2.5">文书标题</th>
-                <th className="px-3.5 py-2.5">案号</th>
-                <th className="px-3.5 py-2.5">审理法院</th>
-                <th className="px-3.5 py-2.5">裁判日期</th>
-                <th className="px-3.5 py-2.5">正文长度</th>
-                <th className="px-3.5 py-2.5">入库时间</th>
-                <th className="px-3.5 py-2.5 text-right">操作</th>
+                <th className="px-3.5 py-2.5">{t('dataManagement.importHistoryUi.copy019')}</th>
+                <th className="px-3.5 py-2.5">{t('dataManagement.importHistoryUi.copy020')}</th>
+                <th className="px-3.5 py-2.5">{t('dataManagement.importHistoryUi.copy021')}</th>
+                <th className="px-3.5 py-2.5">{t('dataManagement.importHistoryUi.copy022')}</th>
+                <th className="px-3.5 py-2.5">{t('dataManagement.importHistoryUi.copy023')}</th>
+                <th className="px-3.5 py-2.5">{t('dataManagement.importHistoryUi.copy024')}</th>
+                <th className="px-3.5 py-2.5">{t('dataManagement.importHistoryUi.copy025')}</th>
+                <th className="px-3.5 py-2.5 text-right">{t('dataManagement.importHistoryUi.copy026')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -240,9 +224,9 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
                 return (
                   <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-3.5 py-2.5 text-slate-600">
-                      <div className="font-semibold text-slate-700">工劳网</div>
+                      <div className="font-semibold text-slate-700">{t('dataManagement.importHistoryUi.copy027')}</div>
                       <details className="text-2xs text-slate-400">
-                        <summary className="cursor-pointer select-none">技术详情</summary>
+                        <summary className="cursor-pointer select-none">{t('dataManagement.importHistoryUi.copy028')}</summary>
                         <div className="mt-1 font-mono truncate max-w-[150px]">sourceId: {doc.sourceId || '-'}</div>
                         <div className="font-mono truncate max-w-[150px]">raw ID: {doc.id}</div>
                       </details>
@@ -269,8 +253,7 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
                       <span className={`px-2 py-0.5 rounded text-2xs font-semibold ${
                         textLen > 1000 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
                       }`}>
-                        {textLen.toLocaleString()} 字
-                      </span>
+                        {textLen.toLocaleString()}{t('dataManagement.importHistoryUi.copy029')}{' '}</span>
                     </td>
                     <td className="px-3.5 py-2.5 font-mono text-2xs text-slate-400 whitespace-nowrap">
                       {new Date(doc.importedAt).toLocaleString('zh-CN', {
@@ -286,9 +269,7 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
                         onClick={() => setSelectedDoc(doc)}
                         className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold rounded-lg flex items-center gap-1 ml-auto transition-colors cursor-pointer"
                       >
-                        <Eye className="w-3 h-3" />
-                        查看正文详情
-                      </button>
+                        <Eye className="w-3 h-3" />{t('dataManagement.importHistoryUi.copy030')}{' '}</button>
                     </td>
                   </tr>
                 );
@@ -328,25 +309,24 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
               {/* 元数据卡片 */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div className="text-2xs font-semibold text-slate-400 uppercase">审理法院</div>
+                  <div className="text-2xs font-semibold text-slate-400 uppercase">{t('dataManagement.importHistoryUi.copy022')}</div>
                   <div className="text-xs font-bold text-slate-800 mt-0.5">
                     {selectedDoc.sourceMetadata?.court || selectedDoc.sourceMetadata?.courtNm || '-'}
                   </div>
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div className="text-2xs font-semibold text-slate-400 uppercase">裁判日期</div>
+                  <div className="text-2xs font-semibold text-slate-400 uppercase">{t('dataManagement.importHistoryUi.copy023')}</div>
                   <div className="text-xs font-bold font-mono text-slate-800 mt-0.5">
                     {selectedDoc.publishedAt || selectedDoc.sourceMetadata?.date || selectedDoc.sourceMetadata?.pbDt || '-'}
                   </div>
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div className="text-2xs font-semibold text-slate-400 uppercase">正文字符数</div>
+                  <div className="text-2xs font-semibold text-slate-400 uppercase">{t('dataManagement.importHistoryUi.copy031')}</div>
                   <div className="text-xs font-bold font-mono text-indigo-600 mt-0.5">
-                    {selectedDoc.rawText?.length.toLocaleString() || 0} 字
-                  </div>
+                    {selectedDoc.rawText?.length.toLocaleString() || 0}{t('dataManagement.importHistoryUi.copy029')}{' '}</div>
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div className="text-2xs font-semibold text-slate-400 uppercase">内容哈希 (SHA-256)</div>
+                  <div className="text-2xs font-semibold text-slate-400 uppercase">{t('dataManagement.importHistoryUi.copy032')}</div>
                   <div className="text-2xs font-mono text-slate-600 mt-0.5 truncate" title={selectedDoc.contentHash}>
                     {selectedDoc.contentHash}
                   </div>
@@ -356,15 +336,15 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
               {/* 案号与公开链接 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div className="text-2xs font-semibold text-slate-400 uppercase">判决案号</div>
+                  <div className="text-2xs font-semibold text-slate-400 uppercase">{t('dataManagement.importHistoryUi.copy033')}</div>
                   <div className="text-xs font-bold font-mono text-slate-800 mt-0.5">
-                    {selectedDoc.sourceMetadata?.no || '未记载'}
+                    {selectedDoc.sourceMetadata?.no || t('dataManagement.importHistoryUi.notRecorded')}
                   </div>
                 </div>
                 {selectedDoc.sourceUrl && (
                   <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl flex items-center justify-between">
                     <div className="min-w-0">
-                      <div className="text-2xs font-semibold text-blue-700 uppercase">数据源 API 地址</div>
+                      <div className="text-2xs font-semibold text-blue-700 uppercase">{t('dataManagement.importHistoryUi.copy034')}</div>
                       <div className="text-xs font-mono text-blue-900 truncate">{selectedDoc.sourceUrl}</div>
                     </div>
                     <a
@@ -373,9 +353,7 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
                       rel="noreferrer"
                       className="flex items-center gap-1 text-xs text-blue-600 hover:underline shrink-0 ml-2 font-semibold"
                     >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      打开接口
-                    </a>
+                      <ExternalLink className="w-3.5 h-3.5" />{t('dataManagement.importHistoryUi.copy035')}{' '}</a>
                   </div>
                 )}
               </div>
@@ -383,11 +361,9 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
               {/* 原始文本内容 */}
               <div>
                 <div className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                  完整裁判文书正文 (fbqw / rawText):
-                </div>
+                  <FileText className="w-3.5 h-3.5 text-indigo-600" />{t('dataManagement.importHistoryUi.copy036')}{' '}</div>
                 <div className="p-4 bg-slate-900 rounded-xl text-slate-200 text-xs font-sans leading-relaxed max-h-96 overflow-y-auto whitespace-pre-wrap select-text">
-                  {selectedDoc.rawText || '（正文为空）'}
+                  {selectedDoc.rawText || t('dataManagement.importHistoryUi.emptyBody')}
                 </div>
               </div>
 
@@ -395,9 +371,7 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
               {selectedDoc.sourceMetadata && (
                 <div>
                   <div className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                    <Code2 className="w-3.5 h-3.5 text-slate-500" />
-                    原始接口响应元数据 (sourceMetadata):
-                  </div>
+                    <Code2 className="w-3.5 h-3.5 text-slate-500" />{t('dataManagement.importHistoryUi.copy037')}{' '}</div>
                   <pre className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-2xs font-mono text-slate-700 max-h-48 overflow-y-auto">
                     {JSON.stringify(selectedDoc.sourceMetadata, null, 2)}
                   </pre>
@@ -410,9 +384,7 @@ export const LaborInfoImportHistory: React.FC<LaborInfoImportHistoryProps> = ({ 
               <button
                 onClick={() => setSelectedDoc(null)}
                 className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-              >
-                关闭
-              </button>
+              >{t('dataManagement.importHistoryUi.copy038')}{' '}</button>
             </div>
           </div>
         </div>

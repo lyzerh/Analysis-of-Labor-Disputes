@@ -156,10 +156,10 @@ describe('Batch 4 procedural-role and claim-disposition contract', () => {
 
   it('exposes procedural identity mapping in the case analysis UI', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
-    expect(source).toMatch(/程序身份映射/);
-    expect(source).toMatch(/未识别/);
+    expect(source).toContain("t('finalUi.caseAnalysis.copy022')");
+    expect(source).toContain("t('finalUi.caseAnalysisExtras.unknown')");
     expect(source).toMatch(/proceduralRoles/);
     expect(source).toMatch(/PipelineWorkspace/);
-    expect(source).toMatch(/当前语义结果尚未明确：/);
+    expect(source).toContain("t('finalUi.caseAnalysis.copy034')");
   });
 });

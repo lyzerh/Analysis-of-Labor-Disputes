@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Globe,
   Play,
@@ -50,6 +51,7 @@ interface ImportTestSummary {
 }
 
 export const LaborInfoApiTest: React.FC = () => {
+  const { t } = useTranslation();
   const [baseUrl, setBaseUrl] = useState<string>('https://laborinfocn.com');
   const [isRunningAll, setIsRunningAll] = useState(false);
 
@@ -153,7 +155,7 @@ export const LaborInfoApiTest: React.FC = () => {
         url: err.url,
         statusCode: err.statusCode || 0,
         durationMs: err.durationMs,
-        error: err.message || (err.name === 'TypeError' ? '网络连接异常或被浏览器 CORS 拦截 (请检查域名或使用代理)' : String(err)),
+        error: err.message || (err.name === 'TypeError' ? t('dataManagement.apiTestUi.networkErrorHelp') : String(err)),
         data: err.data,
         timestamp: new Date().toLocaleTimeString(),
       });
@@ -181,7 +183,7 @@ export const LaborInfoApiTest: React.FC = () => {
         url: err.url,
         statusCode: err.statusCode || 0,
         durationMs: err.durationMs,
-        error: err.message || (err.name === 'TypeError' ? '网络连接异常或被浏览器 CORS 拦截' : String(err)),
+        error: err.message || (err.name === 'TypeError' ? t('dataManagement.apiTestUi.networkError') : String(err)),
         data: err.data,
         timestamp: new Date().toLocaleTimeString(),
       });
@@ -238,7 +240,7 @@ export const LaborInfoApiTest: React.FC = () => {
         url: err.url,
         statusCode: err.statusCode || 0,
         durationMs: err.durationMs,
-        error: err.message || (err.name === 'TypeError' ? '网络连接异常或被浏览器 CORS 拦截' : String(err)),
+        error: err.message || (err.name === 'TypeError' ? t('dataManagement.apiTestUi.networkError') : String(err)),
         data: err.data,
         timestamp: new Date().toLocaleTimeString(),
       });
@@ -285,7 +287,7 @@ export const LaborInfoApiTest: React.FC = () => {
     if (!targetId) {
       setStep4({
         status: 'failed',
-        error: '未指定案件 ID，请先执行「测试 3」搜索案件或手动输入一个案件 ID',
+        error: t('dataManagement.apiTestUi.missingCaseId'),
       });
       return;
     }
@@ -310,11 +312,11 @@ export const LaborInfoApiTest: React.FC = () => {
         const parts: string[] = [];
         if (docData.name) parts.push(String(docData.name));
         if (docData.no) parts.push(String(docData.no));
-        if (docData.dsr) parts.push(`【当事人】\n${docData.dsr}`);
-        if (docData.ssjl) parts.push(`【诉讼记录】\n${docData.ssjl}`);
-        if (docData.jbqk) parts.push(`【基本情况】\n${docData.jbqk}`);
-        if (docData.fxgc) parts.push(`【分析过程】\n${docData.fxgc}`);
-        if (docData.cpjg) parts.push(`【裁判结果】\n${docData.cpjg}`);
+        if (docData.dsr) parts.push(`${t('dataManagement.apiTestUi.parties')}\n${docData.dsr}`);
+        if (docData.ssjl) parts.push(`${t('dataManagement.apiTestUi.litigationRecord')}\n${docData.ssjl}`);
+        if (docData.jbqk) parts.push(`${t('dataManagement.apiTestUi.caseFacts')}\n${docData.jbqk}`);
+        if (docData.fxgc) parts.push(`${t('dataManagement.apiTestUi.reasoning')}\n${docData.fxgc}`);
+        if (docData.cpjg) parts.push(`${t('dataManagement.apiTestUi.disposition')}\n${docData.cpjg}`);
         fullText = parts.join('\n\n');
       } else if (hasContent) {
         fullText = String(docData.content).trim();
@@ -347,7 +349,7 @@ export const LaborInfoApiTest: React.FC = () => {
         url: err.url,
         statusCode: err.statusCode || 0,
         durationMs: err.durationMs,
-        error: err.message || (err.name === 'TypeError' ? '网络连接异常或被浏览器 CORS 拦截' : String(err)),
+        error: err.message || (err.name === 'TypeError' ? t('dataManagement.apiTestUi.networkError') : String(err)),
         data: err.data,
         timestamp: new Date().toLocaleTimeString(),
       });
@@ -435,7 +437,7 @@ export const LaborInfoApiTest: React.FC = () => {
       summary.discovered = targetItemsToImport.length;
 
       if (targetItemsToImport.length === 0) {
-        throw new Error('未检索到任何符合条件的案件元数据，请检查检索参数');
+        throw new Error(t('dataManagement.apiTestUi.noSearchMetadata'));
       }
 
       // 3. 逐个 fetch 详情并由现有 DataService.saveLaborInfoRawDocument 执行标准保存与去重
@@ -450,7 +452,7 @@ export const LaborInfoApiTest: React.FC = () => {
               id: meta.sourceId,
               title: meta.title,
               status: 'saved',
-              message: `成功保存至 IndexedDB (docId: ${saveResult.docId})`,
+              message: t('dataManagement.apiTestUi.savedDocument', { docId: saveResult.docId }),
             });
           } else if (saveResult.isDuplicate) {
             summary.duplicates += 1;
@@ -458,7 +460,7 @@ export const LaborInfoApiTest: React.FC = () => {
               id: meta.sourceId,
               title: meta.title,
               status: 'duplicate',
-              message: `已存在跳过: ${saveResult.reason || '重复文书'}`,
+              message: t('dataManagement.apiTestUi.duplicateDocument', { reason: saveResult.reason || t('dataManagement.apiTestUi.duplicateReason') }),
             });
           }
         } catch (detailErr: any) {
@@ -467,13 +469,13 @@ export const LaborInfoApiTest: React.FC = () => {
             id: meta.sourceId,
             title: meta.title,
             status: 'failed',
-            message: detailErr.message || '详情获取或写入失败',
+            message: detailErr.message || t('dataManagement.apiTestUi.detailSaveFailed'),
           });
         }
       }
 
       if (summary.saved === 0 && summary.duplicates > 0 && summary.checkedPages && summary.checkedPages.length >= maxPagesToCheck) {
-        summary.message = '当前测试范围内前 10 页文书均已入库，未发现新的案件，请扩大日期范围或继续分页。';
+        summary.message = t('dataManagement.apiTestUi.allExisting');
       }
 
       setImportSummary(summary);
@@ -482,9 +484,9 @@ export const LaborInfoApiTest: React.FC = () => {
       console.error('导入测试 5 份案件流程异常:', err);
       summary.details.push({
         id: 'error',
-        title: '流程全局错误',
+        title: t('dataManagement.apiTestUi.flowError'),
         status: 'failed',
-        message: err.message || '工劳网检索或网络连接中断',
+        message: err.message || t('dataManagement.apiTestUi.searchInterrupted'),
       });
       setImportSummary(summary);
     } finally {
@@ -588,15 +590,9 @@ export const LaborInfoApiTest: React.FC = () => {
                 <Globe className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  工劳网 API 连通性与入库测试
-                  <span className="px-2.5 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-800 rounded-full">
-                    v1.1 阶段二
-                  </span>
+                <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">{t('dataManagement.apiTestUi.copy001')}{' '}<span className="px-2.5 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-800 rounded-full">{t('dataManagement.apiTestUi.copy002')}{' '}</span>
                 </h1>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  验证工劳网接口通信、RawDocument 转换适配及 IndexedDB 零污染入库与去重机制
-                </p>
+                <p className="text-sm text-slate-500 mt-0.5">{t('dataManagement.apiTestUi.copy003')}{' '}</p>
               </div>
             </div>
           </div>
@@ -609,7 +605,7 @@ export const LaborInfoApiTest: React.FC = () => {
               className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-300 text-white text-sm font-semibold rounded-xl flex items-center gap-2 shadow-sm transition-all cursor-pointer"
             >
               <Download className={`w-4 h-4 ${isImportingTest ? 'animate-bounce' : ''}`} />
-              {isImportingTest ? '正在入库 5 份案件...' : '导入测试 5 份案件'}
+              {isImportingTest ? t('dataManagement.apiTestUi.importingFive') : t('dataManagement.apiTestUi.importFive')}
             </button>
 
             <button
@@ -619,7 +615,7 @@ export const LaborInfoApiTest: React.FC = () => {
               className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-300 text-white text-sm font-semibold rounded-xl flex items-center gap-2 shadow-sm transition-all cursor-pointer"
             >
               <Play className={`w-4 h-4 ${isRunningAll ? 'animate-spin' : ''}`} />
-              {isRunningAll ? '正在执行测试...' : '一键执行连通性测试'}
+              {isRunningAll ? t('dataManagement.apiTestUi.runningAll') : t('dataManagement.apiTestUi.runAll')}
             </button>
           </div>
         </div>
@@ -627,9 +623,7 @@ export const LaborInfoApiTest: React.FC = () => {
         {/* 基础域名配置与说明 */}
         <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
           <div className="md:col-span-4">
-            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
-              工劳网 API 基础域名 (Base URL)
-            </label>
+            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">{t('dataManagement.apiTestUi.copy004')}{' '}</label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -642,7 +636,7 @@ export const LaborInfoApiTest: React.FC = () => {
           </div>
 
           <div className="md:col-span-8 flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-slate-400 font-medium">推荐候选域名:</span>
+            <span className="text-slate-400 font-medium">{t('dataManagement.apiTestUi.copy005')}</span>
             {['https://laborinfocn.com', 'https://search.laborinfocn.com', 'https://laborinfozh.com'].map((domain) => (
               <button
                 key={domain}
@@ -664,9 +658,7 @@ export const LaborInfoApiTest: React.FC = () => {
         <div className="mt-4 p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-xl flex items-start gap-2.5 text-xs text-indigo-950 leading-relaxed">
           <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
           <div>
-            <span className="font-semibold">阶段二入库与去重保护：</span>
-            点击「导入测试 5 份案件」将自动调用 search → fetch 详情 → 转换为 <code>RawDocument</code> 实体 → 保存至本地 IndexedDB <code>rawDocuments</code> 表。采用 <code>source + sourceId</code> 优先、<code>contentHash</code> 兜底去重机制。完全不触发统计分析、不修改 v1.0 现有分析与解析表。
-          </div>
+            <span className="font-semibold">{t('dataManagement.apiTestUi.copy006')}</span>{t('dataManagement.apiTestUi.copy007')}{' '}<code>RawDocument</code>{t('dataManagement.apiTestUi.copy008')}{' '}<code>rawDocuments</code>{t('dataManagement.apiTestUi.copy009')}{' '}<code>source + sourceId</code>{t('dataManagement.apiTestUi.copy010')}<code>contentHash</code>{t('dataManagement.apiTestUi.copy011')}{' '}</div>
         </div>
       </div>
 
@@ -678,13 +670,11 @@ export const LaborInfoApiTest: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <Database className="w-5 h-5 text-indigo-600" />
-              <h2 className="text-base font-bold text-slate-900">本次测试导入执行结果</h2>
+              <h2 className="text-base font-bold text-slate-900">{t('dataManagement.apiTestUi.copy012')}</h2>
             </div>
             <div className="flex items-center gap-3">
               {importSummary.checkedPages && importSummary.checkedPages.length > 0 && (
-                <span className="text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">
-                  检查页码: {importSummary.checkedPages.join(', ')} 页
-                </span>
+                <span className="text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">{t('dataManagement.apiTestUi.copy013')}{' '}{importSummary.checkedPages.join(', ')}{t('dataManagement.apiTestUi.copy014')}{' '}</span>
               )}
               <span className="text-2xs font-mono text-slate-400">
                 {new Date().toLocaleTimeString()}
@@ -703,26 +693,26 @@ export const LaborInfoApiTest: React.FC = () => {
           {/* 4 维指标汇总 */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-              <div className="text-2xs text-slate-500 font-semibold uppercase">发现文书 (Found)</div>
+              <div className="text-2xs text-slate-500 font-semibold uppercase">{t('dataManagement.apiTestUi.copy015')}</div>
               <div className="text-2xl font-bold font-mono text-slate-800 mt-1">{importSummary.discovered}</div>
             </div>
             <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl">
-              <div className="text-2xs text-emerald-600 font-semibold uppercase">成功入库 (Saved)</div>
+              <div className="text-2xs text-emerald-600 font-semibold uppercase">{t('dataManagement.apiTestUi.copy016')}</div>
               <div className="text-2xl font-bold font-mono text-emerald-700 mt-1">{importSummary.saved}</div>
             </div>
             <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
-              <div className="text-2xs text-amber-600 font-semibold uppercase">已存在跳过 (Duplicates)</div>
+              <div className="text-2xs text-amber-600 font-semibold uppercase">{t('dataManagement.apiTestUi.copy017')}</div>
               <div className="text-2xl font-bold font-mono text-amber-700 mt-1">{importSummary.duplicates}</div>
             </div>
             <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl">
-              <div className="text-2xs text-rose-600 font-semibold uppercase">失败 (Failed)</div>
+              <div className="text-2xs text-rose-600 font-semibold uppercase">{t('dataManagement.apiTestUi.copy018')}</div>
               <div className="text-2xl font-bold font-mono text-rose-700 mt-1">{importSummary.failed}</div>
             </div>
           </div>
 
           {/* 逐篇状态清单 */}
           <div className="space-y-2">
-            <div className="text-xs font-semibold text-slate-700">文书处理明细清单:</div>
+            <div className="text-xs font-semibold text-slate-700">{t('dataManagement.apiTestUi.copy019')}</div>
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden text-xs">
               {importSummary.details.map((item, idx) => (
                 <div key={idx} className="p-3 flex items-center justify-between gap-3 bg-white hover:bg-slate-50">
@@ -743,7 +733,7 @@ export const LaborInfoApiTest: React.FC = () => {
                         ? 'bg-amber-100 text-amber-800'
                         : 'bg-rose-100 text-rose-800'
                     }`}>
-                      {item.status === 'saved' ? '成功入库' : item.status === 'duplicate' ? '重复跳过' : '处理失败'}
+                      {item.status === 'saved' ? t('dataManagement.apiTestUi.saved') : item.status === 'duplicate' ? t('dataManagement.apiTestUi.duplicate') : t('dataManagement.apiTestUi.processingFailed')}
                     </span>
                     <div className="text-2xs text-slate-500 mt-0.5">{item.message}</div>
                   </div>
@@ -773,13 +763,11 @@ export const LaborInfoApiTest: React.FC = () => {
                 1
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  OpenAPI 规范文档探测
-                  <code className="text-xs px-2 py-0.5 bg-slate-200/70 text-slate-700 font-mono rounded">
+                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">{t('dataManagement.apiTestUi.copy020')}{' '}<code className="text-xs px-2 py-0.5 bg-slate-200/70 text-slate-700 font-mono rounded">
                     GET /api/v1/openapi.json
                   </code>
                 </h2>
-                <p className="text-xs text-slate-500">检验工劳网接口机读规范是否存在及可用性</p>
+                <p className="text-xs text-slate-500">{t('dataManagement.apiTestUi.copy021')}</p>
               </div>
             </div>
 
@@ -791,16 +779,14 @@ export const LaborInfoApiTest: React.FC = () => {
                 disabled={step1.status === 'running'}
                 className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${step1.status === 'running' ? 'animate-spin' : ''}`} />
-                单独测试
-              </button>
+                <RefreshCw className={`w-3.5 h-3.5 ${step1.status === 'running' ? 'animate-spin' : ''}`} />{t('dataManagement.apiTestUi.copy022')}{' '}</button>
             </div>
           </div>
 
           <div className="p-5 space-y-4">
             {step1.url && (
               <div className="text-xs text-slate-500 font-mono flex items-center gap-2">
-                <span className="font-semibold text-slate-600">请求 URL:</span>
+                <span className="font-semibold text-slate-600">{t('dataManagement.apiTestUi.copy023')}</span>
                 <span className="bg-slate-50 px-2 py-1 border border-slate-200 rounded text-slate-700 break-all select-all">
                   {step1.url}
                 </span>
@@ -815,37 +801,34 @@ export const LaborInfoApiTest: React.FC = () => {
               <div className="space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-400 font-semibold uppercase">OpenAPI 版本</div>
+                    <div className="text-2xs text-slate-400 font-semibold uppercase">{t('dataManagement.apiTestUi.copy024')}</div>
                     <div className="text-sm font-bold font-mono text-slate-800 mt-0.5">
-                      {step1.data.openapi || step1.data.swagger || '未声明'}
+                      {step1.data.openapi || step1.data.swagger || t('dataManagement.apiTestUi.notDeclared')}
                     </div>
                   </div>
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-400 font-semibold uppercase">文档标题</div>
+                    <div className="text-2xs text-slate-400 font-semibold uppercase">{t('dataManagement.apiTestUi.copy025')}</div>
                     <div className="text-sm font-bold text-slate-800 mt-0.5 truncate">
-                      {step1.data.info?.title || '工劳网 API'}
+                      {step1.data.info?.title || t('dataManagement.apiTestUi.defaultApiTitle')}
                     </div>
                   </div>
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-400 font-semibold uppercase">API 版本</div>
+                    <div className="text-2xs text-slate-400 font-semibold uppercase">{t('dataManagement.apiTestUi.copy026')}</div>
                     <div className="text-sm font-bold font-mono text-slate-800 mt-0.5">
                       {step1.data.info?.version || '1.0.0'}
                     </div>
                   </div>
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-400 font-semibold uppercase">已声明 Paths 数量</div>
+                    <div className="text-2xs text-slate-400 font-semibold uppercase">{t('dataManagement.apiTestUi.copy027')}</div>
                     <div className="text-sm font-bold font-mono text-blue-600 mt-0.5">
-                      {step1.data.paths ? Object.keys(step1.data.paths).length : 0} 个端点
-                    </div>
+                      {step1.data.paths ? Object.keys(step1.data.paths).length : 0}{t('dataManagement.apiTestUi.copy028')}{' '}</div>
                   </div>
                 </div>
 
                 {step1.data.paths && (
                   <div>
                     <div className="text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                      <Code2 className="w-3.5 h-3.5 text-blue-600" />
-                      发现的公开端点列表:
-                    </div>
+                      <Code2 className="w-3.5 h-3.5 text-blue-600" />{t('dataManagement.apiTestUi.copy029')}{' '}</div>
                     <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 bg-slate-900 rounded-xl text-xs font-mono text-slate-300">
                       {Object.keys(step1.data.paths).map((path) => (
                         <span key={path} className="px-2 py-0.5 bg-slate-800 rounded text-emerald-400 border border-slate-700">
@@ -859,9 +842,7 @@ export const LaborInfoApiTest: React.FC = () => {
             )}
 
             {step1.status === 'idle' && (
-              <div className="text-center py-6 text-xs text-slate-400">
-                尚未执行测试。点击右上角「单独测试」或「一键执行完整连通性测试」。
-              </div>
+              <div className="text-center py-6 text-xs text-slate-400">{t('dataManagement.apiTestUi.copy030')}{' '}</div>
             )}
           </div>
         </div>
@@ -876,13 +857,11 @@ export const LaborInfoApiTest: React.FC = () => {
                 2
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  检索字典与枚举值获取
-                  <code className="text-xs px-2 py-0.5 bg-slate-200/70 text-slate-700 font-mono rounded">
+                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">{t('dataManagement.apiTestUi.copy031')}{' '}<code className="text-xs px-2 py-0.5 bg-slate-200/70 text-slate-700 font-mono rounded">
                     GET /api/v1/vocabularies
                   </code>
                 </h2>
-                <p className="text-xs text-slate-500">探测省份列表（province）与审判层级列表（caseLevel）字典</p>
+                <p className="text-xs text-slate-500">{t('dataManagement.apiTestUi.copy032')}</p>
               </div>
             </div>
 
@@ -894,16 +873,14 @@ export const LaborInfoApiTest: React.FC = () => {
                 disabled={step2.status === 'running'}
                 className="px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${step2.status === 'running' ? 'animate-spin' : ''}`} />
-                单独测试
-              </button>
+                <RefreshCw className={`w-3.5 h-3.5 ${step2.status === 'running' ? 'animate-spin' : ''}`} />{t('dataManagement.apiTestUi.copy022')}{' '}</button>
             </div>
           </div>
 
           <div className="p-5 space-y-4">
             {step2.url && (
               <div className="text-xs text-slate-500 font-mono flex items-center gap-2">
-                <span className="font-semibold text-slate-600">请求 URL:</span>
+                <span className="font-semibold text-slate-600">{t('dataManagement.apiTestUi.copy023')}</span>
                 <span className="bg-slate-50 px-2 py-1 border border-slate-200 rounded text-slate-700 break-all select-all">
                   {step2.url}
                 </span>
@@ -920,12 +897,9 @@ export const LaborInfoApiTest: React.FC = () => {
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                      支持的省份列表 (Provinces)
-                    </span>
+                      <Layers className="w-3.5 h-3.5 text-indigo-600" />{t('dataManagement.apiTestUi.copy033')}{' '}</span>
                     <span className="text-2xs font-mono px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full font-bold">
-                      {getVocabProvinces(step2.data).length} 个省区
-                    </span>
+                      {getVocabProvinces(step2.data).length}{t('dataManagement.apiTestUi.copy034')}{' '}</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-2 bg-white border border-slate-200 rounded-lg">
                     {getVocabProvinces(step2.data).length > 0 ? (
@@ -953,12 +927,9 @@ export const LaborInfoApiTest: React.FC = () => {
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
-                      支持的审判层级 (CaseLevel / TrialLevel)
-                    </span>
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />{t('dataManagement.apiTestUi.copy035')}{' '}</span>
                     <span className="text-2xs font-mono px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full font-bold">
-                      {getVocabCaseLevels(step2.data).length} 类
-                    </span>
+                      {getVocabCaseLevels(step2.data).length}{t('dataManagement.apiTestUi.copy036')}{' '}</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-2 bg-white border border-slate-200 rounded-lg">
                     {getVocabCaseLevels(step2.data).length > 0 ? (
@@ -978,9 +949,7 @@ export const LaborInfoApiTest: React.FC = () => {
             )}
 
             {step2.status === 'idle' && (
-              <div className="text-center py-6 text-xs text-slate-400">
-                尚未执行测试。
-              </div>
+              <div className="text-center py-6 text-xs text-slate-400">{t('dataManagement.apiTestUi.copy037')}{' '}</div>
             )}
           </div>
         </div>
@@ -995,15 +964,11 @@ export const LaborInfoApiTest: React.FC = () => {
                 3
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  判决文书检索测试
-                  <code className="text-xs px-2 py-0.5 bg-slate-200/70 text-slate-700 font-mono rounded">
+                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">{t('dataManagement.apiTestUi.copy038')}{' '}<code className="text-xs px-2 py-0.5 bg-slate-200/70 text-slate-700 font-mono rounded">
                     GET /api/v1/lawcases/search
                   </code>
                 </h2>
-                <p className="text-xs text-slate-500">
-                  支持指定参数、随机分页与连续翻页测试（广东省 + 二审 + 2021-01-01至2023-12-31）
-                </p>
+                <p className="text-xs text-slate-500">{t('dataManagement.apiTestUi.copy039')}{' '}</p>
               </div>
             </div>
 
@@ -1016,31 +981,25 @@ export const LaborInfoApiTest: React.FC = () => {
                 onClick={() => runTestStep3(1)}
                 disabled={step3.status === 'running'}
                 className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                title="重置为第 1 页测试"
-              >
-                第 1 页
-              </button>
+                title={t('dataManagement.apiTestUi.copy040')}
+              >{t('dataManagement.apiTestUi.copy041')}{' '}</button>
 
               <button
                 id="btn-test-step-3-random"
                 onClick={handleRandomPageTest}
                 disabled={step3.status === 'running'}
                 className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-semibold rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                title="根据总页数随机选择一页测试"
+                title={t('dataManagement.apiTestUi.copy042')}
               >
-                <Shuffle className={`w-3.5 h-3.5 ${step3.status === 'running' ? 'animate-spin' : ''}`} />
-                随机页
-              </button>
+                <Shuffle className={`w-3.5 h-3.5 ${step3.status === 'running' ? 'animate-spin' : ''}`} />{t('dataManagement.apiTestUi.copy043')}{' '}</button>
 
               <button
                 id="btn-test-step-3-next"
                 onClick={handleNextPageTest}
                 disabled={step3.status === 'running'}
                 className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                title="测试下一页数据"
-              >
-                下一页
-                <ChevronRight className="w-3.5 h-3.5" />
+                title={t('dataManagement.apiTestUi.copy044')}
+              >{t('dataManagement.apiTestUi.copy045')}{' '}<ChevronRight className="w-3.5 h-3.5" />
               </button>
 
               <button
@@ -1049,9 +1008,7 @@ export const LaborInfoApiTest: React.FC = () => {
                 disabled={step3.status === 'running'}
                 className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
               >
-                <Search className={`w-3.5 h-3.5 ${step3.status === 'running' ? 'animate-spin' : ''}`} />
-                执行检索测试
-              </button>
+                <Search className={`w-3.5 h-3.5 ${step3.status === 'running' ? 'animate-spin' : ''}`} />{t('dataManagement.apiTestUi.copy046')}{' '}</button>
             </div>
           </div>
 
@@ -1075,18 +1032,18 @@ export const LaborInfoApiTest: React.FC = () => {
                 <span className="font-semibold text-slate-800 font-mono">{step3Params.end_date}</span>
               </div>
               <div className="p-1.5 bg-blue-50/70 border border-blue-200 rounded-lg">
-                <span className="text-blue-500 block text-2xs font-bold">当前请求页 (page)</span>
+                <span className="text-blue-500 block text-2xs font-bold">{t('dataManagement.apiTestUi.copy047')}</span>
                 <span className="font-bold text-blue-700 font-mono text-sm">{step3Params.page}</span>
               </div>
               <div>
-                <span className="text-slate-400 block text-2xs font-medium">每页数量 (per_page)</span>
+                <span className="text-slate-400 block text-2xs font-medium">{t('dataManagement.apiTestUi.copy048')}</span>
                 <span className="font-semibold text-slate-800 font-mono">{step3Params.per_page}</span>
               </div>
             </div>
 
             {step3.url && (
               <div className="text-xs text-slate-500 font-mono flex items-center gap-2">
-                <span className="font-semibold text-slate-600">请求 URL:</span>
+                <span className="font-semibold text-slate-600">{t('dataManagement.apiTestUi.copy023')}</span>
                 <span className="bg-slate-50 px-2 py-1 border border-slate-200 rounded text-slate-700 break-all select-all">
                   {step3.url}
                 </span>
@@ -1102,28 +1059,24 @@ export const LaborInfoApiTest: React.FC = () => {
                 {/* 诊断看板信息 */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-500 font-semibold uppercase">HTTP 状态</div>
+                    <div className="text-2xs text-slate-500 font-semibold uppercase">{t('dataManagement.apiTestUi.copy049')}</div>
                     <div className="text-lg font-bold font-mono text-emerald-600 mt-0.5">
                       {step3.statusCode || 200} OK
                     </div>
                   </div>
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-500 font-semibold uppercase">检索总案件数 (total_count)</div>
+                    <div className="text-2xs text-slate-500 font-semibold uppercase">{t('dataManagement.apiTestUi.copy050')}</div>
                     <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">
-                      {getTotalCount(step3.data).toLocaleString()} 篇
-                    </div>
+                      {getTotalCount(step3.data).toLocaleString()}{t('dataManagement.apiTestUi.copy051')}{' '}</div>
                   </div>
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-500 font-semibold uppercase">总页数 (total_pages)</div>
+                    <div className="text-2xs text-slate-500 font-semibold uppercase">{t('dataManagement.apiTestUi.copy052')}</div>
                     <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">
-                      {getTotalPages(step3.data).toLocaleString()} 页
-                    </div>
+                      {getTotalPages(step3.data).toLocaleString()}{t('dataManagement.apiTestUi.copy014')}{' '}</div>
                   </div>
                   <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl">
-                    <div className="text-2xs text-blue-600 font-semibold uppercase">当前页 / 返回数</div>
-                    <div className="text-lg font-bold font-mono text-blue-700 mt-0.5">
-                      第 {getCurrentPage(step3.data)} 页 / {getSearchItems(step3.data).length} 篇
-                    </div>
+                    <div className="text-2xs text-blue-600 font-semibold uppercase">{t('dataManagement.apiTestUi.copy053')}</div>
+                    <div className="text-lg font-bold font-mono text-blue-700 mt-0.5">{t('dataManagement.apiTestUi.copy054')}{' '}{getCurrentPage(step3.data)}{t('dataManagement.apiTestUi.copy055')}{' '}{getSearchItems(step3.data).length}{t('dataManagement.apiTestUi.copy051')}{' '}</div>
                   </div>
                 </div>
 
@@ -1133,18 +1086,18 @@ export const LaborInfoApiTest: React.FC = () => {
                     <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                       <tr>
                         <th className="px-3.5 py-2.5">ID</th>
-                        <th className="px-3.5 py-2.5">案件标题 (name)</th>
-                        <th className="px-3.5 py-2.5">案号 (no)</th>
-                        <th className="px-3.5 py-2.5">审理法院 (courtNm)</th>
-                        <th className="px-3.5 py-2.5">裁判日期 (pbDt)</th>
-                        <th className="px-3.5 py-2.5">审判层级 (caseLevel)</th>
-                        <th className="px-3.5 py-2.5 text-right">操作</th>
+                        <th className="px-3.5 py-2.5">{t('dataManagement.apiTestUi.copy056')}</th>
+                        <th className="px-3.5 py-2.5">{t('dataManagement.apiTestUi.copy057')}</th>
+                        <th className="px-3.5 py-2.5">{t('dataManagement.apiTestUi.copy058')}</th>
+                        <th className="px-3.5 py-2.5">{t('dataManagement.apiTestUi.copy059')}</th>
+                        <th className="px-3.5 py-2.5">{t('dataManagement.apiTestUi.copy060')}</th>
+                        <th className="px-3.5 py-2.5 text-right">{t('dataManagement.apiTestUi.copy061')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
                       {getSearchItems(step3.data).map((item: any, idx: number) => {
                         const itemId = item.id ?? item._id ?? String(idx + 1);
-                        const itemTitle = item.name || item.title || '无标题';
+                        const itemTitle = item.name || item.title || t('dataManagement.apiTestUi.untitled');
                         const itemNo = item.no || '-';
                         const itemCourt = item.courtNm || item.court || item.courtName || '-';
                         const itemDate = item.pbDt || item.date || item.judgement_date || '-';
@@ -1173,9 +1126,7 @@ export const LaborInfoApiTest: React.FC = () => {
                                   runTestStep4(String(itemId));
                                 }}
                                 className="px-2 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-700 font-medium rounded transition-colors cursor-pointer"
-                              >
-                                测试取此正文
-                              </button>
+                              >{t('dataManagement.apiTestUi.copy062')}{' '}</button>
                             </td>
                           </tr>
                         );
@@ -1187,9 +1138,7 @@ export const LaborInfoApiTest: React.FC = () => {
             )}
 
             {step3.status === 'idle' && (
-              <div className="text-center py-6 text-xs text-slate-400">
-                尚未执行检索测试。
-              </div>
+              <div className="text-center py-6 text-xs text-slate-400">{t('dataManagement.apiTestUi.copy063')}{' '}</div>
             )}
           </div>
         </div>
@@ -1204,15 +1153,11 @@ export const LaborInfoApiTest: React.FC = () => {
                 4
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  判决文书详情正文探测
-                  <code className="text-xs px-2 py-0.5 bg-slate-200/70 text-slate-700 font-mono rounded">
+                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">{t('dataManagement.apiTestUi.copy064')}{' '}<code className="text-xs px-2 py-0.5 bg-slate-200/70 text-slate-700 font-mono rounded">
                     GET /api/v1/lawcases/:id
                   </code>
                 </h2>
-                <p className="text-xs text-slate-500">
-                  验证目标案件的发布全文（fbqw）、正文字符长度及各结构化字段
-                </p>
+                <p className="text-xs text-slate-500">{t('dataManagement.apiTestUi.copy065')}{' '}</p>
               </div>
             </div>
 
@@ -1224,31 +1169,27 @@ export const LaborInfoApiTest: React.FC = () => {
                 disabled={step4.status === 'running' || !step4CaseId}
                 className="px-3.5 py-1.5 bg-white hover:bg-slate-100 disabled:bg-slate-50 disabled:text-slate-400 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
               >
-                <FileText className={`w-3.5 h-3.5 ${step4.status === 'running' ? 'animate-spin' : ''}`} />
-                单独测试详情正文
-              </button>
+                <FileText className={`w-3.5 h-3.5 ${step4.status === 'running' ? 'animate-spin' : ''}`} />{t('dataManagement.apiTestUi.copy066')}{' '}</button>
             </div>
           </div>
 
           <div className="p-5 space-y-4">
             {/* 目标 ID 输入框 */}
             <div className="flex items-center gap-3">
-              <label className="text-xs font-semibold text-slate-600">目标案件 ID:</label>
+              <label className="text-xs font-semibold text-slate-600">{t('dataManagement.apiTestUi.copy067')}</label>
               <input
                 type="text"
                 value={step4CaseId}
                 onChange={(e) => setStep4CaseId(e.target.value)}
-                placeholder="先执行测试 3 获取或在此粘贴案件 ID"
+                placeholder={t('dataManagement.apiTestUi.copy068')}
                 className="w-72 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white"
               />
-              <span className="text-2xs text-slate-400">
-                (已自动绑定上一步随机/选取的案件)
-              </span>
+              <span className="text-2xs text-slate-400">{t('dataManagement.apiTestUi.copy069')}{' '}</span>
             </div>
 
             {step4.url && (
               <div className="text-xs text-slate-500 font-mono flex items-center gap-2">
-                <span className="font-semibold text-slate-600">请求 URL:</span>
+                <span className="font-semibold text-slate-600">{t('dataManagement.apiTestUi.copy023')}</span>
                 <span className="bg-slate-50 px-2 py-1 border border-slate-200 rounded text-slate-700 break-all select-all">
                   {step4.url}
                 </span>
@@ -1264,26 +1205,23 @@ export const LaborInfoApiTest: React.FC = () => {
                 {/* 字段探测分析看板 */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs font-semibold text-slate-400 uppercase">正文总字符长度</div>
+                    <div className="text-2xs font-semibold text-slate-400 uppercase">{t('dataManagement.apiTestUi.copy070')}</div>
                     <div className="text-2xl font-bold font-mono text-purple-700 mt-1">
-                      {step4.data.contentLength?.toLocaleString()} 字
-                    </div>
+                      {step4.data.contentLength?.toLocaleString()}{t('dataManagement.apiTestUi.copy071')}{' '}</div>
                     <div className="text-2xs text-slate-400 mt-0.5 font-mono">
-                      {step4.data.contentLength > 500 ? '✅ 正文完整充实' : '⚠️ 正文偏短'}
+                      {step4.data.contentLength > 500 ? t('dataManagement.apiTestUi.fullTextComplete') : t('dataManagement.apiTestUi.fullTextShort')}
                     </div>
                   </div>
 
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs font-semibold text-slate-400 uppercase">发布全文 (fbqw) 字段状态</div>
+                    <div className="text-2xs font-semibold text-slate-400 uppercase">{t('dataManagement.apiTestUi.copy072')}</div>
                     <div className="text-lg font-bold font-mono mt-1 flex items-center gap-2">
                       {step4.data.hasFbqw ? (
                         <span className="text-emerald-600 flex items-center gap-1">
-                          <CheckCircle2 className="w-4 h-4" /> 存在 (标准正文)
-                        </span>
+                          <CheckCircle2 className="w-4 h-4" />{t('dataManagement.apiTestUi.copy073')}{' '}</span>
                       ) : (
                         <span className="text-slate-400 flex items-center gap-1">
-                          <XCircle className="w-4 h-4" /> 未声明
-                        </span>
+                          <XCircle className="w-4 h-4" />{t('dataManagement.apiTestUi.copy074')}{' '}</span>
                       )}
                     </div>
                     <div className="text-2xs text-slate-400 mt-0.5 font-mono">
@@ -1292,16 +1230,14 @@ export const LaborInfoApiTest: React.FC = () => {
                   </div>
 
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs font-semibold text-slate-400 uppercase">结构化判决段落状态</div>
+                    <div className="text-2xs font-semibold text-slate-400 uppercase">{t('dataManagement.apiTestUi.copy075')}</div>
                     <div className="text-lg font-bold font-mono mt-1 flex items-center gap-2">
                       {step4.data.docData?.cpjg || step4.data.docData?.fxgc || step4.data.docData?.jbqk ? (
                         <span className="text-emerald-600 flex items-center gap-1">
-                          <CheckCircle2 className="w-4 h-4" /> 裁判/论述/事实完整
-                        </span>
+                          <CheckCircle2 className="w-4 h-4" />{t('dataManagement.apiTestUi.copy076')}{' '}</span>
                       ) : (
                         <span className="text-slate-400 flex items-center gap-1">
-                          <XCircle className="w-4 h-4" /> 无结构段落
-                        </span>
+                          <XCircle className="w-4 h-4" />{t('dataManagement.apiTestUi.copy077')}{' '}</span>
                       )}
                     </div>
                     <div className="text-2xs text-slate-400 mt-0.5 font-mono">
@@ -1314,13 +1250,11 @@ export const LaborInfoApiTest: React.FC = () => {
                 <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl text-slate-200 text-xs">
                   <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 font-semibold text-slate-400">
                     <span className="flex items-center gap-1.5 text-emerald-400">
-                      <Code2 className="w-4 h-4" />
-                      正文前 300 字符切片预览
-                    </span>
+                      <Code2 className="w-4 h-4" />{t('dataManagement.apiTestUi.copy078')}{' '}</span>
                     <span className="font-mono text-2xs text-slate-500">utf-8 text</span>
                   </div>
                   <p className="font-sans leading-relaxed text-slate-300 whitespace-pre-wrap">
-                    {step4.data.previewText || '（正文内容为空）'}
+                    {step4.data.previewText || t('dataManagement.apiTestUi.emptyBody')}
                     {step4.data.contentLength > 300 && '...'}
                   </p>
                 </div>
@@ -1328,9 +1262,7 @@ export const LaborInfoApiTest: React.FC = () => {
             )}
 
             {step4.status === 'idle' && (
-              <div className="text-center py-6 text-xs text-slate-400">
-                尚未执行正文详情探测。
-              </div>
+              <div className="text-center py-6 text-xs text-slate-400">{t('dataManagement.apiTestUi.copy079')}{' '}</div>
             )}
           </div>
         </div>
@@ -1345,20 +1277,17 @@ const StatusBadge: React.FC<{
   statusCode?: number;
   durationMs?: number;
 }> = ({ status, statusCode, durationMs }) => {
+  const { t } = useTranslation();
   if (status === 'idle') {
     return (
-      <span className="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-full text-xs font-medium">
-        待测试
-      </span>
+      <span className="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-full text-xs font-medium">{t('dataManagement.apiTestUi.copy080')}{' '}</span>
     );
   }
 
   if (status === 'running') {
     return (
       <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium flex items-center gap-1.5">
-        <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping inline-block" />
-        请求中...
-      </span>
+        <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping inline-block" />{t('dataManagement.apiTestUi.copy081')}{' '}</span>
     );
   }
 
@@ -1375,7 +1304,7 @@ const StatusBadge: React.FC<{
   return (
     <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-medium flex items-center gap-1.5">
       <XCircle className="w-3.5 h-3.5 text-rose-600" />
-      {statusCode ? `HTTP ${statusCode}` : '请求失败'}
+      {statusCode ? `HTTP ${statusCode}` : t('dataManagement.apiTestUi.requestFailed')}
       {durationMs !== undefined && <span className="font-mono text-2xs text-rose-600">({durationMs}ms)</span>}
     </span>
   );
@@ -1387,33 +1316,33 @@ const ErrorBox: React.FC<{
   statusCode?: number;
   url?: string;
 }> = ({ error, statusCode, url }) => {
+  const { t } = useTranslation();
   const isCorsOrNetwork = !statusCode || statusCode === 0 || error?.includes('CORS') || error?.includes('Failed to fetch');
 
   return (
     <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-2 text-xs text-rose-900">
       <div className="flex items-center gap-2 font-bold text-rose-700">
         <AlertCircle className="w-4 h-4 shrink-0" />
-        <span>请求异常响应</span>
+        <span>{t('dataManagement.apiTestUi.copy082')}</span>
       </div>
 
       <div className="space-y-1 font-mono text-2xs">
         {url && (
           <div>
-            <span className="text-rose-500 font-semibold">请求 URL:</span> {url}
+            <span className="text-rose-500 font-semibold">{t('dataManagement.apiTestUi.copy023')}</span> {url}
           </div>
         )}
         <div>
-          <span className="text-rose-500 font-semibold">状态码 (Status):</span> {statusCode || '0 (无 HTTP 响应)'}
+          <span className="text-rose-500 font-semibold">{t('dataManagement.apiTestUi.copy083')}</span> {statusCode || t('dataManagement.apiTestUi.noHttpResponse')}
         </div>
         <div>
-          <span className="text-rose-500 font-semibold">错误信息:</span> {error || '未知错误'}
+          <span className="text-rose-500 font-semibold">{t('dataManagement.apiTestUi.copy084')}</span> {error || t('dataManagement.apiTestUi.unknownError')}
         </div>
       </div>
 
       {isCorsOrNetwork && (
         <div className="mt-2 pt-2 border-t border-rose-200/80 text-2xs text-rose-800 leading-relaxed font-sans">
-          <strong>排查与说明：</strong> 当前请求未能从目标服务器完成跨域握手（可能原因：浏览器沙箱跨域限制、目标域名 DNS 波动或被防火墙拦截）。在真实部署环境中可通过配置开发代理或使用工劳网其他镜像域名（如 <code>https://laborinfocn.com</code> / <code>https://search.laborinfocn.com</code>）重试。
-        </div>
+          <strong>{t('dataManagement.apiTestUi.copy085')}</strong>{t('dataManagement.apiTestUi.copy086')}{' '}<code>https://laborinfocn.com</code> / <code>https://search.laborinfocn.com</code>{t('dataManagement.apiTestUi.copy087')}{' '}</div>
       )}
     </div>
   );

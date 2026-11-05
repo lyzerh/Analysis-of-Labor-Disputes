@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import type { OutcomeReviewItem } from '../types';
 import { getOutcomePresentation } from '../services/outcome/OutcomePresentation';
 import {
   matchesOutcomeDiagnosticFilter,
-  outcomeDiagnosticFilterLabels,
   outcomeReviewEvidenceFields,
   outcomeReviewReasonLabels,
   outcomeReviewSearchText,
@@ -38,8 +38,10 @@ const DiagnosticClueRow: React.FC<{
   onToggle: () => void;
   onSelectCase: (item: OutcomeReviewItem) => void;
 }> = ({ item, expanded, onToggle, onSelectCase }) => {
+  const { t } = useTranslation();
   const outcome = getOutcomePresentation(item.outcome);
-  const reasonLabel = item.reasonCode ? (outcomeReviewReasonLabels[item.reasonCode] || '需要人工复核') : '需要人工复核';
+  const outcomeLabel = t(`status.${{ supported: 'supported', partially_supported: 'partiallySupported', not_supported: 'notSupported', unclear: 'unclear' }[item.outcome]}`);
+  const reasonLabel = item.reasonCode ? (outcomeReviewReasonLabels[item.reasonCode] || t('finalUi.diagnostic.reviewRequired')) : t('finalUi.diagnostic.reviewRequired');
   const fields = outcomeReviewEvidenceFields(item);
   const claimPresentation = presentClaimType(item.claimType);
   const selectCase = () => onSelectCase(item);
@@ -62,8 +64,8 @@ const DiagnosticClueRow: React.FC<{
           <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-900">
             <span>{claimPresentation.label}</span>
             {claimPresentation.note && <span className="text-[10px] font-normal text-slate-500">（{claimPresentation.note}）</span>}
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${outcome.badgeClassName}`}>当前：{outcome.label}</span>
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">{item.needsReview ? '需要人工复核' : '未明确'}</span>
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${outcome.badgeClassName}`}>{t('finalUi.diagnostic.current', { outcome: outcomeLabel })}</span>
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">{item.needsReview ? t('finalUi.diagnostic.reviewRequired') : t('finalUi.diagnostic.unclear')}</span>
           </div>
           <div className="mt-1 line-clamp-2 text-[11px] text-amber-800">{cleanPipelineDiagnosticMessage(item.reasonMessage, reasonLabel)}</div>
         </div>
@@ -73,22 +75,22 @@ const DiagnosticClueRow: React.FC<{
           aria-expanded={expanded}
           onClick={(event) => { event.stopPropagation(); onToggle(); }}
         >
-          {expanded ? '收起详情' : '展开详情'}
+          {expanded ? t('finalUi.diagnostic.hideDetails') : t('finalUi.diagnostic.showDetails')}
         </button>
       </div>
       {expanded && (
         <div className="mt-2 grid gap-2 border-t border-slate-100 pt-2 text-[11px] text-slate-700 sm:grid-cols-2" onClick={(event) => event.stopPropagation()}>
-          <div><span className="font-medium text-slate-600">AI 候选：</span>{outcome.label}</div>
-          <div><span className="font-medium text-slate-600">原因：</span>{reasonLabel}</div>
-          <div className="sm:col-span-2"><span className="font-medium text-slate-600">诊断说明：</span><CollapsibleText text={cleanPipelineDiagnosticMessage(item.reasonMessage, reasonLabel)} collapsedLines={3} className="mt-0.5" /></div>
+          <div><span className="font-medium text-slate-600">{t('finalUi.diagnostic.aiCandidate')}</span>{outcomeLabel}</div>
+          <div><span className="font-medium text-slate-600">{t('finalUi.diagnostic.reason')}</span>{reasonLabel}</div>
+          <div className="sm:col-span-2"><span className="font-medium text-slate-600">{t('finalUi.diagnostic.explanation')}</span><CollapsibleText text={cleanPipelineDiagnosticMessage(item.reasonMessage, reasonLabel)} collapsedLines={3} className="mt-0.5" /></div>
           {fields.map((field) => (
             <div key={field.key} className="min-w-0 rounded border border-slate-200 bg-slate-50/70 px-2 py-1 sm:col-span-2">
               <span className="block font-medium text-slate-600">{field.label}</span>
               <CollapsibleText text={field.text || field.placeholder} collapsedLines={3} className="mt-0.5" />
             </div>
           ))}
-          {claimPresentation.rawValue && <details className="sm:col-span-2 text-[10px] text-slate-500"><summary className="cursor-pointer">技术详情</summary><div className="mt-1">诉求类型：{claimPresentation.rawValue}{item.claimId ? `｜诉求 ID：${item.claimId}` : ''}</div></details>}
-          <div className="sm:col-span-2 text-[10px] text-slate-400">点击本条线索可定位到对应案例。</div>
+          {claimPresentation.rawValue && <details className="sm:col-span-2 text-[10px] text-slate-500"><summary className="cursor-pointer">{t('finalUi.diagnostic.technicalDetails')}</summary><div className="mt-1">{t('finalUi.diagnostic.claimType')}{claimPresentation.rawValue}{item.claimId ? t('finalUi.diagnostic.claimId', { id: item.claimId }) : ''}</div></details>}
+          <div className="sm:col-span-2 text-[10px] text-slate-400">{t('finalUi.diagnostic.selectHint')}</div>
         </div>
       )}
     </div>
@@ -96,6 +98,7 @@ const DiagnosticClueRow: React.FC<{
 };
 
 export const DiagnosticClueWorkspace: React.FC<DiagnosticClueWorkspaceProps> = ({ items, onSelectCase }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [filter, setFilter] = useState<OutcomeDiagnosticFilter>('all');
@@ -129,10 +132,10 @@ export const DiagnosticClueWorkspace: React.FC<DiagnosticClueWorkspaceProps> = (
   }, [filteredItems]);
 
   const countLabel = keyword.trim()
-    ? `${items.length} 项中匹配 ${filteredItems.length} 项`
+    ? t('finalUi.diagnostic.matchCount', { total: items.length, count: filteredItems.length })
     : filter === 'all'
-      ? `${items.length} 项`
-      : `${outcomeDiagnosticFilterLabels[filter]} ${filteredItems.length} 项`;
+      ? t('finalUi.diagnostic.count', { count: items.length })
+      : t('finalUi.diagnostic.filterCount', { filter: t(`finalUi.diagnostic.filters.${filter}`), count: filteredItems.length });
 
   const toggleCase = (caseId: string) => setExpandedCases((current) => {
     const next = new Set(current);
@@ -153,13 +156,13 @@ export const DiagnosticClueWorkspace: React.FC<DiagnosticClueWorkspaceProps> = (
   };
 
   return (
-    <section className="mt-5 border-t border-slate-200 pt-4" aria-label="裁判结果诊断线索" data-testid="diagnostic-clue-workspace">
+    <section className="mt-5 border-t border-slate-200 pt-4" aria-label={t('finalUi.diagnostic.title')} data-testid="diagnostic-clue-workspace">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="flex items-center gap-2 text-xs font-semibold text-slate-900">
-            裁判结果诊断线索 <span className="font-normal text-amber-800/75">{items.length} 项</span>
+            {t('finalUi.diagnostic.title')} <span className="font-normal text-amber-800/75">{t('finalUi.diagnostic.count', { count: items.length })}</span>
           </h3>
-          {open && <div className="mt-0.5 text-[10px] text-amber-800/75">{countLabel}｜按案件分组，默认折叠详情</div>}
+          {open && <div className="mt-0.5 text-[10px] text-amber-800/75">{countLabel}{t('finalUi.diagnostic.groupHint')}</div>}
         </div>
           <button
           type="button"
@@ -167,7 +170,7 @@ export const DiagnosticClueWorkspace: React.FC<DiagnosticClueWorkspaceProps> = (
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
         >
-          {open ? '收起' : '展开'}
+          {open ? t('finalUi.diagnostic.collapse') : t('finalUi.diagnostic.expand')}
         </button>
       </div>
 
@@ -180,17 +183,17 @@ export const DiagnosticClueWorkspace: React.FC<DiagnosticClueWorkspaceProps> = (
                 type="search"
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
-                placeholder="搜索诊断线索、案件、案号、诉求或证据"
-                aria-label="搜索诊断线索"
+                placeholder={t('finalUi.diagnostic.searchPlaceholder')}
+                aria-label={t('finalUi.diagnostic.searchLabel')}
                 className="w-full rounded border border-slate-200 bg-white py-1.5 pl-7 pr-2 text-[11px] text-slate-700 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
               />
             </div>
-            <button type="button" onClick={collapseAll} className="shrink-0 rounded border border-slate-200 bg-white px-2 py-1.5 text-[10px] text-slate-600 hover:bg-slate-50">收起全部</button>
+            <button type="button" onClick={collapseAll} className="shrink-0 rounded border border-slate-200 bg-white px-2 py-1.5 text-[10px] text-slate-600 hover:bg-slate-50">{t('finalUi.diagnostic.collapseAll')}</button>
           </div>
-          <div className="mt-2 flex flex-wrap gap-1.5" aria-label="诊断线索筛选">
+          <div className="mt-2 flex flex-wrap gap-1.5" aria-label={t('finalUi.diagnostic.filterLabel')}>
             {filterValues.map((value) => (
               <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded border px-2 py-1 text-[10px] ${filter === value ? 'border-indigo-400 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white text-slate-600'}`}>
-                {outcomeDiagnosticFilterLabels[value]}
+                {t(`finalUi.diagnostic.filters.${value}`)}
               </button>
             ))}
             <span className="ml-auto text-[10px] text-slate-500">{countLabel}</span>
@@ -198,7 +201,7 @@ export const DiagnosticClueWorkspace: React.FC<DiagnosticClueWorkspaceProps> = (
 
           <div className="mt-2 space-y-2" data-testid="diagnostic-case-groups">
             {groups.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-amber-200 bg-white/70 px-3 py-4 text-center text-xs text-amber-800">当前筛选没有匹配的诊断线索。</div>
+              <div className="rounded-lg border border-dashed border-amber-200 bg-white/70 px-3 py-4 text-center text-xs text-amber-800">{t('finalUi.diagnostic.noMatches')}</div>
             ) : groups.map((group) => {
               const caseExpanded = expandedCases.has(group.caseId);
               return (
@@ -206,7 +209,7 @@ export const DiagnosticClueWorkspace: React.FC<DiagnosticClueWorkspaceProps> = (
                   <button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left" aria-expanded={caseExpanded} onClick={() => toggleCase(group.caseId)}>
                     {caseExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500" />}
                     <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-slate-900">{group.title}</span><span className="block truncate text-[10px] text-slate-500">{group.caseNumber || group.caseId}</span></span>
-                    <span className="shrink-0 text-[10px] text-slate-500">{group.items.length} 项线索</span>
+                    <span className="shrink-0 text-[10px] text-slate-500">{t('finalUi.diagnostic.clueCount', { count: group.items.length })}</span>
                   </button>
                   {caseExpanded && <div className="space-y-2 border-t border-slate-200 p-2">{group.items.map((item) => { const key = clueKey(item); return <DiagnosticClueRow key={key} item={item} expanded={expandedClues.has(key)} onToggle={() => toggleClue(item)} onSelectCase={onSelectCase} />; })}</div>}
                 </div>

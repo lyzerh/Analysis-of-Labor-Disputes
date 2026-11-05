@@ -2,6 +2,7 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import { i18n } from './i18n';
 import './index.css';
 
 class ErrorBoundary extends React.Component<any, any> {
@@ -23,14 +24,14 @@ class ErrorBoundary extends React.Component<any, any> {
     if (this.state.hasError) {
       return (
         <div style={{ padding: '20px', backgroundColor: '#fee2e2', color: '#991b1b', fontFamily: 'monospace' }}>
-          <h2>页面加载失败</h2>
+          <h2>{i18n.t('finalUi.fatal.title')}</h2>
           <details style={{ whiteSpace: 'pre-wrap' }}>
-            <summary>Click for error details</summary>
+            <summary>{i18n.t('finalUi.fatal.details')}</summary>
             {this.state.error?.toString()}
             <br />
             {this.state.info?.componentStack}
           </details>
-          <button onClick={() => window.location.reload()} style={{marginTop: 10, padding: 8}}>重新加载</button>
+          <button onClick={() => window.location.reload()} style={{marginTop: 10, padding: 8}}>{i18n.t('finalUi.fatal.reload')}</button>
         </div>
       );
     }

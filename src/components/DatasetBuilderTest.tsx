@@ -1,5 +1,6 @@
 import { LaborAnalysisPipeline } from "../services/data/LaborAnalysisPipeline";
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Layers,
   Database,
@@ -41,6 +42,7 @@ import { ReviewStorageService } from '../services/data/ReviewStorageService';
 import { LaborCaseDatasetBuilder, PRD_CITIES } from '../services/dataset/LaborCaseDatasetBuilder';
 
 export const DatasetBuilderTest: React.FC = () => {
+  const { t } = useTranslation();
   const [rawDocs, setRawDocs] = useState<RawDocument[]>([]);
   const [records, setRecords] = useState<AnalysisCaseRecord[]>([]);
   const [summary, setSummary] = useState<DatasetBuildSummary | null>(null);
@@ -147,15 +149,9 @@ export const DatasetBuilderTest: React.FC = () => {
               <Layers className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                广深莞劳动争议分析数据集构建
-                <span className="px-2.5 py-0.5 text-xs font-semibold bg-indigo-100 text-indigo-800 rounded-full font-mono">
-                  v1.3 阶段一
-                </span>
+              <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">{t('dataManagement.datasetBuilderUi.copy001')}{' '}<span className="px-2.5 py-0.5 text-xs font-semibold bg-indigo-100 text-indigo-800 rounded-full font-mono">{t('dataManagement.datasetBuilderUi.copy002')}{' '}</span>
               </h1>
-              <p className="text-sm text-slate-500 mt-0.5">
-                融合 RawDocument + 结构化解析 + 人工校验记录，自动构建标准 AnalysisCaseRecord 并执行质量分级准入
-              </p>
+              <p className="text-sm text-slate-500 mt-0.5">{t('dataManagement.datasetBuilderUi.copy003')}{' '}</p>
             </div>
           </div>
 
@@ -164,9 +160,7 @@ export const DatasetBuilderTest: React.FC = () => {
             disabled={isLoading}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-colors cursor-pointer self-start md:self-auto shadow-sm"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            重新构建数据集
-          </button>
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />{t('dataManagement.datasetBuilderUi.copy004')}{' '}</button>
         </div>
 
         {/* 零污染原则与过滤规则说明条 */}
@@ -174,16 +168,14 @@ export const DatasetBuilderTest: React.FC = () => {
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-2.5 text-slate-700">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold text-slate-900">零污染架构原则：</span>
-              不改动 <code>RawDocument</code> 原始文书、<code>ArbitrationCase</code> 初始解析、<code>ParserEvaluator</code> 与 <code>ReviewStorage</code>，在内存中纯函数式合成 <code>AnalysisCaseRecord</code>。
+              <span className="font-semibold text-slate-900">{t('dataManagement.datasetBuilderUi.copy005')}</span>{t('dataManagement.datasetBuilderUi.copy006')}{' '}<code>RawDocument</code>{t('dataManagement.datasetBuilderUi.copy007')}<code>ArbitrationCase</code>{t('dataManagement.datasetBuilderUi.copy008')}<code>ParserEvaluator</code>{t('dataManagement.datasetBuilderUi.copy009')}{' '}<code>ReviewStorage</code>{t('dataManagement.datasetBuilderUi.copy010')}{' '}<code>AnalysisCaseRecord</code>。
             </div>
           </div>
 
           <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl flex items-start gap-2.5 text-indigo-950">
             <Filter className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold">数据集准入过滤规则：</span>
-              默认仅当<strong>人工已核准</strong>或<strong>解析质量达到 80 分</strong>时进入正式分析集；其余低分未审案件自动归入<strong>待优化池</strong>。
+              <span className="font-semibold">{t('dataManagement.datasetBuilderUi.copy011')}</span>{t('dataManagement.datasetBuilderUi.copy012')}<strong>{t('dataManagement.datasetBuilderUi.copy013')}</strong>{t('dataManagement.datasetBuilderUi.copy014')}<strong>{t('dataManagement.datasetBuilderUi.copy015')}</strong>{t('dataManagement.datasetBuilderUi.copy016')}<strong>{t('dataManagement.datasetBuilderUi.copy017')}</strong>。
             </div>
           </div>
         </div>
@@ -195,53 +187,45 @@ export const DatasetBuilderTest: React.FC = () => {
           {/* 1. 原始文书总量 */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-slate-500 font-semibold uppercase flex items-center gap-1">
-              <Database className="w-3.5 h-3.5 text-slate-400" />
-              原始文书总量 (RawDocument)
-            </div>
+              <Database className="w-3.5 h-3.5 text-slate-400" />{t('dataManagement.datasetBuilderUi.copy018')}{' '}</div>
             <div className="text-2xl font-bold font-mono text-slate-800 mt-1">
               {summary.totalRawDocs}
             </div>
-            <div className="text-2xs text-slate-400 mt-0.5">工劳网及本地导入文书</div>
+            <div className="text-2xs text-slate-400 mt-0.5">{t('dataManagement.datasetBuilderUi.copy019')}</div>
           </div>
 
           {/* 2. 成功转换数量 */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-slate-500 font-semibold uppercase flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-              成功转换记录 (Converted)
-            </div>
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />{t('dataManagement.datasetBuilderUi.copy020')}{' '}</div>
             <div className="text-2xl font-bold font-mono text-indigo-600 mt-1">
               {summary.totalConverted}
             </div>
-            <div className="text-2xs text-slate-400 mt-0.5">转换率 100% (标准模式)</div>
+            <div className="text-2xs text-slate-400 mt-0.5">{t('dataManagement.datasetBuilderUi.copy021')}</div>
           </div>
 
           {/* 3. 进入正式分析集数量 */}
           <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-emerald-800 font-semibold uppercase flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              进入正式分析集 (Quality ≥ 80 / Approved)
-            </div>
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />{t('dataManagement.datasetBuilderUi.copy022')}{' '}</div>
             <div className="text-2xl font-bold font-mono text-emerald-700 mt-1">
               {summary.includedInAnalysisSetCount}{' '}
               <span className="text-xs font-normal text-emerald-600">({summary.filterRate}%)</span>
             </div>
-            <div className="text-2xs text-emerald-700 mt-0.5">达标高质量或人工核准案例</div>
+            <div className="text-2xs text-emerald-700 mt-0.5">{t('dataManagement.datasetBuilderUi.copy023')}</div>
           </div>
 
           {/* 4. 待优化池数量 */}
           <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-amber-800 font-semibold uppercase flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-              待优化池 (Pending Optimization)
-            </div>
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />{t('dataManagement.datasetBuilderUi.copy024')}{' '}</div>
             <div className="text-2xl font-bold font-mono text-amber-700 mt-1">
               {summary.pendingOptimizationCount}{' '}
               <span className="text-xs font-normal text-amber-600">
                 ({summary.totalConverted > 0 ? (100 - summary.filterRate).toFixed(1) : 0}%)
               </span>
             </div>
-            <div className="text-2xs text-amber-700 mt-0.5">评分低于 80 分且未人工核准</div>
+            <div className="text-2xs text-amber-700 mt-0.5">{t('dataManagement.datasetBuilderUi.copy025')}</div>
           </div>
         </div>
       )}
@@ -253,19 +237,16 @@ export const DatasetBuilderTest: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                质量与审核分布
-              </h3>
-              <span className="text-2xs text-slate-400 font-mono">
-                平均准入: {summary.filterRate}%
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />{t('dataManagement.datasetBuilderUi.copy026')}{' '}</h3>
+              <span className="text-2xs text-slate-400 font-mono">{t('dataManagement.datasetBuilderUi.copy027')}{' '}{summary.filterRate}%
               </span>
             </div>
 
             <div className="space-y-2">
               <div>
                 <div className="flex justify-between text-2xs mb-1">
-                  <span className="text-slate-600 font-medium">90 - 100 分 (极佳质量)</span>
-                  <span className="font-mono font-bold text-emerald-600">{summary.qualityDistribution.range90_100} 个案例</span>
+                  <span className="text-slate-600 font-medium">{t('dataManagement.datasetBuilderUi.copy028')}</span>
+                  <span className="font-mono font-bold text-emerald-600">{summary.qualityDistribution.range90_100}{t('dataManagement.datasetBuilderUi.copy029')}</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -277,8 +258,8 @@ export const DatasetBuilderTest: React.FC = () => {
 
               <div>
                 <div className="flex justify-between text-2xs mb-1">
-                  <span className="text-slate-600 font-medium">80 - 89 分 (良好达标)</span>
-                  <span className="font-mono font-bold text-blue-600">{summary.qualityDistribution.range80_89} 个案例</span>
+                  <span className="text-slate-600 font-medium">{t('dataManagement.datasetBuilderUi.copy030')}</span>
+                  <span className="font-mono font-bold text-blue-600">{summary.qualityDistribution.range80_89}{t('dataManagement.datasetBuilderUi.copy029')}</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -290,8 +271,8 @@ export const DatasetBuilderTest: React.FC = () => {
 
               <div>
                 <div className="flex justify-between text-2xs mb-1">
-                  <span className="text-slate-600 font-medium">60 - 79 分 (待优化)</span>
-                  <span className="font-mono font-bold text-amber-600">{summary.qualityDistribution.range60_79} 个案例</span>
+                  <span className="text-slate-600 font-medium">{t('dataManagement.datasetBuilderUi.copy031')}</span>
+                  <span className="font-mono font-bold text-amber-600">{summary.qualityDistribution.range60_79}{t('dataManagement.datasetBuilderUi.copy029')}</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -303,8 +284,8 @@ export const DatasetBuilderTest: React.FC = () => {
 
               <div>
                 <div className="flex justify-between text-2xs mb-1">
-                  <span className="text-slate-600 font-medium">&lt; 60 分 (低完整度)</span>
-                  <span className="font-mono font-bold text-rose-600">{summary.qualityDistribution.rangeBelow60} 个案例</span>
+                  <span className="text-slate-600 font-medium">{t('dataManagement.datasetBuilderUi.copy032')}</span>
+                  <span className="font-mono font-bold text-rose-600">{summary.qualityDistribution.rangeBelow60}{t('dataManagement.datasetBuilderUi.copy029')}</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -316,9 +297,9 @@ export const DatasetBuilderTest: React.FC = () => {
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-2xs text-slate-500">
-              <span>人工已核准: <strong className="text-emerald-700">{summary.qualityDistribution.approvedCount}</strong></span>
-              <span>已修订: <strong className="text-blue-700">{summary.qualityDistribution.modifiedCount}</strong></span>
-              <span>待核验: <strong className="text-slate-700">{summary.qualityDistribution.pendingReviewCount}</strong></span>
+              <span>{t('dataManagement.datasetBuilderUi.copy033')}{' '}<strong className="text-emerald-700">{summary.qualityDistribution.approvedCount}</strong></span>
+              <span>{t('dataManagement.datasetBuilderUi.copy034')}{' '}<strong className="text-blue-700">{summary.qualityDistribution.modifiedCount}</strong></span>
+              <span>{t('dataManagement.datasetBuilderUi.copy035')}{' '}<strong className="text-slate-700">{summary.qualityDistribution.pendingReviewCount}</strong></span>
             </div>
           </div>
 
@@ -326,12 +307,8 @@ export const DatasetBuilderTest: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-indigo-600" />
-                城市归属分布 (核心三市)
-              </h3>
-              <span className="text-2xs text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-full">
-                广深莞: {summary.prdCount} 个案例
-              </span>
+                <MapPin className="w-4 h-4 text-indigo-600" />{t('dataManagement.datasetBuilderUi.copy036')}{' '}</h3>
+              <span className="text-2xs text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-full">{t('dataManagement.datasetBuilderUi.copy037')}{' '}{summary.prdCount}{t('dataManagement.datasetBuilderUi.copy029')}{' '}</span>
             </div>
 
             <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
@@ -356,7 +333,7 @@ export const DatasetBuilderTest: React.FC = () => {
                       {isPRD && <span className="text-3xs text-indigo-600 bg-indigo-100 px-1 py-0.2 rounded">PRD</span>}
                     </div>
                     <div className="flex items-center gap-2 font-mono text-2xs">
-                      <span>{count} 个案例</span>
+                      <span>{count}{t('dataManagement.datasetBuilderUi.copy029')}</span>
                       <span className="text-slate-400">({percent}%)</span>
                     </div>
                   </div>
@@ -365,8 +342,8 @@ export const DatasetBuilderTest: React.FC = () => {
             </div>
 
             <div className="pt-2 border-t border-slate-100 text-3xs text-slate-400 flex items-center justify-between">
-              <span>广深莞覆盖: <strong>{Math.round((summary.prdCount / (summary.totalConverted || 1)) * 100)}%</strong></span>
-              <span>点击城市卡片快速筛选明细</span>
+              <span>{t('dataManagement.datasetBuilderUi.copy038')}{' '}<strong>{Math.round((summary.prdCount / (summary.totalConverted || 1)) * 100)}%</strong></span>
+              <span>{t('dataManagement.datasetBuilderUi.copy039')}</span>
             </div>
           </div>
 
@@ -374,12 +351,9 @@ export const DatasetBuilderTest: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Tag className="w-4 h-4 text-purple-600" />
-                争议类型分布
-              </h3>
+                <Tag className="w-4 h-4 text-purple-600" />{t('dataManagement.datasetBuilderUi.copy040')}{' '}</h3>
               <span className="text-2xs text-slate-400 font-mono">
-                {availableDisputeTypes.length} 个分类标签
-              </span>
+                {availableDisputeTypes.length}{t('dataManagement.datasetBuilderUi.copy041')}{' '}</span>
             </div>
 
             <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
@@ -399,7 +373,7 @@ export const DatasetBuilderTest: React.FC = () => {
                   >
                     <div className="truncate pr-2">{type}</div>
                     <div className="flex items-center gap-2 font-mono text-2xs shrink-0">
-                      <span>{count} 个案例</span>
+                      <span>{count}{t('dataManagement.datasetBuilderUi.copy029')}</span>
                       <span className="text-slate-400">({percent}%)</span>
                     </div>
                   </div>
@@ -408,8 +382,8 @@ export const DatasetBuilderTest: React.FC = () => {
             </div>
 
             <div className="pt-2 border-t border-slate-100 text-3xs text-slate-400 flex items-center justify-between">
-              <span>多标签结构化映射</span>
-              <span>点击类型卡片快速过滤</span>
+              <span>{t('dataManagement.datasetBuilderUi.copy042')}</span>
+              <span>{t('dataManagement.datasetBuilderUi.copy043')}</span>
             </div>
           </div>
         </div>
@@ -427,39 +401,34 @@ export const DatasetBuilderTest: React.FC = () => {
                 className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
                   filterSet === 'all' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
                 }`}
-              >
-                全部案件 ({records.length})
+              >{t('dataManagement.datasetBuilderUi.copy044')}{records.length})
               </button>
               <button
                 onClick={() => setFilterSet('included')}
                 className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
                   filterSet === 'included' ? 'bg-white text-emerald-700 shadow-2xs font-semibold' : 'text-slate-600 hover:text-emerald-700'
                 }`}
-              >
-                ✅ 正式分析集 ({summary?.includedInAnalysisSetCount ?? 0})
+              >{t('dataManagement.datasetBuilderUi.copy045')}{summary?.includedInAnalysisSetCount ?? 0})
               </button>
               <button
                 onClick={() => setFilterSet('pending')}
                 className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
                   filterSet === 'pending' ? 'bg-white text-amber-700 shadow-2xs font-semibold' : 'text-slate-600 hover:text-amber-700'
                 }`}
-              >
-                ⏳ 待优化池 ({summary?.pendingOptimizationCount ?? 0})
+              >{t('dataManagement.datasetBuilderUi.copy046')}{summary?.pendingOptimizationCount ?? 0})
               </button>
             </div>
 
             {/* 城市重置 */}
             {selectedCity !== 'all' && (
-              <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-xs flex items-center gap-1">
-                城市: {selectedCity}
+              <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-xs flex items-center gap-1">{t('dataManagement.datasetBuilderUi.copy047')}{' '}{selectedCity}
                 <X className="w-3 h-3 cursor-pointer" onClick={() => setSelectedCity('all')} />
               </span>
             )}
 
             {/* 争议类型重置 */}
             {selectedDisputeType !== 'all' && (
-              <span className="px-2.5 py-1 bg-purple-50 border border-purple-200 text-purple-700 rounded-lg text-xs flex items-center gap-1">
-                类型: {selectedDisputeType}
+              <span className="px-2.5 py-1 bg-purple-50 border border-purple-200 text-purple-700 rounded-lg text-xs flex items-center gap-1">{t('dataManagement.datasetBuilderUi.copy048')}{' '}{selectedDisputeType}
                 <X className="w-3 h-3 cursor-pointer" onClick={() => setSelectedDisputeType('all')} />
               </span>
             )}
@@ -472,7 +441,7 @@ export const DatasetBuilderTest: React.FC = () => {
               type="text"
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="搜索案号、当事人、法院、诉求..."
+              placeholder={t('dataManagement.datasetBuilderUi.copy049')}
               className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
             />
             {searchKeyword && (
@@ -491,9 +460,7 @@ export const DatasetBuilderTest: React.FC = () => {
           {/* 左侧：案件列表 (7 栏) */}
           <div className="lg:col-span-7 space-y-3 max-h-[720px] overflow-y-auto pr-1">
             {filteredRecords.length === 0 ? (
-              <div className="py-12 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                未检索到符合条件的分析集记录
-              </div>
+              <div className="py-12 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">{t('dataManagement.datasetBuilderUi.copy050')}{' '}</div>
             ) : (
               filteredRecords.map((r, idx) => {
                 const isSelected = activeRecord?.caseId === r.caseId;
@@ -516,15 +483,14 @@ export const DatasetBuilderTest: React.FC = () => {
                             ? 'bg-emerald-100 text-emerald-800'
                             : 'bg-amber-100 text-amber-800'
                         }`}>
-                          {r.isIncludedInAnalysisSet ? '✅ 正式分析集' : '⏳ 待优化池'}
+                          {r.isIncludedInAnalysisSet ? t('dataManagement.datasetBuilderUi.includedIcon') : t('dataManagement.datasetBuilderUi.pendingIcon')}
                         </span>
                         <span className="px-2 py-0.5 rounded text-2xs font-semibold bg-slate-100 text-slate-700 font-mono">
                           {r.city}
                         </span>
                         {r.year && (
                           <span className="px-1.5 py-0.5 rounded text-2xs text-slate-500 font-mono">
-                            {r.year}年
-                          </span>
+                            {r.year}{t('dataManagement.datasetBuilderUi.copy051')}{' '}</span>
                         )}
                       </div>
 
@@ -536,8 +502,7 @@ export const DatasetBuilderTest: React.FC = () => {
                             ? 'bg-blue-50 text-blue-700 border border-blue-200'
                             : 'bg-amber-50 text-amber-700 border border-amber-200'
                         }`}>
-                          {r.parserScore}分
-                        </span>
+                          {r.parserScore}{t('dataManagement.datasetBuilderUi.copy052')}{' '}</span>
                         <span className={`text-3xs px-1.5 py-0.5 rounded ${
                           r.reviewStatus === 'approved'
                             ? 'bg-emerald-100 text-emerald-800'
@@ -545,7 +510,7 @@ export const DatasetBuilderTest: React.FC = () => {
                             ? 'bg-blue-100 text-blue-800'
                             : 'bg-slate-100 text-slate-500'
                         }`}>
-                          {r.reviewStatus === 'approved' ? '已核准' : r.reviewStatus === 'modified' ? '已修改' : '未审核'}
+                          {r.reviewStatus === 'approved' ? t('dataManagement.datasetBuilderUi.approved') : r.reviewStatus === 'modified' ? t('dataManagement.datasetBuilderUi.modified') : t('dataManagement.datasetBuilderUi.notReviewed')}
                         </span>
                       </div>
                     </div>
@@ -558,24 +523,24 @@ export const DatasetBuilderTest: React.FC = () => {
                     {/* 当事人与审理法院 */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-2xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">
                       <div className="truncate">
-                        <span className="text-slate-400">劳动者:</span> <strong>{r.employeeParty || '未载明'}</strong>
+                        <span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy053')}</span> <strong>{r.employeeParty || t('dataManagement.datasetBuilderUi.notStated')}</strong>
                       </div>
                       <div className="truncate">
-                        <span className="text-slate-400">用人单位:</span> <strong>{r.employerParty || '未载明'}</strong>
+                        <span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy054')}</span> <strong>{r.employerParty || t('dataManagement.datasetBuilderUi.notStated')}</strong>
                       </div>
                     </div>
 
                     {/* 诉求与抗辩概要 */}
                     <div className="flex items-center justify-between text-2xs text-slate-500 pt-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span>诉求 ({r.claims.length} 项)</span>
+                        <span>{t('dataManagement.datasetBuilderUi.copy055')}{r.claims.length}{t('dataManagement.datasetBuilderUi.copy056')}</span>
                         <span>•</span>
-                        <span>抗辩 ({r.employerDefenses.length} 项)</span>
+                        <span>{t('dataManagement.datasetBuilderUi.copy057')}{r.employerDefenses.length}{t('dataManagement.datasetBuilderUi.copy056')}</span>
                         <span>•</span>
-                        <span>证据 ({r.evidence.length} 项)</span>
+                        <span>{t('dataManagement.datasetBuilderUi.copy058')}{r.evidence.length}{t('dataManagement.datasetBuilderUi.copy056')}</span>
                       </div>
                       <div className="text-2xs font-semibold text-indigo-600">
-                         {r.overallResult === 'supported' ? '获得支持' : r.overallResult === 'not_supported' ? '未获支持' : r.overallResult === 'partially_supported' ? '部分支持' : '结果不明确'}
+                         {r.overallResult === 'supported' ? t('dataManagement.datasetBuilderUi.supported') : r.overallResult === 'not_supported' ? t('dataManagement.datasetBuilderUi.notSupported') : r.overallResult === 'partially_supported' ? t('dataManagement.datasetBuilderUi.partiallySupported') : t('dataManagement.datasetBuilderUi.unclear')}
                       </div>
                     </div>
                   </div>
@@ -592,7 +557,7 @@ export const DatasetBuilderTest: React.FC = () => {
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <div className="flex items-center gap-2">
                     <FileCheck className="w-4 h-4 text-indigo-600" />
-                    <h3 className="font-bold text-slate-900">标准 AnalysisCaseRecord 检视</h3>
+                    <h3 className="font-bold text-slate-900">{t('dataManagement.datasetBuilderUi.copy059')}</h3>
                   </div>
 
                   <button
@@ -601,14 +566,10 @@ export const DatasetBuilderTest: React.FC = () => {
                   >
                     {copiedId === activeRecord.caseId ? (
                       <>
-                        <Check className="w-3 h-3 text-emerald-600" />
-                        已复制
-                      </>
+                        <Check className="w-3 h-3 text-emerald-600" />{t('dataManagement.datasetBuilderUi.copy060')}{' '}</>
                     ) : (
                       <>
-                        <Copy className="w-3 h-3" />
-                        复制完整 JSON
-                      </>
+                        <Copy className="w-3 h-3" />{t('dataManagement.datasetBuilderUi.copy061')}{' '}</>
                     )}
                   </button>
                 </div>
@@ -625,39 +586,35 @@ export const DatasetBuilderTest: React.FC = () => {
                     ) : (
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                     )}
-                    {activeRecord.isIncludedInAnalysisSet ? '已进入正式分析集' : '归入待优化池'}
+                    {activeRecord.isIncludedInAnalysisSet ? t('dataManagement.datasetBuilderUi.included') : t('dataManagement.datasetBuilderUi.pending')}
                   </div>
-                  <div>理由: {activeRecord.filterReason}</div>
+                  <div>{t('dataManagement.datasetBuilderUi.copy062')}{' '}{activeRecord.filterReason}</div>
                 </div>
 
                 {/* 1. 基础信息 (Base) */}
                 <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2">
-                  <div className="font-bold text-slate-800 text-2xs uppercase text-slate-500">
-                    一、基础元数据 (Base Info)
-                  </div>
+                  <div className="font-bold text-slate-800 text-2xs uppercase text-slate-500">{t('dataManagement.datasetBuilderUi.copy063')}{' '}</div>
                   <div className="grid grid-cols-2 gap-2 text-2xs">
                     <div><span className="text-slate-400">Case ID:</span> <span className="font-mono">{activeRecord.caseId}</span></div>
-                    <div><span className="text-slate-400">数据源:</span> {activeRecord.source}</div>
-                    <div><span className="text-slate-400">归属城市:</span> <strong>{activeRecord.city}</strong> {activeRecord.isPRD ? '(广深莞)' : ''}</div>
-                    <div><span className="text-slate-400">裁判年份:</span> {activeRecord.year ? `${activeRecord.year} 年` : '未明'}</div>
-                    <div className="col-span-2 truncate"><span className="text-slate-400">审理机构:</span> {activeRecord.court}</div>
-                    <div className="col-span-2 truncate"><span className="text-slate-400">裁判日期:</span> {activeRecord.date}</div>
+                    <div><span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy064')}</span> {activeRecord.source}</div>
+                    <div><span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy065')}</span> <strong>{activeRecord.city}</strong> {activeRecord.isPRD ? t('dataManagement.datasetBuilderUi.prd') : ''}</div>
+                    <div><span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy066')}</span> {activeRecord.year ? t('dataManagement.datasetBuilderUi.year', { year: activeRecord.year }) : t('dataManagement.datasetBuilderUi.unknown')}</div>
+                    <div className="col-span-2 truncate"><span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy067')}</span> {activeRecord.court}</div>
+                    <div className="col-span-2 truncate"><span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy068')}</span> {activeRecord.date}</div>
                   </div>
                 </div>
 
                 {/* 2. 当事人主体 (Parties) */}
                 <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2">
-                  <div className="font-bold text-slate-800 text-2xs uppercase text-slate-500">
-                    二、当事人主体 (Parties)
-                  </div>
+                  <div className="font-bold text-slate-800 text-2xs uppercase text-slate-500">{t('dataManagement.datasetBuilderUi.copy069')}{' '}</div>
                   <div className="space-y-1 text-2xs">
                     <div>
-                      <span className="text-slate-400">劳动者 (employeeParty):</span>{' '}
-                      <strong className="text-slate-800">{activeRecord.employeeParty || '未识别'}</strong>
+                      <span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy070')}</span>{' '}
+                      <strong className="text-slate-800">{activeRecord.employeeParty || t('dataManagement.datasetBuilderUi.unidentified')}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400">用人单位 (employerParty):</span>{' '}
-                      <strong className="text-slate-800">{activeRecord.employerParty || '未识别'}</strong>
+                      <span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy071')}</span>{' '}
+                      <strong className="text-slate-800">{activeRecord.employerParty || t('dataManagement.datasetBuilderUi.unidentified')}</strong>
                     </div>
                   </div>
                 </div>
@@ -665,9 +622,8 @@ export const DatasetBuilderTest: React.FC = () => {
                 {/* 3. 诉求与裁判结果 (Claims & Outcomes) */}
                 <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2">
                   <div className="flex items-center justify-between text-2xs font-bold uppercase text-slate-500">
-                    <span>三、诉求与判定 (Claims & Outcomes)</span>
-                    <span className="text-indigo-600 font-mono">
-                      综合: {activeRecord.overallResult}
+                    <span>{t('dataManagement.datasetBuilderUi.copy072')}</span>
+                    <span className="text-indigo-600 font-mono">{t('dataManagement.datasetBuilderUi.copy073')}{' '}{activeRecord.overallResult}
                     </span>
                   </div>
 
@@ -684,24 +640,22 @@ export const DatasetBuilderTest: React.FC = () => {
                             ? 'bg-rose-100 text-rose-800'
                             : 'bg-slate-200 text-slate-700'
                         }`}>
-                          {c.supportStatus === 'supported' ? '获得支持' : c.supportStatus === 'partially_supported' ? '部分支持' : c.supportStatus === 'not_supported' ? '未获支持' : '结果不明确'}
+                          {c.supportStatus === 'supported' ? t('dataManagement.datasetBuilderUi.supported') : c.supportStatus === 'partially_supported' ? t('dataManagement.datasetBuilderUi.partiallySupported') : c.supportStatus === 'not_supported' ? t('dataManagement.datasetBuilderUi.notSupported') : t('dataManagement.datasetBuilderUi.unclear')}
                         </span>
                       </div>
                     ))}
                     {activeRecord.claims.length === 0 && (
-                      <div className="text-3xs text-slate-400 py-1">无诉求明细条目</div>
+                      <div className="text-3xs text-slate-400 py-1">{t('dataManagement.datasetBuilderUi.copy074')}</div>
                     )}
                   </div>
                 </div>
 
                 {/* 4. 企业策略与证据 (Strategies & Evidence) */}
                 <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2">
-                  <div className="font-bold text-slate-800 text-2xs uppercase text-slate-500">
-                    四、企业抗辩与证据 (Defenses & Evidence)
-                  </div>
+                  <div className="font-bold text-slate-800 text-2xs uppercase text-slate-500">{t('dataManagement.datasetBuilderUi.copy075')}{' '}</div>
                   <div className="space-y-2 text-2xs">
                     <div>
-                      <span className="text-slate-400 block mb-1">抗辩事由 ({activeRecord.employerDefenses.length}):</span>
+                      <span className="text-slate-400 block mb-1">{t('dataManagement.datasetBuilderUi.copy076')}{activeRecord.employerDefenses.length}):</span>
                       <div className="flex flex-wrap gap-1">
                         {activeRecord.employerDefenses.map((d, i) => (
                           <span key={i} className="px-2 py-0.5 bg-rose-50 border border-rose-200 text-rose-800 rounded text-3xs">
@@ -709,13 +663,13 @@ export const DatasetBuilderTest: React.FC = () => {
                           </span>
                         ))}
                         {activeRecord.employerDefenses.length === 0 && (
-                          <span className="text-3xs text-slate-400">无企业抗辩事由</span>
+                          <span className="text-3xs text-slate-400">{t('dataManagement.datasetBuilderUi.copy077')}</span>
                         )}
                       </div>
                     </div>
 
                     <div>
-                      <span className="text-slate-400 block mb-1">关键证据 ({activeRecord.evidence.length}):</span>
+                      <span className="text-slate-400 block mb-1">{t('dataManagement.datasetBuilderUi.copy078')}{activeRecord.evidence.length}):</span>
                       <div className="flex flex-wrap gap-1">
                         {activeRecord.evidence.map((e, i) => (
                           <span key={i} className="px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded text-3xs">
@@ -723,7 +677,7 @@ export const DatasetBuilderTest: React.FC = () => {
                           </span>
                         ))}
                         {activeRecord.evidence.length === 0 && (
-                          <span className="text-3xs text-slate-400">无提取证据材料</span>
+                          <span className="text-3xs text-slate-400">{t('dataManagement.datasetBuilderUi.copy079')}</span>
                         )}
                       </div>
                     </div>
@@ -732,26 +686,22 @@ export const DatasetBuilderTest: React.FC = () => {
 
                 {/* 5. 质量指标 (Quality) */}
                 <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2">
-                  <div className="font-bold text-slate-800 text-2xs uppercase text-slate-500">
-                    五、质量指标 (Quality & Audit)
-                  </div>
+                  <div className="font-bold text-slate-800 text-2xs uppercase text-slate-500">{t('dataManagement.datasetBuilderUi.copy080')}{' '}</div>
                   <div className="grid grid-cols-2 gap-2 text-2xs">
-                    <div><span className="text-slate-400">完整度评分:</span> <strong className="font-mono">{activeRecord.parserScore} 分</strong></div>
-                    <div><span className="text-slate-400">综合置信度:</span> <strong className="font-mono">{(activeRecord.confidence * 100).toFixed(0)}%</strong></div>
-                    <div><span className="text-slate-400">审核状态:</span> <strong className="font-mono">{activeRecord.reviewStatus === 'approved' ? '已核准' : activeRecord.reviewStatus === 'modified' ? '已修改' : '待核验'}</strong></div>
-                    <div><span className="text-slate-400">含人工修订:</span> {activeRecord.hasReviewerChanges ? '是 (已叠加)' : '否'}</div>
+                    <div><span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy081')}</span> <strong className="font-mono">{activeRecord.parserScore}{t('dataManagement.datasetBuilderUi.copy052')}</strong></div>
+                    <div><span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy082')}</span> <strong className="font-mono">{(activeRecord.confidence * 100).toFixed(0)}%</strong></div>
+                    <div><span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy083')}</span> <strong className="font-mono">{activeRecord.reviewStatus === 'approved' ? t('dataManagement.datasetBuilderUi.approved') : activeRecord.reviewStatus === 'modified' ? t('dataManagement.datasetBuilderUi.modified') : t('dataManagement.datasetBuilderUi.pendingReview')}</strong></div>
+                    <div><span className="text-slate-400">{t('dataManagement.datasetBuilderUi.copy084')}</span> {activeRecord.hasReviewerChanges ? t('dataManagement.datasetBuilderUi.yesApplied') : t('dataManagement.datasetBuilderUi.no')}</div>
                   </div>
                   {activeRecord.reviewerNotes && (
                     <div className="p-2 bg-slate-50 rounded border border-slate-200 text-3xs text-slate-600 mt-1">
-                      <strong>质检批注:</strong> {activeRecord.reviewerNotes}
+                      <strong>{t('dataManagement.datasetBuilderUi.copy085')}</strong> {activeRecord.reviewerNotes}
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="py-20 text-center text-xs text-slate-400">
-                请在左侧列表中点击选择要检视的案例
-              </div>
+              <div className="py-20 text-center text-xs text-slate-400">{t('dataManagement.datasetBuilderUi.copy086')}{' '}</div>
             )}
           </div>
         </div>

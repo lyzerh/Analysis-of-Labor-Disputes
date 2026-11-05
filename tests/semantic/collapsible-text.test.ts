@@ -17,7 +17,8 @@ describe('collapsible text presentation contract', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/CollapsibleText.tsx'), 'utf8');
     expect(source).toContain("useState(false)");
     expect(source).toContain('aria-expanded={expanded}');
-    expect(source).toContain("{expanded ? collapseLabel : expandLabel}");
+    expect(source).toContain("collapseLabel || t('common.collapse')");
+    expect(source).toContain("expandLabel || t('common.expand')");
     expect(source).toContain('WebkitLineClamp: lines');
   });
 
@@ -32,8 +33,8 @@ describe('collapsible text presentation contract', () => {
 
   it('keeps the semantic review evidence and context labels intact', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/SemanticReviewWorkspace.tsx'), 'utf8');
-    expect(source).toContain('可核对的原文依据');
-    expect(source).toContain('相关上下文');
+    expect(source).toContain("t('review.verifiableSource')");
+    expect(source).toContain("t('review.relatedContext')");
     expect(source).toContain('claim.claimText');
     expect(source).toContain('selected.context');
   });

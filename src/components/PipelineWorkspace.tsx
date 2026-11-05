@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, CheckCircle2, ShieldAlert, Sparkles, UserRoundCheck } from 'lucide-react';
 import type { AnalysisCaseRecord, OutcomeReviewItem } from '../types';
 import {
   getPipelineOverview,
   getPipelineProcessingStats,
   mapAnalysisRecordToProcessingStage,
-  processingProvenanceLabel,
-  processingStageDescription,
-  processingStageLabel,
+  processingProvenanceKey,
+  processingStageDescriptionKey,
   processingStageReason,
 } from '../services/presentation/PipelineStagePresentation';
 import { CollapsibleText } from './CollapsibleText';
@@ -40,14 +40,14 @@ const stageCardStyles = {
   blocked: 'border-slate-200 bg-slate-50/80 text-slate-800',
 } as const;
 
-const technicalFailureLabel = (code: string): string => {
-  if (code === 'timeout') return '请求超时';
-  if (code === 'network_error') return '网络连接失败';
-  if (code === 'invalid_json') return '无法读取 AI 结果';
-  if (code === 'schema_invalid' || code === 'schema_validation_failed') return '结果格式校验失败';
-  if (code === 'contract_validation_failed' || code === 'contract_mismatch') return '结果契约校验失败';
-  if (/^http_/.test(code) || code === 'provider_http_failure') return 'AI 服务请求失败';
-  return 'AI 处理失败';
+const technicalFailureLabel = (code: string, t: (key: string) => string): string => {
+  if (code === 'timeout') return t('pipeline.timeout');
+  if (code === 'network_error') return t('pipeline.networkError');
+  if (code === 'invalid_json') return t('pipeline.invalidJson');
+  if (code === 'schema_invalid' || code === 'schema_validation_failed') return t('pipeline.schemaInvalid');
+  if (code === 'contract_validation_failed' || code === 'contract_mismatch') return t('pipeline.contractInvalid');
+  if (/^http_/.test(code) || code === 'provider_http_failure') return t('pipeline.providerError');
+  return t('pipeline.processingError');
 };
 
 const StageIcon: React.FC<{ stage: 'safe' | 'awaiting_llm' | 'review_pending' | 'technical_failure' | 'blocked' }> = ({ stage }) => {
@@ -76,24 +76,25 @@ const RecordStageList: React.FC<{
   onOpenManualReview?: (record: AnalysisCaseRecord) => void;
   onSelectRecord?: (record: AnalysisCaseRecord) => void;
 }> = ({ records, stage, llmAvailable, runningCaseId, semanticReviewItems, onRunSingleCase, onOpenManualReview, onSelectRecord }) => {
+  const { t } = useTranslation();
   const visible = records.filter((record) => mapAnalysisRecordToProcessingStage(record, semanticReviewItems) === stage);
   return (
-    <div className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1" aria-label={`${processingStageLabel(stage)}案例列表`}>
+    <div className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1" aria-label={`${t(`pipeline.${stage === 'safe' ? 'safeToStore' : stage === 'awaiting_llm' ? 'pendingSemantic' : stage === 'technical_failure' ? 'technicalFailure' : 'notEligible'}`)} ${t('pipeline.caseList')}`}>
       {visible.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-200 bg-white/70 px-3 py-4 text-center text-xs text-slate-500">当前没有案例。</div>
+        <div className="rounded-lg border border-dashed border-slate-200 bg-white/70 px-3 py-4 text-center text-xs text-slate-500">{t('pipeline.noCases')}</div>
       ) : visible.map((record) => (
         <div key={record.caseId} className="rounded-lg border border-white/80 bg-white/80 px-3 py-2 text-xs shadow-sm">
           <div className="line-clamp-2 font-semibold text-slate-900">{record.title || record.caseNumber || record.caseId}</div>
           <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-slate-600">
             <span>{record.caseNumber || record.caseId}</span>
-            <span>｜{processingProvenanceLabel(record)}</span>
+            <span>｜{t(processingProvenanceKey(record))}</span>
             {stage === 'blocked' && onSelectRecord && (
               <button
                 type="button"
                 onClick={() => onSelectRecord(record)}
                 className="rounded border border-slate-300 bg-white px-2 py-0.5 font-semibold text-slate-700 hover:bg-slate-50"
               >
-                查看案例
+                {t('pipeline.viewCase')}
               </button>
             )}
             {(stage === 'awaiting_llm' || stage === 'technical_failure') && onRunSingleCase && (
@@ -102,9 +103,9 @@ const RecordStageList: React.FC<{
                 disabled={!llmAvailable || runningCaseId === record.caseId}
                 onClick={() => onRunSingleCase(record)}
                 className="rounded border border-indigo-300 bg-white px-2 py-0.5 font-semibold text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
-                title={llmAvailable ? '仅对当前案例执行语义解析' : '请先在系统设置中启用 AI 并配置 xAI API Key'}
+                title={llmAvailable ? t('pipeline.stageOnly') : t('pipeline.enableAiKey')}
               >
-                {runningCaseId === record.caseId ? '分析中…' : stage === 'technical_failure' ? '重新尝试 AI' : '分析此案例'}
+                {runningCaseId === record.caseId ? t('pipeline.analyzing') : stage === 'technical_failure' ? t('pipeline.retryAi') : t('pipeline.analyzeCase')}
               </button>
             )}
             {stage === 'technical_failure' && onOpenManualReview && (
@@ -113,27 +114,27 @@ const RecordStageList: React.FC<{
                 onClick={() => onOpenManualReview(record)}
                 className="rounded border border-amber-300 bg-white px-2 py-0.5 font-semibold text-amber-800 hover:bg-amber-50"
               >
-                直接人工复核
+                {t('pipeline.directReview')}
               </button>
             )}
           </div>
-          <div className="mt-1 text-[11px] text-slate-700">{processingStageReason(record, semanticReviewItems)}</div>
+          <div className="mt-1 text-[11px] text-slate-700">{(() => { const reason = processingStageReason(record, semanticReviewItems); return t(reason.key, reason.count === undefined ? undefined : { count: reason.count }); })()}</div>
           {stage === 'technical_failure' && (() => {
             const failure = latestSemanticTechnicalFailure(record.caseId);
             return failure ? (
               <details className="mt-2 rounded border border-orange-200 bg-orange-50/70 px-2 py-1 text-[10px] text-orange-950">
-                <summary className="cursor-pointer font-semibold">技术失败详情</summary>
+                <summary className="cursor-pointer font-semibold">{t('pipeline.technicalDetails')}</summary>
                 <div className="mt-1 space-y-0.5">
-                  <div>阶段：{failure.failureStage}</div>
-                  <div>失败码：{failure.failureCode}{failure.httpStatus ? `｜HTTP ${failure.httpStatus}` : ''}</div>
-                  <div>摘要：{failure.errorSummary}</div>
-                  <div>时间：{failure.timestamp}｜第 {failure.attempt} 次</div>
+                  <div>{t('pipeline.stage')}：{failure.failureStage}</div>
+                  <div>{t('pipeline.failureCode')}：{failure.failureCode}{failure.httpStatus ? `｜HTTP ${failure.httpStatus}` : ''}</div>
+                  <div>{t('pipeline.summary')}：{failure.errorSummary}</div>
+                  <div>{t('pipeline.timestamp')}：{failure.timestamp}｜{t('pipeline.attempt')} {failure.attempt}</div>
                 </div>
               </details>
             ) : null;
           })()}
           {stage === 'awaiting_llm' && record.unresolvedReferences?.[0]?.sourceText && (
-            <div className="mt-1 rounded border border-indigo-100 bg-indigo-50/60 px-2 py-1 text-[10px] text-indigo-900"><span className="font-medium">待分析片段：</span><CollapsibleText text={record.unresolvedReferences[0].sourceText} collapsedLines={4} /></div>
+            <div className="mt-1 rounded border border-indigo-100 bg-indigo-50/60 px-2 py-1 text-[10px] text-indigo-900"><span className="font-medium">{t('pipeline.closure.pendingText')}</span><CollapsibleText text={record.unresolvedReferences[0].sourceText} collapsedLines={4} /></div>
           )}
         </div>
       ))}
@@ -142,6 +143,7 @@ const RecordStageList: React.FC<{
 };
 
 export const PipelineWorkspace: React.FC<PipelineWorkspaceProps> = ({ records, reviewItems, onSelectCase, hasAnalysisRun, onRunSingleCase, onOpenManualReview, onSelectRecord, semanticReviewItems, onSemanticReviewItemsChange, onExportValidationSnapshot }) => {
+  const { t } = useTranslation();
   const overview = useMemo(() => getPipelineOverview(records, semanticReviewItems), [records, semanticReviewItems]);
   const processing = useMemo(() => getPipelineProcessingStats(records, semanticReviewItems), [records, semanticReviewItems]);
   const technicalFailureSummary = useMemo(() => {
@@ -168,7 +170,7 @@ export const PipelineWorkspace: React.FC<PipelineWorkspaceProps> = ({ records, r
       const result = await onRunSingleCase(record);
       setRunMessage(result.message);
     } catch {
-      setRunMessage('单案例语义分析未完成，案例保持待 AI 语义分析。');
+      setRunMessage(t('pipeline.closure.singleRunFailed'));
     } finally {
       setRunningCaseId(null);
     }
@@ -180,26 +182,26 @@ export const PipelineWorkspace: React.FC<PipelineWorkspaceProps> = ({ records, r
     setExportMessage('');
     try {
       const snapshot = await onExportValidationSnapshot();
-      setExportMessage(`验证快照已导出：${snapshot.cases.length} 个当前案例。`);
+      setExportMessage(t('pipeline.closure.snapshotExported', { count: snapshot.cases.length }));
     } catch (error) {
-      setExportMessage(error instanceof Error ? `导出失败：${error.message}` : '验证快照导出失败。');
+      setExportMessage(error instanceof Error ? t('pipeline.closure.exportFailed', { message: error.message }) : t('pipeline.closure.snapshotExportFailed'));
     } finally {
       setExportingSnapshot(false);
     }
   };
 
   const runtimeMessage = !settings.enabled
-    ? 'AI 语义分析未启用。在系统设置中启用并配置 xAI API Key 后，可处理待分析案例。'
+    ? t('pipeline.aiDisabled')
     : !settings.apiKey?.trim()
-      ? '当前 xAI API Key 未配置。当前案例仍保持待 AI 语义分析。'
-      : 'AI 语义分析已启用。可对待分析案例逐一执行语义解析，并在必要时进入人工复核。';
+      ? t('pipeline.keyMissing')
+      : t('pipeline.aiEnabled');
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/80 px-6 pb-8 pt-5 lg:px-8" data-testid="pipeline-workspace" aria-label="分析流水线工作台">
-      <section aria-label="流水线总览" className="mx-auto max-w-7xl rounded-[28px] border border-white/80 bg-white/80 p-6 shadow-[0_12px_40px_rgba(15,23,42,0.06)] backdrop-blur-xl">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/80 px-6 pb-8 pt-5 lg:px-8" data-testid="pipeline-workspace" aria-label={t('pipeline.title')}>
+      <section aria-label={t('pipeline.overview')} className="mx-auto max-w-7xl rounded-[28px] border border-white/80 bg-white/80 p-6 shadow-[0_12px_40px_rgba(15,23,42,0.06)] backdrop-blur-xl">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900">分析流水线</h2>
-            <p className="mt-1 text-xs text-slate-500">{hasAnalysisRun ? '当前显示的是本次分析集中的案例，不代表本地案例库总数。' : '当前为本地案例浏览，显示本地案例库中的案例。'}阶段变化不会改写原始解析或研究统计。</p>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">{t('page.pipeline')}</h2>
+            <p className="mt-1 text-xs text-slate-500">{hasAnalysisRun ? t('pipeline.analysisSetNote') : t('pipeline.localBrowseNote')}{t('pipeline.stageChangeNote')}</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             {onExportValidationSnapshot && (
@@ -208,79 +210,79 @@ export const PipelineWorkspace: React.FC<PipelineWorkspaceProps> = ({ records, r
                 onClick={handleExportValidationSnapshot}
                 disabled={exportingSnapshot}
                 className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                title="导出当前案例、复核与分析运行的只读验证快照"
+                title={t('pipeline.snapshotTitle')}
               >
-                {exportingSnapshot ? '导出中…' : '导出验证快照'}
+                {exportingSnapshot ? t('pipeline.exporting') : t('pipeline.exportSnapshot')}
               </button>
             )}
           </div>
         </div>
         {exportMessage && <div role="status" className="mt-2 text-[11px] text-slate-600">{exportMessage}</div>}
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="分析集状态">
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-4"><div className="text-xs text-slate-500">当前分析集</div><div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{overview.total}</div><div className="mt-1 text-xs text-slate-500">个案例</div></div>
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-4"><div className="text-xs text-slate-500">状态</div><div className="mt-2 text-lg font-semibold text-slate-900">{hasAnalysisRun ? '已完成' : '本地浏览'}</div><div className="mt-1 text-xs text-slate-500">当前工作范围</div></div>
-          <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4"><div className="text-xs text-amber-800">待复核</div><div className="mt-2 text-2xl font-semibold tracking-tight text-amber-950">{overview.reviewPending}</div><div className="mt-1 text-xs text-amber-800">项</div></div>
-          <div className={`rounded-2xl border p-4 ${overview.blocked > 0 ? 'border-amber-100 bg-amber-50/70' : 'border-emerald-100 bg-emerald-50/70'}`}><div className={`text-xs ${overview.blocked > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>质量状态</div><div className={`mt-2 text-lg font-semibold ${overview.blocked > 0 ? 'text-amber-950' : 'text-emerald-950'}`}>{overview.blocked > 0 ? '存在警告' : '正常'}</div><div className={`mt-1 text-xs ${overview.blocked > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>{overview.blocked} 项阻断</div></div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label={t('pipeline.currentSet')}>
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4"><div className="text-xs text-slate-500">{t('pipeline.currentSet')}</div><div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{overview.total}</div><div className="mt-1 text-xs text-slate-500">{t('pipeline.caseCount')}</div></div>
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4"><div className="text-xs text-slate-500">{t('pipeline.status')}</div><div className="mt-2 text-lg font-semibold text-slate-900">{hasAnalysisRun ? t('pipeline.completed') : t('pipeline.localBrowse')}</div><div className="mt-1 text-xs text-slate-500">{t('pipeline.currentScope')}</div></div>
+          <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4"><div className="text-xs text-amber-800">{t('pipeline.pendingReview')}</div><div className="mt-2 text-2xl font-semibold tracking-tight text-amber-950">{overview.reviewPending}</div><div className="mt-1 text-xs text-amber-800">{t('pipeline.items')}</div></div>
+          <div className={`rounded-2xl border p-4 ${overview.blocked > 0 ? 'border-amber-100 bg-amber-50/70' : 'border-emerald-100 bg-emerald-50/70'}`}><div className={`text-xs ${overview.blocked > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>{t('pipeline.quality')}</div><div className={`mt-2 text-lg font-semibold ${overview.blocked > 0 ? 'text-amber-950' : 'text-emerald-950'}`}>{overview.blocked > 0 ? t('pipeline.warning') : t('pipeline.normal')}</div><div className={`mt-1 text-xs ${overview.blocked > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>{t('pipeline.blockedCount', { count: overview.blocked })}</div></div>
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <PipelineStat label="全部案例" value={overview.total} tone="border-slate-200 bg-slate-50 text-slate-900" />
-          <PipelineStat label="可安全入库" value={overview.safe} tone={stageCardStyles.safe} detail={`安全入库率 ${overview.safeRate}%`} />
-          <PipelineStat label="待 AI 语义分析" value={overview.awaitingAi} tone={stageCardStyles.awaiting_llm} />
-          <PipelineStat label="需要人工复核" value={overview.reviewPending} tone={stageCardStyles.review_pending} />
-          <PipelineStat label="技术失败" value={overview.technicalFailure} tone={stageCardStyles.technical_failure} />
-          <PipelineStat label="暂不可分析" value={overview.blocked} tone={stageCardStyles.blocked} />
+          <PipelineStat label={t('pipeline.allCases')} value={overview.total} tone="border-slate-200 bg-slate-50 text-slate-900" />
+          <PipelineStat label={t('pipeline.safeToStore')} value={overview.safe} tone={stageCardStyles.safe} detail={t('pipeline.safeRate', { rate: overview.safeRate })} />
+          <PipelineStat label={t('pipeline.pendingSemantic')} value={overview.awaitingAi} tone={stageCardStyles.awaiting_llm} />
+          <PipelineStat label={t('pipeline.humanReview')} value={overview.reviewPending} tone={stageCardStyles.review_pending} />
+          <PipelineStat label={t('pipeline.technicalFailure')} value={overview.technicalFailure} tone={stageCardStyles.technical_failure} />
+          <PipelineStat label={t('pipeline.notEligible')} value={overview.blocked} tone={stageCardStyles.blocked} />
         </div>
       </section>
 
-      <section aria-label="处理阶段" className="mx-auto mt-5 grid max-w-7xl gap-4 xl:grid-cols-2">
+      <section aria-label={t('pipeline.closure.processingStages')} className="mx-auto mt-5 grid max-w-7xl gap-4 xl:grid-cols-2">
         <div className={`rounded-[24px] border p-5 shadow-sm ${stageCardStyles.safe}`}>
-          <div className="flex items-center gap-2 text-sm font-bold"><StageIcon stage="safe" />可安全入库 <span className="text-xs font-normal opacity-75">{overview.safe} 个</span></div>
-          <p className="mt-1 text-[11px] opacity-80">{processingStageDescription('safe')}</p>
+          <div className="flex items-center gap-2 text-sm font-bold"><StageIcon stage="safe" />{t('pipeline.safeToStore')} <span className="text-xs font-normal opacity-75">{overview.safe} {t('pipeline.caseCount')}</span></div>
+          <p className="mt-1 text-[11px] opacity-80">{t(processingStageDescriptionKey('safe'))}</p>
           <RecordStageList records={records} stage="safe" llmAvailable={llmAvailable} runningCaseId={runningCaseId} semanticReviewItems={semanticReviewItems} />
         </div>
         <div className={`rounded-[24px] border p-5 shadow-sm ${stageCardStyles.awaiting_llm}`}>
-          <div className="flex items-center gap-2 text-sm font-bold"><StageIcon stage="awaiting_llm" />待 AI 语义分析 <span className="text-xs font-normal opacity-75">{overview.awaitingAi} 个</span></div>
-          <p className="mt-1 text-[11px] opacity-80">{processingStageDescription('awaiting_llm')}</p>
+          <div className="flex items-center gap-2 text-sm font-bold"><StageIcon stage="awaiting_llm" />{t('pipeline.pendingSemantic')} <span className="text-xs font-normal opacity-75">{overview.awaitingAi} {t('pipeline.caseCount')}</span></div>
+          <p className="mt-1 text-[11px] opacity-80">{t(processingStageDescriptionKey('awaiting_llm'))}</p>
           <RecordStageList records={records} stage="awaiting_llm" llmAvailable={llmAvailable} runningCaseId={runningCaseId} semanticReviewItems={semanticReviewItems} onRunSingleCase={handleRunSingleCase} />
         </div>
         <div className={`rounded-[24px] border p-5 shadow-sm ${stageCardStyles.blocked}`} data-testid="blocked-stage-panel">
           <button type="button" className="flex w-full items-center gap-2 text-left text-sm font-bold" aria-expanded={blockedOpen} onClick={() => setBlockedOpen((current) => !current)}>
-            <StageIcon stage="blocked" />暂不可分析 <span className="text-xs font-normal opacity-75">（{overview.blocked}）</span><span className="ml-auto text-xs font-medium text-slate-600">{blockedOpen ? '收起' : '展开'}</span>
+            <StageIcon stage="blocked" />{t('pipeline.notEligible')} <span className="text-xs font-normal opacity-75">（{overview.blocked}）</span><span className="ml-auto text-xs font-medium text-slate-600">{blockedOpen ? t('common.collapse') : t('common.expand')}</span>
           </button>
-          <p className="mt-1 text-[11px] opacity-80">{processingStageDescription('blocked')}</p>
+          <p className="mt-1 text-[11px] opacity-80">{t(processingStageDescriptionKey('blocked'))}</p>
           {blockedOpen && <RecordStageList records={records} stage="blocked" llmAvailable={llmAvailable} runningCaseId={runningCaseId} semanticReviewItems={semanticReviewItems} onSelectRecord={onSelectRecord} />}
         </div>
         <div className={`rounded-[24px] border p-5 shadow-sm ${stageCardStyles.technical_failure}`}>
-          <div className="flex items-center gap-2 text-sm font-bold"><StageIcon stage="technical_failure" />技术失败 <span className="text-xs font-normal opacity-75">{overview.technicalFailure} 个</span></div>
-          <p className="mt-1 text-[11px] opacity-80">{processingStageDescription('technical_failure')}</p>
-          {technicalFailureSummary.length > 0 && <div className="mt-2 rounded border border-orange-200 bg-white/60 px-2 py-1 text-[10px] text-orange-900" data-testid="technical-failure-summary">最近技术失败：{technicalFailureSummary.map(([code, count]) => `${technicalFailureLabel(code)} × ${count}`).join('、')}</div>}
+          <div className="flex items-center gap-2 text-sm font-bold"><StageIcon stage="technical_failure" />{t('pipeline.technicalFailure')} <span className="text-xs font-normal opacity-75">{overview.technicalFailure} {t('pipeline.caseCount')}</span></div>
+          <p className="mt-1 text-[11px] opacity-80">{t(processingStageDescriptionKey('technical_failure'))}</p>
+          {technicalFailureSummary.length > 0 && <div className="mt-2 rounded border border-orange-200 bg-white/60 px-2 py-1 text-[10px] text-orange-900" data-testid="technical-failure-summary">{t('pipeline.recentTechnicalFailures')}：{technicalFailureSummary.map(([code, count]) => `${technicalFailureLabel(code, t)} × ${count}`).join('、')}</div>}
           <RecordStageList records={records} stage="technical_failure" llmAvailable={llmAvailable} runningCaseId={runningCaseId} semanticReviewItems={semanticReviewItems} onRunSingleCase={handleRunSingleCase} onOpenManualReview={onOpenManualReview ? async (record) => onOpenManualReview(record) : undefined} />
         </div>
       </section>
 
-      <section aria-label="AI 语义分析工作台" className="mx-auto mt-5 max-w-7xl rounded-[24px] border border-indigo-100 bg-indigo-50/60 p-5 shadow-sm">
+      <section aria-label={t('pipeline.semanticWorkbench')} className="mx-auto mt-5 max-w-7xl rounded-[24px] border border-indigo-100 bg-indigo-50/60 p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-bold text-indigo-950">AI 语义分析工作台</h3>
+            <h3 className="text-sm font-bold text-indigo-950">{t('pipeline.semanticWorkbench')}</h3>
             <p className="mt-1 text-[11px] text-indigo-900/75">{runtimeMessage}</p>
           </div>
           <div className="flex gap-1.5 text-[10px] text-indigo-900">
-            <span className="rounded bg-white/80 px-2 py-1">待处理 {processing.pending}</span>
-            <span className="rounded bg-white/80 px-2 py-1">处理中 {processing.processing}</span>
-            <span className="rounded bg-white/80 px-2 py-1">已完成 {processing.completed}</span>
-            <span className="rounded bg-white/80 px-2 py-1">技术失败 {processing.failed}</span>
-            <span className="rounded bg-white/80 px-2 py-1">待人工复核 {overview.reviewPending}</span>
+            <span className="rounded bg-white/80 px-2 py-1">{t('pipeline.pending')} {processing.pending}</span>
+            <span className="rounded bg-white/80 px-2 py-1">{t('pipeline.processing')} {processing.processing}</span>
+            <span className="rounded bg-white/80 px-2 py-1">{t('pipeline.completed')} {processing.completed}</span>
+            <span className="rounded bg-white/80 px-2 py-1">{t('pipeline.technicalFailure')} {processing.failed}</span>
+            <span className="rounded bg-white/80 px-2 py-1">{t('pipeline.pendingHumanReview')} {overview.reviewPending}</span>
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button type="button" disabled className="cursor-not-allowed rounded-lg bg-indigo-300 px-3 py-1.5 text-xs font-semibold text-white" title="当前分析记录由流水线自动调度">开始处理全部</button>
-          <span className="text-[10px] text-indigo-900/70">仅可在上方待分析列表中逐案执行；不会批量处理或自动发起额外请求。</span>
+          <button type="button" disabled className="cursor-not-allowed rounded-lg bg-indigo-300 px-3 py-1.5 text-xs font-semibold text-white" title={t('pipeline.autoScheduled')}>{t('pipeline.processAll')}</button>
+          <span className="text-[10px] text-indigo-900/70">{t('pipeline.singleCaseOnly')}</span>
           {runMessage && <span role="status" className="basis-full text-[10px] text-indigo-900">{runMessage}</span>}
         </div>
       </section>
 
-      <section aria-label="人工复核工作台" className="mx-auto mt-5 max-w-7xl rounded-[24px] border border-amber-100 bg-amber-50/60 p-5 shadow-sm">
-        <div className="flex items-start gap-2"><ShieldAlert className="mt-0.5 h-4 w-4 text-amber-700" /><div><h3 className="text-sm font-bold text-amber-950">人工复核工作台</h3><p className="mt-1 text-[11px] text-amber-900/75">自动核验未通过的语义候选，以及技术失败后主动转入人工的案例，都可以在这里完成 claim 结果确认。</p></div></div>
+      <section aria-label={t('pipeline.humanReviewWorkbench')} className="mx-auto mt-5 max-w-7xl rounded-[24px] border border-amber-100 bg-amber-50/60 p-5 shadow-sm">
+        <div className="flex items-start gap-2"><ShieldAlert className="mt-0.5 h-4 w-4 text-amber-700" /><div><h3 className="text-sm font-bold text-amber-950">{t('pipeline.humanReviewWorkbench')}</h3><p className="mt-1 text-[11px] text-amber-900/75">{t('pipeline.reviewDescription')}</p></div></div>
         <div className="mt-3 h-[min(75vh,720px)] min-h-[520px] overflow-hidden rounded-lg border border-amber-200/80 bg-white/60"><SemanticReviewWorkspace items={semanticReviewItems} onItemsChange={onSemanticReviewItemsChange} /></div>
         <DiagnosticClueWorkspace items={reviewItems} onSelectCase={onSelectCase} />
       </section>

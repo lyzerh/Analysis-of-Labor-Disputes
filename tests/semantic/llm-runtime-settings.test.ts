@@ -39,10 +39,10 @@ describe('browser LLM runtime settings contract', () => {
     expect(settingsSource).not.toContain('localStorage');
     expect(settingsSource).not.toContain('indexedDB');
     expect(viewSource).toMatch(/type="password"/);
-    expect(viewSource).toContain('测试连接');
-    expect(viewSource).toContain('清除 Key');
+    expect(viewSource).toContain("t('settings.testConnection')");
+    expect(viewSource).toContain("t('settings.clearKey')");
     expect(viewSource).toContain('xAI API Key');
-    expect(viewSource).toContain('输入您的 xAI API Key');
+    expect(viewSource).toContain("t('settings.apiKeyPlaceholder')");
     expect(viewSource).toContain('getConfiguredLlmProvider');
     expect(viewSource).toContain('testConfiguredLlmConnection()');
     expect(viewSource).not.toContain('DeepSeek API Key');
@@ -52,7 +52,7 @@ describe('browser LLM runtime settings contract', () => {
     expect(viewSource).not.toContain('if (!settings.enabled');
     expect(SEMANTIC_LLM_PROVIDER).toBe('xai');
     expect(SEMANTIC_LLM_MODEL).toBe('grok-4.20-0309-reasoning');
-    expect(viewSource).toContain('不代表绝对安全');
+    expect(viewSource).toContain("t('settings.apiKeyDescription')");
   });
 
   it('presents the configured provider dynamically without provider-specific component copy', () => {

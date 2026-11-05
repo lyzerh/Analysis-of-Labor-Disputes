@@ -145,19 +145,19 @@ describe('Case Library filter contract', () => {
 
   it('exposes a minimal local-only search input in the case library', () => {
     const librarySource = readFileSync(new URL('../../src/components/LaborAnalysisCaseLibrary.tsx', import.meta.url), 'utf8');
-    expect(librarySource).toContain('搜索案件名称 / 当事人 / Case ID');
+    expect(librarySource).toContain("t('finalUi.library.searchPlaceholder')");
     expect(librarySource).toContain('setKeyword');
     expect(librarySource).not.toContain('fetch(');
   });
 
   it('exposes explicit Gold add-case empty states instead of an empty dropdown', () => {
     const goldSource = readFileSync(new URL('../../src/components/GoldAnnotationWorkspace.tsx', import.meta.url), 'utf8');
-    expect(goldSource).toContain('暂无可添加案例');
-    expect(goldSource).toContain('本地案例库暂无案例');
-    expect(goldSource).toContain('当前案例库中的 ${records.length} 个案例均已加入此 Gold Set');
+    expect(goldSource).toContain("t('gold.noCasesAvailable')");
+    expect(goldSource).toContain("t('gold.localLibraryEmpty')");
+    expect(goldSource).toContain("t('gold.allCasesAdded', { count: records.length })");
     expect(goldSource).toMatch(/disabled[^>]*><option value="">\{addCaseAvailability/);
     expect(goldSource).toContain('getAvailableGoldCaseRecords');
-    expect(goldSource).toContain('请先创建一个 Gold Set。');
+    expect(goldSource).toContain("t('gold.createFirst')");
   });
 });
 
@@ -233,7 +233,7 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(shortResearchId(id)).toBe('analysis…abcdef');
     const contextSource = readFileSync(new URL('../../src/components/AnalysisContextBar.tsx', import.meta.url), 'utf8');
     expect(contextSource).toMatch(/title=\{run\.id\}/);
-    expect(contextSource).toMatch(/当前分析/);
+    expect(contextSource).toContain("t('research.context.ariaLabel')");
   });
 
   it('makes review items actionable and exposes reason plus typed evidence fields', () => {
@@ -250,13 +250,13 @@ describe('Review queue interaction and analysis context contract', () => {
   it('keeps the pipeline workspace space-efficient and semantically layered', () => {
     const source = readFileSync(new URL('../../src/components/CaseAnalysisView.tsx', import.meta.url), 'utf8');
     const workspace = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
-    expect(source).toMatch(/流水线工作台/);
-    expect(workspace).toMatch(/aria-label="分析流水线工作台"/);
-    expect(workspace).toMatch(/aria-label="流水线总览"/);
+    expect(source).toContain("t('finalUi.caseAnalysis.copy004')");
+    expect(workspace).toMatch(/aria-label=\{t\('pipeline.title'\)\}/);
+    expect(workspace).toMatch(/aria-label=\{t\('pipeline.overview'\)\}/);
     const clueWorkspace = readFileSync(new URL('../../src/components/DiagnosticClueWorkspace.tsx', import.meta.url), 'utf8');
-    expect(clueWorkspace).toMatch(/aria-label="裁判结果诊断线索"/);
+    expect(clueWorkspace).toContain("aria-label={t('finalUi.diagnostic.title')}");
     expect(workspace).toMatch(/xl:grid-cols-2/);
-    expect(clueWorkspace).toMatch(/当前：\{outcome\.label\}/);
+    expect(clueWorkspace).toContain("t('finalUi.diagnostic.current'");
     expect(clueWorkspace).toMatch(/line-clamp-2/);
     expect(workspace).toMatch(/SemanticReviewWorkspace/);
   });
@@ -275,9 +275,9 @@ describe('Review queue interaction and analysis context contract', () => {
 
   it('keeps the pipeline header compact while retaining scope and immutable-result warnings', () => {
     const workspace = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
-    expect(workspace).toMatch(/当前显示的是本次分析集中的案例/);
-    expect(workspace).toMatch(/当前为本地案例浏览/);
-    expect(workspace).toMatch(/不会改写原始解析或研究统计/);
+    expect(workspace).toMatch(/t\('pipeline.analysisSetNote'\)/);
+    expect(workspace).toMatch(/t\('pipeline.localBrowseNote'\)/);
+    expect(workspace).toMatch(/t\('pipeline.stageChangeNote'\)/);
     expect(workspace).toMatch(/grid gap-2 sm:grid-cols-2 xl:grid-cols-4/);
   });
 
@@ -286,8 +286,8 @@ describe('Review queue interaction and analysis context contract', () => {
     const scopeSource = readFileSync(new URL('../../src/services/presentation/CaseAnalysisScopePresentation.ts', import.meta.url), 'utf8');
     expect(source).toMatch(/type CaseAnalysisSubview = 'browse' \| 'pipeline'/);
     expect(source).toMatch(/useState<CaseAnalysisSubview>\('browse'\)/);
-    expect(source).toMatch(/案例浏览/);
-    expect(source).toMatch(/流水线工作台/);
+    expect(source).toContain("t('finalUi.caseAnalysis.copy003')");
+    expect(source).toContain("t('finalUi.caseAnalysis.copy004')");
     expect(source).toMatch(/activeSubview === 'pipeline'/);
     expect(source).toMatch(/activeSubview === 'browse'/);
     expect(source).toMatch(/activeSubview === 'browse' && <div className="flex flex-col lg:flex-row/);
@@ -316,8 +316,8 @@ describe('Review queue interaction and analysis context contract', () => {
 
   it('exposes the review overlay boundary without implying that review has run', () => {
     const source = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
-    expect(source).toMatch(/阶段变化不会改写原始解析或研究统计/);
-    expect(source).toMatch(/不会覆盖原始规则解析结果|不会改写原始解析/);
+    expect(source).toMatch(/t\('pipeline.stageChangeNote'\)/);
+    expect(source).toMatch(/t\('pipeline.stageChangeNote'\)/);
   });
 
   it('keeps ordinary outcome presentation on labor-role dimensions and labels claim ownership', () => {
@@ -325,16 +325,16 @@ describe('Review queue interaction and analysis context contract', () => {
     const librarySource = readFileSync(new URL('../../src/components/LaborAnalysisCaseLibrary.tsx', import.meta.url), 'utf8');
     expect(caseAnalysisSource).not.toMatch(/申请人结果/);
     expect(librarySource).not.toMatch(/申请人结果/);
-    expect(caseAnalysisSource).toMatch(/劳动者实体结果/);
-    expect(caseAnalysisSource).toMatch(/用人单位实体结果/);
-    expect(caseAnalysisSource).toMatch(/诉求与裁判结果/);
-    expect(caseAnalysisSource).toMatch(/提出方：\{ownership\.claimantLabel\}/);
-    expect(caseAnalysisSource).toMatch(/实质受益方：\{ownership\.beneficiaryLabel\}/);
-    expect(caseAnalysisSource).toMatch(/关联权益：\{ownership\.relatedLabel\}/);
-    expect(caseAnalysisSource).toMatch(/程序身份映射/);
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy025')");
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy026')");
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy029')");
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy030')");
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy031')");
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy032')");
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy022')");
     expect(caseAnalysisSource).toMatch(/outcomeReviewEvidenceFields/);
-    expect(librarySource).toMatch(/诉求与裁判结果/);
-    expect(librarySource).toMatch(/提出方：\{ownership\.claimantLabel\}/);
+    expect(librarySource).toContain("t('finalUi.libraryDetail.claimsAndOutcomes')");
+    expect(librarySource).toContain("t('finalUi.libraryDetail.claimant', { name: ownership.claimantLabel })");
     expect(librarySource).not.toMatch(/申请人结果/);
   });
 
@@ -343,13 +343,13 @@ describe('Review queue interaction and analysis context contract', () => {
     const librarySource = readFileSync(new URL('../../src/components/LaborAnalysisCaseLibrary.tsx', import.meta.url), 'utf8');
     const metadataSource = readFileSync(new URL('../../src/services/presentation/CaseMetadataPresentation.ts', import.meta.url), 'utf8');
     expect(caseAnalysisSource).toMatch(/createCaseSummaryPresentation/);
-    expect(caseAnalysisSource).toMatch(/aria-label="案件摘要"/);
-    expect(caseAnalysisSource).toMatch(/getCaseEntityOutcomeLabel/);
-    expect(caseAnalysisSource).toMatch(/展开诊断证据片段/);
+    expect(caseAnalysisSource).toContain("aria-label={t('finalUi.caseAnalysis.copy014')}");
+    expect(caseAnalysisSource).toMatch(/getOutcomeLabel/);
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy007')");
     expect(caseAnalysisSource).toMatch(/<details className="mt-6 pt-6 border-t/);
-    expect(caseAnalysisSource).toMatch(/关键证据与法院认定：\{\(record\.evidence \|\| \[\]\)\.length\}/);
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy036')");
     expect(librarySource).toMatch(/createCaseSummaryPresentation/);
-    expect(librarySource).toMatch(/关键证据与法院认定：/);
+    expect(librarySource).toContain("t('finalUi.libraryDetail.evidenceSummary'");
     expect(metadataSource).toMatch(/createCaseSummaryPresentation/);
     expect(metadataSource).toMatch(/本案：/);
   });
@@ -360,16 +360,19 @@ describe('Review queue interaction and analysis context contract', () => {
     expect(workspaceSource).toMatch(/AnalysisContextBar/);
     expect(appSource).toMatch(/<CaseAnalysisView initialAnalysisRunId=\{selectedAnalysisRunId\}/);
     expect(appSource).toMatch(/selectedAnalysisRunId=\{selectedAnalysisRunId\}/);
-    expect(workspaceSource).toMatch(/不会自动选择最新记录/);
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy062')");
   });
 
   it('keeps the context bar user-facing while retaining compact debug identifiers', () => {
     const contextSource = readFileSync(new URL('../../src/components/AnalysisContextBar.tsx', import.meta.url), 'utf8');
-    expect(contextSource).toMatch(/分析模式：\{researchModeLabel\(run\.mode\)\}/);
-    expect(contextSource).toMatch(/当前分析集/);
-    expect(contextSource).toMatch(/个案例/);
-    expect(contextSource).toMatch(/AnalysisRun：\{shortResearchId\(run\.id\)\}/);
-    expect(contextSource).toMatch(/统计口径：\{scopeLabel\}/);
+    expect(contextSource).toContain("labels?.mode || t('research.context.mode')");
+    expect(contextSource).toContain("labels?.current || t('research.context.current')");
+    expect(contextSource).toContain("labels?.caseCount || t('research.context.caseCount'");
+    expect(contextSource).toContain("labels?.run || t('research.context.run')");
+    expect(contextSource).toContain("labels?.scope || t('research.context.scope')");
+    const headerSource = readFileSync(new URL('../../src/components/ResearchAnalysisHeader.tsx', import.meta.url), 'utf8');
+    expect(headerSource).toContain("mode: t('research.ui.analysisMode'");
+    expect(headerSource).toContain("scope: t('research.ui.statisticsScope'");
   });
 
   it('renders a compact outcome coverage audit without changing the review queue contract', () => {
@@ -377,7 +380,7 @@ describe('Review queue interaction and analysis context contract', () => {
     const auditPanelSource = readFileSync(new URL('../../src/components/OutcomeCoverageAuditPanel.tsx', import.meta.url), 'utf8');
     const pipelineSource = readFileSync(new URL('../../src/components/PipelineWorkspace.tsx', import.meta.url), 'utf8');
     expect(caseAnalysisSource).toMatch(/PipelineWorkspace/);
-    expect(pipelineSource).toMatch(/自动核验未通过/);
+    expect(pipelineSource).toMatch(/t\('pipeline.reviewDescription'\)/);
     expect(auditPanelSource).toMatch(/结果覆盖率审计/);
     expect(auditPanelSource).toMatch(/总诉求：\{audit\.totalClaims\}/);
     expect(auditPanelSource).toMatch(/已确定：\{audit\.resolvedClaims\}/);
@@ -395,7 +398,7 @@ describe('Case detail frontend contract', () => {
   const modalSource = readFileSync(new URL('../../src/components/CaseDetailModal.tsx', import.meta.url), 'utf8');
 
   it('removes Raw Judgment Viewer entry points while retaining structured analysis', () => {
-    expect(librarySource).toMatch(/结构化分析结果/);
+    expect(librarySource).toContain("t('finalUi.libraryDetail.structuredResult')");
     expect(modalSource).toMatch(/结构化法务要素/);
     expect(librarySource).not.toMatch(/原始裁判文书|无法加载原始文书或原文本为空|detailTab/);
     expect(modalSource).not.toMatch(/tab-btn-raw|原始文书全文|btn-copy-raw-text|未找到对应的原始文书对象/);

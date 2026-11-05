@@ -6,7 +6,7 @@ import {
   getPipelineProcessingStats,
   cleanPipelineDiagnosticMessage,
   mapAnalysisRecordToProcessingStage,
-  processingStageLabel,
+  processingStageLabelKey,
   processingStageReason,
 } from '../../src/services/presentation/PipelineStagePresentation';
 import { hasExecutableSemanticTask } from '../../src/services/semantic/SemanticTaskEligibility';
@@ -109,18 +109,18 @@ describe('pipeline processing stage presentation', () => {
       record({ semanticResolutionStatus: 'needs_review' }),
     ];
     expect(getPipelineOverview(records)).toMatchObject({ total: 3, safe: 1, safeRate: 33, awaitingAi: 1, reviewPending: 1, llmProcessing: 0, blocked: 0 });
-    expect(processingStageLabel('safe')).toBe('可安全入库');
-    expect(processingStageLabel('awaiting_llm')).toBe('待 AI 语义分析');
-    expect(processingStageLabel('review_pending')).toBe('需要人工复核');
-    expect(processingStageLabel('technical_failure')).toBe('技术失败');
-    expect(processingStageLabel('blocked')).toBe('暂不可分析');
+    expect(processingStageLabelKey('safe')).toBe('pipeline.safeToStore');
+    expect(processingStageLabelKey('awaiting_llm')).toBe('pipeline.pendingSemantic');
+    expect(processingStageLabelKey('review_pending')).toBe('pipeline.humanReview');
+    expect(processingStageLabelKey('technical_failure')).toBe('pipeline.technicalFailure');
+    expect(processingStageLabelKey('blocked')).toBe('pipeline.notEligible');
   });
 
   it('does not reintroduce retired routing instructions in diagnostic copy', () => {
     expect(cleanPipelineDiagnosticMessage('解析置信度较低，建议人工复核', '待核对')).toBe('解析置信度较低。');
     expect(cleanPipelineDiagnosticMessage(undefined, '待核对')).toBe('待核对');
-    expect(processingStageReason(record({ semanticResolutionStatus: 'needs_review' }))).toContain('AI 已生成候选结果');
-    expect(processingStageReason(record({ semanticResolutionErrorCode: 'schema_invalid' }))).toContain('技术失败');
+    expect(processingStageReason(record({ semanticResolutionStatus: 'needs_review' }))).toEqual({ key: 'pipeline.closure.stageReviewDescription' });
+    expect(processingStageReason(record({ semanticResolutionErrorCode: 'schema_invalid' }))).toEqual({ key: 'pipeline.closure.technicalFailureReason' });
   });
 
   it('centralizes workflow copy and keeps technical failure distinct from review', () => {
@@ -184,32 +184,32 @@ describe('pipeline workspace UI contract', () => {
 
   it('routes Case Analysis to a pipeline workspace while preserving browse navigation', () => {
     expect(caseAnalysisSource).toMatch(/type CaseAnalysisSubview = 'browse' \| 'pipeline'/);
-    expect(caseAnalysisSource).toMatch(/案例浏览/);
-    expect(caseAnalysisSource).toMatch(/流水线工作台/);
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy003')");
+    expect(caseAnalysisSource).toContain("t('finalUi.caseAnalysis.copy004')");
     expect(caseAnalysisSource).toMatch(/<PipelineWorkspace records=\{records\}/);
     expect(caseAnalysisSource).toMatch(/setSelectedCaseId\(item\.caseId\)/);
   });
 
   it('exposes safe, awaiting-AI, and human-review sections with typed diagnostics', () => {
-    expect(workspaceSource).toMatch(/可安全入库/);
-    expect(workspaceSource).toMatch(/待 AI 语义分析/);
-    expect(workspaceSource).toMatch(/暂不可分析/);
+    expect(workspaceSource).toMatch(/t\('pipeline.safeToStore'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.pendingSemantic'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.notEligible'\)/);
     expect(workspaceSource).toMatch(/blocked-stage-panel/);
     expect(workspaceSource).toMatch(/aria-expanded=\{blockedOpen\}/);
-    expect(workspaceSource).toMatch(/查看案例/);
-    expect(workspaceSource).toMatch(/技术失败/);
-    expect(workspaceSource).toMatch(/人工复核工作台/);
-    expect(workspaceSource).toMatch(/重新尝试 AI/);
-    expect(workspaceSource).toMatch(/直接人工复核/);
-    expect(workspaceSource).toMatch(/技术失败详情/);
-    expect(workspaceSource).toMatch(/最近技术失败/);
+    expect(workspaceSource).toMatch(/t\('pipeline.viewCase'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.technicalFailure'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.humanReviewWorkbench'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.retryAi'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.directReview'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.technicalDetails'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.recentTechnicalFailures'\)/);
     expect(workspaceSource).toMatch(/technical-failure-summary/);
-    expect(workspaceSource).toMatch(/AI 语义分析工作台/);
-    expect(workspaceSource).toMatch(/开始处理全部/);
-    expect(workspaceSource).toMatch(/分析此案例/);
+    expect(workspaceSource).toMatch(/t\('pipeline.semanticWorkbench'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.processAll'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.analyzeCase'\)/);
     expect(workspaceSource).toMatch(/onRunSingleCase/);
-    expect(workspaceSource).toMatch(/AI 语义分析未启用/);
-    expect(workspaceSource).toMatch(/当前 xAI API Key 未配置/);
+    expect(workspaceSource).toMatch(/t\('pipeline.aiDisabled'\)/);
+    expect(workspaceSource).toMatch(/t\('pipeline.keyMissing'\)/);
     expect(workspaceSource).toMatch(/DiagnosticClueWorkspace/);
     const evidenceSource = readFileSync(resolve(process.cwd(), 'src/services/outcome/OutcomeReviewQueue.ts'), 'utf8');
     expect(evidenceSource).toMatch(/诉求片段/);
@@ -219,7 +219,7 @@ describe('pipeline workspace UI contract', () => {
   });
 
   it('exposes the low-profile validation snapshot export without changing the pipeline actions', () => {
-    expect(workspaceSource).toMatch(/导出验证快照/);
+    expect(workspaceSource).toMatch(/t\('pipeline.exportSnapshot'\)/);
     expect(workspaceSource).toMatch(/onExportValidationSnapshot/);
     expect(caseAnalysisSource).toMatch(/exportCompetitionValidationSnapshot/);
     expect(caseAnalysisSource).toMatch(/librarySummary/);
@@ -227,12 +227,12 @@ describe('pipeline workspace UI contract', () => {
 
   it('exposes a collapsed, searchable, grouped diagnostic clue workspace', () => {
     const clueSource = readFileSync(resolve(process.cwd(), 'src/components/DiagnosticClueWorkspace.tsx'), 'utf8');
-    expect(clueSource).toMatch(/裁判结果诊断线索/);
-    expect(clueSource).toMatch(/搜索诊断线索/);
-    expect(clueSource).toMatch(/按案件分组/);
-    expect(clueSource).toMatch(/展开详情/);
-    expect(clueSource).toMatch(/收起详情/);
-    expect(clueSource).toMatch(/收起全部/);
+    expect(clueSource).toContain("t('finalUi.diagnostic.title')");
+    expect(clueSource).toContain("t('finalUi.diagnostic.searchLabel')");
+    expect(clueSource).toContain("t('finalUi.diagnostic.groupHint')");
+    expect(clueSource).toContain("t('finalUi.diagnostic.showDetails')");
+    expect(clueSource).toContain("t('finalUi.diagnostic.hideDetails')");
+    expect(clueSource).toContain("t('finalUi.diagnostic.collapseAll')");
     expect(clueSource).toMatch(/useState\(false\)/);
     expect(clueSource).toMatch(/onSelectCase\(item\)/);
     const queueSource = readFileSync(resolve(process.cwd(), 'src/services/outcome/OutcomeReviewQueue.ts'), 'utf8');
@@ -243,11 +243,11 @@ describe('pipeline workspace UI contract', () => {
 
   it('uses human-review wording for semantic candidates instead of automatic-failure wording', () => {
     const reviewSource = readFileSync(resolve(process.cwd(), 'src/components/SemanticReviewWorkspace.tsx'), 'utf8');
-    expect(reviewSource).toMatch(/需要人工复核/);
-    expect(reviewSource).toMatch(/AI 未能可靠确定/);
-    expect(reviewSource).toMatch(/未生成（技术失败）/);
-    expect(reviewSource).toMatch(/纯人工复核/);
-    expect(reviewSource).toMatch(/AI 技术失败记录已保留/);
+    expect(reviewSource).toMatch(/t\('review\.needsReview'\)/);
+    expect(reviewSource).toMatch(/t\('review\.aiUnclear'\)/);
+    expect(reviewSource).toMatch(/t\('review\.technicalFailureNoCandidate'\)/);
+    expect(reviewSource).toMatch(/t\('review\.manualOnly'\)/);
+    expect(reviewSource).toMatch(/t\('review\.technicalFailureRetained'\)/);
     expect(reviewSource).not.toMatch(/系统未能可靠完成自动解析/);
   });
 

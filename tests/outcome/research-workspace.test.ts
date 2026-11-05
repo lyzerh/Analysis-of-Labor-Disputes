@@ -378,13 +378,12 @@ describe('Research Workspace UI contract', () => {
   });
 
   it('does not auto-select the latest Snapshot or AnalysisRun', () => {
-    expect(workspaceSource).toMatch(/请选择研究总体/);
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy062')");
     expect(workspaceSource).not.toMatch(/(?:snapshots|analysisRuns)\s*\[\s*0\s*\]/);
   });
 
   it('shows balanced representativeness warning during creation', () => {
-    expect(workspaceSource).toMatch(/平衡抽样适合组间比较/);
-    expect(workspaceSource).toMatch(/不代表总体分布/);
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy094')");
   });
 
   it('supports safe failed-state output without stack or raw provider responses', () => {
@@ -400,11 +399,11 @@ describe('Research Workspace UI contract', () => {
   });
 
   it('has an empty state and lifecycle controls without exposing AnalysisRun deletion', () => {
-    expect(workspaceSource).toMatch(/尚无研究总体/);
-    expect(workspaceSource).toMatch(/创建研究总体/);
-    expect(workspaceSource).toMatch(/删除研究总体/);
-    expect(workspaceSource).toMatch(/归档研究总体/);
-    expect(workspaceSource).toMatch(/恢复研究总体/);
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy056')");
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy017')");
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy004')");
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy003')");
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy001')");
     expect(workspaceSource).not.toMatch(/deleteAnalysisRun|updateAnalysisRun/);
   });
 
@@ -417,14 +416,14 @@ describe('Research Workspace UI contract', () => {
   });
 
   it('exposes explicit create flow and disables sampled creation without a SamplingRun', () => {
-    expect(workspaceSource).toMatch(/创建研究运行/);
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy060')");
     expect(workspaceSource).toMatch(/mode === 'sampled'.*!selectedSamplingRunId/s);
   });
 
   it('adds a dedicated Research Workspace navigation entry', () => {
     const sidebarSource = readFileSync(new URL('../../src/components/Sidebar.tsx', import.meta.url), 'utf8');
     expect(sidebarSource).toMatch(/researchWorkspace/);
-    expect(sidebarSource).toMatch(/研究工作区/);
+    expect(sidebarSource).toContain("t('finalUi.sidebar.researchWorkspace')");
   });
 
   it('Snapshot form preserves multi-select concepts and does not expose per_page', () => {
@@ -436,15 +435,15 @@ describe('Research Workspace UI contract', () => {
   });
 
   it('makes local records the ordinary create path and isolates remote enumeration behind an advanced entry', () => {
-    expect(workspaceSource).toMatch(/基于本地已入库案例创建固定研究范围，不会重新请求远程数据/);
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy015')");
     expect(workspaceSource).toMatch(/workspaceService\.createSnapshot\(\{ caseLevels:/);
-    expect(workspaceSource).toMatch(/从远程数据源构建总体（高级）/);
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy018')");
     expect(workspaceSource).toMatch(/workspaceService\.createRemoteSnapshot/);
   });
 
   it('disables local creation for an empty corpus without silently falling back to remote', () => {
     expect(workspaceSource).toMatch(/disabled=\{localRecordCount === 0\}/);
-    expect(workspaceSource).toMatch(/当前本地案例库为空，请先导入或准备案例/);
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy019')");
   });
 
   it('Snapshot creation UI does not invoke fulltext, Parser, Gemini, Sampling, or Analysis creation', () => {
@@ -453,7 +452,7 @@ describe('Research Workspace UI contract', () => {
   });
 
   it('exposes exact-ID case preparation separately from metadata-only Snapshot creation', () => {
-    expect(workspaceSource).toMatch(/准备研究案例/);
+    expect(workspaceSource).toContain("t('finalUi.researchExpression.label017')");
     expect(workspaceSource).toMatch(/prepareSnapshotRecords/);
   });
 });

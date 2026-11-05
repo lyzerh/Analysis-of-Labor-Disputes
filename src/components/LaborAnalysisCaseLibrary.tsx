@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, MapPin, Calendar, FileText, Briefcase, X, Eye, ExternalLink, RefreshCw, XCircle, Scale } from 'lucide-react';
 import { AnalysisCaseRecord } from '../types';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
 import { DataService } from '../services/data/dataService';
-import { getCaseEntityOutcomeLabel, getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
+import { getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
+import { getCaseLevelLabel, getClaimTypeLabel, getDefenseTypeLabel, getDisputeTypeLabel, getEvidenceTypeLabel, getOutcomeLabel } from '../services/presentation/domainLabels';
 import { filterAnalysisCaseRecords, getAvailableDisputeTypes } from '../services/case/CaseLibraryFilter';
-import { createCaseSummaryPresentation, formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
+import { createCaseSummaryPresentation, formatCaseDate, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
 import { createCaseLibraryCoverage } from '../services/presentation/CaseLibraryCoverage';
 
 export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => void, onNavigateToReview?: () => void, onNavigateToAnalytics?: () => void, onNavigateToDefense?: () => void }> = () => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<AnalysisCaseRecord[]>([]);
   const [pipelineStats, setPipelineStats] = useState({
@@ -90,11 +93,9 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
   return (
     <div className="min-h-full bg-slate-50/80 p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
       <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-          案例库
-        </h1>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{t('page.caseLibrary')}</h1>
         <p className="text-sm text-slate-500 mt-2 max-w-2xl leading-6">
-          本库收录了经过结构化清洗和标准化的劳动争议历史裁决案例，支持多维过滤检索与案情溯源。
+          {t('finalUi.library.description')}
         </p>
       </div>
 
@@ -104,19 +105,19 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
         <div className="bg-white/80 border border-white/80 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-6 text-sm">
             <div className="flex flex-col">
-              <span className="text-slate-500 text-xs">原始文书</span>
+              <span className="text-slate-500 text-xs">{t('finalUi.library.rawDocuments')}</span>
               <span className="font-bold text-slate-900 text-lg">{pipelineStats.rawCount}</span>
             </div>
             <div className="flex flex-col border-l border-slate-200 pl-6">
-              <span className="text-emerald-600 text-xs font-semibold">已结构化 (当前展示)</span>
+              <span className="text-emerald-600 text-xs font-semibold">{t('finalUi.library.structured')}</span>
               <span className="font-bold text-emerald-700 text-lg">{pipelineStats.structuredCount}</span>
             </div>
             <div className="flex flex-col border-l border-slate-200 pl-6">
-              <span className="text-amber-600 text-xs font-semibold">待处理 / 待人工确认</span>
+              <span className="text-amber-600 text-xs font-semibold">{t('finalUi.library.pending')}</span>
               <span className="font-bold text-amber-700 text-lg">{pipelineStats.pendingCount}</span>
             </div>
             <div className="flex flex-col border-l border-slate-200 pl-6">
-              <span className="text-rose-600 text-xs font-semibold">数据处理失败</span>
+              <span className="text-rose-600 text-xs font-semibold">{t('finalUi.library.failed')}</span>
               <span className="font-bold text-rose-700 text-lg">{pipelineStats.failedCount}</span>
             </div>
           </div>
@@ -133,18 +134,18 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
             className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 font-semibold text-sm transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${isRebuilding ? 'animate-spin' : ''}`} />
-            重新构建案例库
+            {t('finalUi.library.rebuild')}
           </button>
         </div>
 
         {/* 覆盖统计：描述整个案例库，不随下方浏览筛选变化 */}
           <div className="grid grid-cols-2 gap-4">
           <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm text-center">
-            <div className="text-xs font-semibold text-slate-500 mb-1">覆盖年份</div>
+            <div className="text-xs font-semibold text-slate-500 mb-1">{t('finalUi.library.coverageYears')}</div>
             <div className="text-2xl font-bold text-slate-900">{stats.yearLabel}</div>
           </div>
           <div className="p-5 bg-white/80 border border-white/80 rounded-2xl shadow-sm text-center">
-            <div className="text-xs font-semibold text-slate-500 mb-1">覆盖城市</div>
+            <div className="text-xs font-semibold text-slate-500 mb-1">{t('finalUi.library.coverageCities')}</div>
             <div className="text-2xl font-bold text-slate-900">{stats.cityCount}</div>
           </div>
         </div>
@@ -158,49 +159,49 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索案件名称 / 当事人 / Case ID"
-            aria-label="搜索案件名称、当事人或 Case ID"
+            placeholder={t('finalUi.library.searchPlaceholder')}
+            aria-label={t('finalUi.library.searchLabel')}
             className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           />
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <select value={cityFilter} onChange={e => setCityFilter(e.target.value)} className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-            <option value="all">所有城市</option>
+            <option value="all">{t('finalUi.library.allCities')}</option>
             {availableCities.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-            <option value="all">所有年份</option>
-            {availableYears.map(y => <option key={y} value={y}>{y}年</option>)}
+            <option value="all">{t('finalUi.library.allYears')}</option>
+            {availableYears.map(y => <option key={y} value={y}>{t('finalUi.library.year', { year: y })}</option>)}
           </select>
           <select value={levelFilter} onChange={e => setLevelFilter(e.target.value)} className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-            <option value="all">所有审级</option>
-            <option value="first">一审/初裁</option>
-            <option value="second">二审</option>
-            <option value="retrial">再审</option>
+            <option value="all">{t('finalUi.library.allLevels')}</option>
+            <option value="first">{t('finalUi.library.firstInstance')}</option>
+            <option value="second">{t('finalUi.library.secondInstance')}</option>
+            <option value="retrial">{t('finalUi.library.retrial')}</option>
           </select>
           <select value={disputeFilter} onChange={e => setDisputeFilter(e.target.value)} className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-            <option value="all">所有争议类型</option>
-            {availableDisputes.map(d => <option key={d} value={d}>{d}</option>)}
+            <option value="all">{t('finalUi.library.allDisputes')}</option>
+            {availableDisputes.map(d => <option key={d} value={d}>{getDisputeTypeLabel(d, t)}</option>)}
           </select>
         </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-[24px] shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-slate-500 text-sm">正在加载案例数据...</div>
+          <div className="p-12 text-center text-slate-500 text-sm">{t('finalUi.library.loading')}</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
-                  <th className="px-4 py-3 whitespace-nowrap">案件标题</th>
-                  <th className="px-4 py-3 whitespace-nowrap">案号</th>
-                  <th className="px-4 py-3 whitespace-nowrap">法院/仲裁委</th>
-                  <th className="px-4 py-3 whitespace-nowrap">城市</th>
-                  <th className="px-4 py-3 whitespace-nowrap">裁判日期</th>
-                  <th className="px-4 py-3 whitespace-nowrap">争议类型</th>
-                  <th className="px-4 py-3 whitespace-nowrap text-right">操作</th>
+                  <th className="px-4 py-3 whitespace-nowrap">{t('finalUi.libraryDetail.caseTitle')}</th>
+                  <th className="px-4 py-3 whitespace-nowrap">{t('finalUi.libraryDetail.caseNumber')}</th>
+                  <th className="px-4 py-3 whitespace-nowrap">{t('finalUi.libraryDetail.court')}</th>
+                  <th className="px-4 py-3 whitespace-nowrap">{t('finalUi.libraryDetail.city')}</th>
+                  <th className="px-4 py-3 whitespace-nowrap">{t('finalUi.libraryDetail.decisionDate')}</th>
+                  <th className="px-4 py-3 whitespace-nowrap">{t('finalUi.libraryDetail.disputeType')}</th>
+                  <th className="px-4 py-3 whitespace-nowrap text-right">{t('finalUi.libraryDetail.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
@@ -212,11 +213,11 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                     <td className="px-4 py-3 whitespace-nowrap text-slate-700">{r.city || '-'}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-slate-700">{formatCaseDate(r.date)}</td>
                     <td className="px-4 py-3 max-w-[150px] truncate text-slate-700">
-                      {Array.isArray(r.disputeType) ? r.disputeType.join('、') : (r.disputeType || '-')}
+                      {Array.isArray(r.disputeType) ? r.disputeType.map((value) => getDisputeTypeLabel(value, t)).join('、') : (r.disputeType || '-')}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => handleOpenDetail(r)} className="text-blue-600 hover:text-blue-800 font-semibold px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded transition-colors">
-                        查看详情
+                        {t('finalUi.libraryDetail.viewDetails')}
                       </button>
                     </td>
                   </tr>
@@ -224,7 +225,7 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                 {filteredRecords.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
-                      没有符合筛选条件的案例
+                      {t('finalUi.libraryDetail.noMatches')}
                     </td>
                   </tr>
                 )}
@@ -247,30 +248,30 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
               </button>
             </div>
 
-            <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 text-sm font-semibold text-blue-700">结构化分析结果</div>
+            <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 text-sm font-semibold text-blue-700">{t('finalUi.libraryDetail.structuredResult')}</div>
 
             <div className="flex-1 overflow-y-auto p-6">
               <div className="space-y-6">
                   {/* 基本信息 */}
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                     <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                      <Briefcase className="w-4 h-4 text-blue-600" /> 基本信息
+                      <Briefcase className="w-4 h-4 text-blue-600" /> {t('finalUi.libraryDetail.basicInfo')}
                     </h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-4 text-xs">
-                      <div><span className="text-slate-500">案号：</span><span className="font-semibold">{formatCaseNumber(selectedRecord.caseNumber)}</span></div>
-                      <div><span className="text-slate-500">法院：</span><span className="font-semibold">{selectedRecord.court || selectedRecord.arbitrationCommittee || '-'}</span></div>
-                      <div><span className="text-slate-500">城市：</span><span className="font-semibold">{selectedRecord.city || '-'}</span></div>
-                      <div><span className="text-slate-500">裁判日期：</span><span className="font-semibold">{formatCaseDate(selectedRecord.date)}</span></div>
-                      <div><span className="text-slate-500">审级：</span><span className="font-semibold">{formatCaseLevel(selectedRecord.caseLevel)}</span></div>
-                      <div><span className="text-slate-500">劳动者：</span><span className="font-semibold">{formatPartyName(selectedRecord.employeeParty)}</span></div>
-                      <div><span className="text-slate-500">用人单位：</span><span className="font-semibold">{formatPartyName(selectedRecord.employerParty)}</span></div>
+                      <div><span className="text-slate-500">{t('finalUi.libraryDetail.caseNumberLabel')}</span><span className="font-semibold">{formatCaseNumber(selectedRecord.caseNumber)}</span></div>
+                      <div><span className="text-slate-500">{t('finalUi.libraryDetail.courtLabel')}</span><span className="font-semibold">{selectedRecord.court || selectedRecord.arbitrationCommittee || '-'}</span></div>
+                      <div><span className="text-slate-500">{t('finalUi.libraryDetail.cityLabel')}</span><span className="font-semibold">{selectedRecord.city || '-'}</span></div>
+                      <div><span className="text-slate-500">{t('finalUi.libraryDetail.decisionDateLabel')}</span><span className="font-semibold">{formatCaseDate(selectedRecord.date)}</span></div>
+                      <div><span className="text-slate-500">{t('finalUi.libraryDetail.levelLabel')}</span><span className="font-semibold">{getCaseLevelLabel(selectedRecord.caseLevel, t)}</span></div>
+                      <div><span className="text-slate-500">{t('finalUi.libraryDetail.employeeLabel')}</span><span className="font-semibold">{formatPartyName(selectedRecord.employeeParty)}</span></div>
+                      <div><span className="text-slate-500">{t('finalUi.libraryDetail.employerLabel')}</span><span className="font-semibold">{formatPartyName(selectedRecord.employerParty)}</span></div>
                     </div>
                   </div>
 
                   {(() => {
-                    const summary = createCaseSummaryPresentation(selectedRecord);
+                    const summary = createCaseSummaryPresentation(selectedRecord, t);
                     return (summary.primary || summary.secondary) ? (
-                      <div aria-label="案件摘要" className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-950">
+                      <div aria-label={t('finalUi.libraryDetail.caseSummary')} className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-950">
                         {summary.primary && <div className="font-medium">{summary.primary}</div>}
                         {summary.secondary && <div className="mt-0.5 text-[11px] text-indigo-800/80">{summary.secondary}</div>}
                       </div>
@@ -280,15 +281,15 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                   {/* 裁判结果 */}
                   {selectedOutcomePresentations && <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
                     <h4 className="text-sm font-bold text-purple-900 mb-3 flex items-center gap-2">
-                      <Scale className="w-4 h-4 text-purple-600" /> 裁判结果
+                      <Scale className="w-4 h-4 text-purple-600" /> {t('finalUi.libraryDetail.outcome')}
                     </h4>
                     <div className="text-xs space-y-2 text-slate-700">
-                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">劳动者实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{getCaseEntityOutcomeLabel(selectedRecord.employeeOutcome)}</span></div>
-                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">用人单位实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{getCaseEntityOutcomeLabel(selectedRecord.employerOutcome)}</span></div>
-                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">主要争议：</span><span>{Array.isArray(selectedRecord.disputeType) ? selectedRecord.disputeType.join('、') : (selectedRecord.disputeType || '-')}</span></div>
+                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">{t('finalUi.libraryDetail.employeeOutcome')}</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{getOutcomeLabel(selectedRecord.employeeOutcome, t)}</span></div>
+                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">{t('finalUi.libraryDetail.employerOutcome')}</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{getOutcomeLabel(selectedRecord.employerOutcome, t)}</span></div>
+                      <div className="flex"><span className="text-slate-500 w-24 shrink-0">{t('finalUi.libraryDetail.mainDispute')}</span><span>{Array.isArray(selectedRecord.disputeType) ? selectedRecord.disputeType.map((value) => getDisputeTypeLabel(value, t)).join('、') : (selectedRecord.disputeType || '-')}</span></div>
                       {selectedRecord.legalOutcomeSummary && (
                         <div className="flex mt-2 pt-2 border-t border-purple-200/50">
-                          <span className="text-slate-500 w-24 shrink-0">关键要点：</span>
+                          <span className="text-slate-500 w-24 shrink-0">{t('finalUi.libraryDetail.keyPoints')}</span>
                           <span className="leading-relaxed bg-white/60 p-2 rounded">{selectedRecord.legalOutcomeSummary}</span>
                         </div>
                       )}
@@ -297,7 +298,7 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-3">
-                      <h4 className="text-sm font-bold text-slate-800 border-b pb-2">诉求与裁判结果</h4>
+                      <h4 className="text-sm font-bold text-slate-800 border-b pb-2">{t('finalUi.libraryDetail.claimsAndOutcomes')}</h4>
                       {Array.isArray(selectedRecord.claims) && selectedRecord.claims.length > 0 ? (
                         <div className="space-y-2">
                           {selectedRecord.claims.map((c, i) => {
@@ -307,60 +308,60 @@ export const LaborAnalysisCaseLibrary: React.FC<{ onNavigateToCrawler?: () => vo
                             return (
                               <div key={i} className="bg-slate-50 p-2 rounded text-xs text-slate-700 border border-slate-200 flex justify-between gap-2">
                                 <span>
-                                  <span className="block">{c.claimName || (c as any).text || '-'}</span>
+                                  <span className="block">{getClaimTypeLabel(c.claimName || (c as any).text || '-', t)}</span>
                                   <span className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-                                    <span>提出方：{ownership.claimantLabel}</span>
-                                    {ownership.beneficiaryLabel && <span>实质受益方：{ownership.beneficiaryLabel}</span>}
-                                    {ownership.relatedLabel && <span>关联权益：{ownership.relatedLabel}</span>}
-                                    {needsReview && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">待复核</span>}
+                                    <span>{t('finalUi.libraryDetail.claimant', { name: ownership.claimantLabel })}</span>
+                                    {ownership.beneficiaryLabel && <span>{t('finalUi.libraryDetail.beneficiary', { name: ownership.beneficiaryLabel })}</span>}
+                                    {ownership.relatedLabel && <span>{t('finalUi.libraryDetail.relatedInterest', { name: ownership.relatedLabel })}</span>}
+                                    {needsReview && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">{t('finalUi.libraryDetail.pendingReview')}</span>}
                                   </span>
                                 </span>
                                 <span className={`shrink-0 px-1.5 py-0.5 rounded text-2xs font-bold ${presentation.badgeClassName}`}>
-                                  {presentation.label}
+                                  {getOutcomeLabel(c.supportStatus, t)}
                                 </span>
                               </div>
                             );
                           })}
                         </div>
-                      ) : <div className="text-xs text-slate-400">无记录</div>}
+                      ) : <div className="text-xs text-slate-400">{t('finalUi.libraryDetail.noRecord')}</div>}
                     </div>
 
                     <div className="space-y-3">
-                      <h4 className="text-sm font-bold text-slate-800 border-b pb-2">企业抗辩</h4>
+                      <h4 className="text-sm font-bold text-slate-800 border-b pb-2">{t('finalUi.libraryDetail.employerDefense')}</h4>
                       {Array.isArray(selectedRecord.employerDefenses) && selectedRecord.employerDefenses.length > 0 ? (
                         <div className="space-y-2">
                           {selectedRecord.employerDefenses.map((d, i) => (
                             <div key={i} className="bg-emerald-50 p-2 rounded text-xs text-slate-700 border border-emerald-100">
-                              <span className="font-bold text-emerald-800 mr-2">[{d.defenseType || (d as any).type || '未分类'}]</span>
+                              <span className="font-bold text-emerald-800 mr-2">[{getDefenseTypeLabel(d.defenseType || (d as any).type || t('finalUi.libraryDetail.unclassified'), t)}]</span>
                               {d.matchedText || (d as any).text || '-'}
                             </div>
                           ))}
                         </div>
-                      ) : <div className="text-xs text-slate-400">无记录</div>}
+                      ) : <div className="text-xs text-slate-400">{t('finalUi.libraryDetail.noRecord')}</div>}
                     </div>
                   </div>
 
                   <details>
-                    <summary className="cursor-pointer list-none text-sm font-bold text-slate-800">关键证据与法院认定：{(selectedRecord.evidence || []).length} 条证据｜{selectedRecord.courtReasoning?.trim() ? '1' : '0'} 条认定理由</summary>
+                    <summary className="cursor-pointer list-none text-sm font-bold text-slate-800">{t('finalUi.libraryDetail.evidenceSummary', { evidence: (selectedRecord.evidence || []).length, reasoning: selectedRecord.courtReasoning?.trim() ? 1 : 0 })}</summary>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-3">
                     <div className="space-y-3">
-                      <h4 className="text-sm font-bold text-slate-800 border-b pb-2">关键证据</h4>
+                      <h4 className="text-sm font-bold text-slate-800 border-b pb-2">{t('finalUi.libraryDetail.keyEvidence')}</h4>
                       {Array.isArray(selectedRecord.evidence) && selectedRecord.evidence.length > 0 ? (
                         <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
                           {selectedRecord.evidence.map((e, i) => (
-                            <li key={i}>【{evidenceProviderLabel(e.provider)}】 {e.name || (e as any).type}：{e.matchedText || (e as any).text}</li>
+                            <li key={i}>【{evidenceProviderLabel(e.provider)}】 {getEvidenceTypeLabel(e.name || (e as any).type, t)}：{e.matchedText || (e as any).text}</li>
                           ))}
                         </ul>
-                      ) : <div className="text-xs text-slate-400">无记录</div>}
+                      ) : <div className="text-xs text-slate-400">{t('finalUi.libraryDetail.noRecord')}</div>}
                     </div>
 
                     <div className="space-y-3">
-                      <h4 className="text-sm font-bold text-slate-800 border-b pb-2">法院裁判理由</h4>
+                      <h4 className="text-sm font-bold text-slate-800 border-b pb-2">{t('finalUi.libraryDetail.courtReasoning')}</h4>
                       {typeof selectedRecord.courtReasoning === 'string' && selectedRecord.courtReasoning.length > 0 ? (
                         <div className="text-xs text-slate-700 bg-slate-50 p-2 rounded border border-slate-100 leading-relaxed whitespace-pre-wrap">
                           {selectedRecord.courtReasoning}
                         </div>
-                      ) : <div className="text-xs text-slate-400">无记录</div>}
+                      ) : <div className="text-xs text-slate-400">{t('finalUi.libraryDetail.noRecord')}</div>}
                     </div>
                     </div>
                   </details>

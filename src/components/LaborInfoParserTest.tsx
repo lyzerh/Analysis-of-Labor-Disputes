@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FileText,
   Play,
@@ -27,6 +28,7 @@ import { DataService } from '../services/data/dataService';
 import { LaborInfoParserAdapter } from '../services/parser/LaborInfoParserAdapter';
 
 export const LaborInfoParserTest: React.FC = () => {
+  const { t } = useTranslation();
   const [storedDocs, setStoredDocs] = useState<RawDocument[]>([]);
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
@@ -110,15 +112,9 @@ export const LaborInfoParserTest: React.FC = () => {
               <Cpu className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                工劳网案例结构化解析测试
-                <span className="px-2.5 py-0.5 text-xs font-semibold bg-indigo-100 text-indigo-800 rounded-full font-mono">
-                  v1.2 阶段一
-                </span>
+              <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">{t('dataManagement.parserTestUi.copy001')}{' '}<span className="px-2.5 py-0.5 text-xs font-semibold bg-indigo-100 text-indigo-800 rounded-full font-mono">{t('dataManagement.parserTestUi.copy002')}{' '}</span>
               </h1>
-              <p className="text-sm text-slate-500 mt-0.5">
-                独立解析适配层测试：验证 <code>RawDocument → ArbitrationCase</code> 转换、当事人识别、诉求判定、企业抗辩及四分类结果
-              </p>
+              <p className="text-sm text-slate-500 mt-0.5">{t('dataManagement.parserTestUi.copy003')}{' '}<code>RawDocument → ArbitrationCase</code>{t('dataManagement.parserTestUi.copy004')}{' '}</p>
             </div>
           </div>
 
@@ -127,9 +123,7 @@ export const LaborInfoParserTest: React.FC = () => {
               onClick={selectTopFive}
               disabled={storedDocs.length === 0}
               className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
-            >
-              勾选前 5 份案例
-            </button>
+            >{t('dataManagement.parserTestUi.copy005')}{' '}</button>
             <button
               id="btn-run-parser-test"
               onClick={handleRunParserTest}
@@ -137,7 +131,7 @@ export const LaborInfoParserTest: React.FC = () => {
               className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-300 text-white text-sm font-semibold rounded-xl flex items-center gap-2 shadow-sm transition-all cursor-pointer"
             >
               <Play className={`w-4 h-4 ${isParsing ? 'animate-spin' : ''}`} />
-              {isParsing ? '正在解析中...' : `开始解析测试 (${selectedDocIds.length}份)`}
+              {isParsing ? t('dataManagement.parserTestUi.parsing') : t('dataManagement.parserTestUi.startParsing', { count: selectedDocIds.length })}
             </button>
           </div>
         </div>
@@ -146,9 +140,7 @@ export const LaborInfoParserTest: React.FC = () => {
         <div className="mt-4 p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-950 leading-relaxed">
           <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <span className="font-semibold">纯测试环境提示：</span>
-            本阶段为<strong>独立的解析质量与字段完整率测试</strong>。完全不触碰现有 <code>ArbitrationCase</code> 统计库、不生成案件结果比例分析、不生成研判报告，仅验证 <code>LaborInfoParserAdapter</code> 的精准提取能力。
-          </div>
+            <span className="font-semibold">{t('dataManagement.parserTestUi.copy006')}</span>{t('dataManagement.parserTestUi.copy007')}<strong>{t('dataManagement.parserTestUi.copy008')}</strong>{t('dataManagement.parserTestUi.copy009')}{' '}<code>ArbitrationCase</code>{t('dataManagement.parserTestUi.copy010')}{' '}<code>LaborInfoParserAdapter</code>{t('dataManagement.parserTestUi.copy011')}{' '}</div>
         </div>
       </div>
 
@@ -157,30 +149,20 @@ export const LaborInfoParserTest: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 text-slate-500" />
-            <h2 className="text-sm font-bold text-slate-800">
-              从本地 IndexedDB 选取工劳网原始案例 (RawDocument)
-            </h2>
-            <span className="text-2xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-mono">
-              共 {storedDocs.length} 份文书已入库 / 已选 {selectedDocIds.length} 份文书
-            </span>
+            <h2 className="text-sm font-bold text-slate-800">{t('dataManagement.parserTestUi.copy012')}{' '}</h2>
+            <span className="text-2xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-mono">{t('dataManagement.parserTestUi.copy013')}{' '}{storedDocs.length}{t('dataManagement.parserTestUi.copy014')}{' '}{selectedDocIds.length}{t('dataManagement.parserTestUi.copy015')}{' '}</span>
           </div>
           <button
             onClick={loadStoredDocs}
             className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
           >
-            <RefreshCw className={`w-3 h-3 ${isLoadingDocs ? 'animate-spin' : ''}`} />
-            刷新本地文书
-          </button>
+            <RefreshCw className={`w-3 h-3 ${isLoadingDocs ? 'animate-spin' : ''}`} />{t('dataManagement.parserTestUi.copy016')}{' '}</button>
         </div>
 
         {isLoadingDocs ? (
-          <div className="py-6 text-center text-xs text-slate-400">
-            正在读取本地工劳网 RawDocument...
-          </div>
+          <div className="py-6 text-center text-xs text-slate-400">{t('dataManagement.parserTestUi.copy017')}{' '}</div>
         ) : storedDocs.length === 0 ? (
-          <div className="py-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-            本地暂无工劳网原始文书。请先进入「工劳网API测试」页面点击「导入测试 5 份案件」入库。
-          </div>
+          <div className="py-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">{t('dataManagement.parserTestUi.copy018')}{' '}</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto p-1">
             {storedDocs.map((doc) => {
@@ -208,7 +190,7 @@ export const LaborInfoParserTest: React.FC = () => {
                     </div>
                     <div className="text-2xs text-slate-500 flex items-center justify-between mt-1 font-mono">
                       <span>ID: {doc.sourceId || doc.id.slice(0, 10)}</span>
-                      <span>{textLen.toLocaleString()} 字</span>
+                      <span>{textLen.toLocaleString()}{t('dataManagement.parserTestUi.copy019')}</span>
                     </div>
                   </div>
                 </div>
@@ -223,46 +205,38 @@ export const LaborInfoParserTest: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-slate-500 font-semibold uppercase flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-indigo-500" />
-              平均解析耗时
-            </div>
+              <Clock className="w-3.5 h-3.5 text-indigo-500" />{t('dataManagement.parserTestUi.copy020')}{' '}</div>
             <div className="text-2xl font-bold font-mono text-indigo-600 mt-1">
-              {aggregateStats.avgDuration} <span className="text-xs text-slate-400 font-normal">ms/篇</span>
+              {aggregateStats.avgDuration} <span className="text-xs text-slate-400 font-normal">{t('dataManagement.parserTestUi.copy021')}</span>
             </div>
-            <div className="text-2xs text-emerald-600 font-semibold mt-0.5">本地毫秒级纯规则解析</div>
+            <div className="text-2xs text-emerald-600 font-semibold mt-0.5">{t('dataManagement.parserTestUi.copy022')}</div>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-slate-500 font-semibold uppercase flex items-center gap-1">
-              <FileCheck className="w-3.5 h-3.5 text-emerald-500" />
-              平均字段完整率
-            </div>
+              <FileCheck className="w-3.5 h-3.5 text-emerald-500" />{t('dataManagement.parserTestUi.copy023')}{' '}</div>
             <div className="text-2xl font-bold font-mono text-emerald-600 mt-1">
               {aggregateStats.avgCompleteness}%
             </div>
-            <div className="text-2xs text-slate-500 mt-0.5">基础/当事人/争议/诉求/抗辩</div>
+            <div className="text-2xs text-slate-500 mt-0.5">{t('dataManagement.parserTestUi.copy024')}</div>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-slate-500 font-semibold uppercase flex items-center gap-1">
-              <UserCheck className="w-3.5 h-3.5 text-blue-500" />
-              当事人识别置信度
-            </div>
+              <UserCheck className="w-3.5 h-3.5 text-blue-500" />{t('dataManagement.parserTestUi.copy025')}{' '}</div>
             <div className="text-2xl font-bold font-mono text-blue-600 mt-1">
               {aggregateStats.avgConfidence}%
             </div>
-            <div className="text-2xs text-slate-500 mt-0.5">避免简单原告/被告误判</div>
+            <div className="text-2xs text-slate-500 mt-0.5">{t('dataManagement.parserTestUi.copy026')}</div>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-slate-500 font-semibold uppercase flex items-center gap-1">
-              <FileText className="w-3.5 h-3.5 text-purple-500" />
-              累计解析文本量
-            </div>
+              <FileText className="w-3.5 h-3.5 text-purple-500" />{t('dataManagement.parserTestUi.copy027')}{' '}</div>
             <div className="text-2xl font-bold font-mono text-purple-600 mt-1">
-              {aggregateStats.totalWords.toLocaleString()} <span className="text-xs text-slate-400 font-normal">字</span>
+              {aggregateStats.totalWords.toLocaleString()} <span className="text-xs text-slate-400 font-normal">{t('dataManagement.parserTestUi.copy019')}</span>
             </div>
-            <div className="text-2xs text-slate-500 mt-0.5">{parsedResults.length} 个案例全部成功转换</div>
+            <div className="text-2xs text-slate-500 mt-0.5">{parsedResults.length}{t('dataManagement.parserTestUi.copy028')}</div>
           </div>
         </div>
       )}
@@ -303,25 +277,19 @@ export const LaborInfoParserTest: React.FC = () => {
                 className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                   viewTab === 'visual' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
-              >
-                结构化可视化
-              </button>
+              >{t('dataManagement.parserTestUi.copy029')}{' '}</button>
               <button
                 onClick={() => setViewTab('arbitrationCase')}
                 className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                   viewTab === 'arbitrationCase' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
-              >
-                ArbitrationCase 对象
-              </button>
+              >{t('dataManagement.parserTestUi.copy030')}{' '}</button>
               <button
                 onClick={() => setViewTab('json')}
                 className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                   viewTab === 'json' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
-              >
-                解析结果 JSON
-              </button>
+              >{t('dataManagement.parserTestUi.copy031')}{' '}</button>
             </div>
           </div>
 
@@ -332,30 +300,28 @@ export const LaborInfoParserTest: React.FC = () => {
               <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                 <div className="flex items-center gap-4 flex-wrap">
                   <div>
-                    <span className="text-2xs text-slate-500 block uppercase">原文长度</span>
+                    <span className="text-2xs text-slate-500 block uppercase">{t('dataManagement.parserTestUi.copy032')}</span>
                     <span className="text-sm font-bold font-mono text-slate-900">
-                      {activeResult.rawTextLength.toLocaleString()} 字
-                    </span>
+                      {activeResult.rawTextLength.toLocaleString()}{t('dataManagement.parserTestUi.copy019')}{' '}</span>
                   </div>
                   <div className="h-6 w-px bg-slate-200 hidden sm:block" />
                   <div>
-                    <span className="text-2xs text-slate-500 block uppercase">解析耗时</span>
+                    <span className="text-2xs text-slate-500 block uppercase">{t('dataManagement.parserTestUi.copy033')}</span>
                     <span className="text-sm font-bold font-mono text-indigo-600">
                       {activeResult.parseDurationMs} ms
                     </span>
                   </div>
                   <div className="h-6 w-px bg-slate-200 hidden sm:block" />
                   <div>
-                    <span className="text-2xs text-slate-500 block uppercase">字段完整率</span>
+                    <span className="text-2xs text-slate-500 block uppercase">{t('dataManagement.parserTestUi.copy034')}</span>
                     <span className="text-sm font-bold font-mono text-emerald-600">
-                      {activeResult.fieldCompleteness.score}% ({activeResult.fieldCompleteness.filledFields}/{activeResult.fieldCompleteness.totalFields}项)
-                    </span>
+                      {activeResult.fieldCompleteness.score}% ({activeResult.fieldCompleteness.filledFields}/{activeResult.fieldCompleteness.totalFields}{t('dataManagement.parserTestUi.copy035')}{' '}</span>
                   </div>
                 </div>
 
                 {/* 结果倾向标签 */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">裁判结果倾向:</span>
+                  <span className="text-xs text-slate-500">{t('dataManagement.parserTestUi.copy036')}</span>
                   <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                     activeResult.overallResult === 'supported'
                       ? 'bg-emerald-100 text-emerald-800'
@@ -366,12 +332,12 @@ export const LaborInfoParserTest: React.FC = () => {
                       : 'bg-slate-100 text-slate-700'
                   }`}>
                     {activeResult.overallResult === 'supported'
-                       ? '获得支持'
+                       ? t('dataManagement.parserTestUi.supported')
                       : activeResult.overallResult === 'partially_supported'
-                       ? '部分支持'
+                       ? t('dataManagement.parserTestUi.partiallySupported')
                       : activeResult.overallResult === 'not_supported'
-                       ? '未获支持'
-                       : '结果不明确'}
+                       ? t('dataManagement.parserTestUi.notSupported')
+                       : t('dataManagement.parserTestUi.unclear')}
                   </span>
                 </div>
               </div>
@@ -379,36 +345,34 @@ export const LaborInfoParserTest: React.FC = () => {
               {/* 模块 1: 基础信息 (caseTitle, court, date, caseLevel, province, city, caseNumber) */}
               <div className="space-y-2">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Building className="w-3.5 h-3.5 text-indigo-600" />
-                  一、基础信息解析 (Base Info)
-                </h3>
+                  <Building className="w-3.5 h-3.5 text-indigo-600" />{t('dataManagement.parserTestUi.copy037')}{' '}</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl sm:col-span-2">
-                    <div className="text-2xs text-slate-400 font-semibold">案例文书标题 (caseTitle)</div>
+                    <div className="text-2xs text-slate-400 font-semibold">{t('dataManagement.parserTestUi.copy038')}</div>
                     <div className="text-xs font-bold text-slate-800 mt-1 truncate" title={activeResult.caseTitle}>
                       {activeResult.caseTitle}
                     </div>
                   </div>
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-400 font-semibold">审理法院 (court)</div>
+                    <div className="text-2xs text-slate-400 font-semibold">{t('dataManagement.parserTestUi.copy039')}</div>
                     <div className="text-xs font-bold text-slate-800 mt-1 truncate" title={activeResult.court}>
                       {activeResult.court || '-'}
                     </div>
                   </div>
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-400 font-semibold">裁判日期 (date)</div>
+                    <div className="text-2xs text-slate-400 font-semibold">{t('dataManagement.parserTestUi.copy040')}</div>
                     <div className="text-xs font-bold font-mono text-slate-800 mt-1">
                       {activeResult.date || '-'}
                     </div>
                   </div>
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-400 font-semibold">审判层级 (caseLevel)</div>
+                    <div className="text-2xs text-slate-400 font-semibold">{t('dataManagement.parserTestUi.copy041')}</div>
                     <div className="text-xs font-bold font-mono text-blue-700 mt-1">
                       {activeResult.caseLevel || '-'}
                     </div>
                   </div>
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="text-2xs text-slate-400 font-semibold">地域 (province / city)</div>
+                    <div className="text-2xs text-slate-400 font-semibold">{t('dataManagement.parserTestUi.copy042')}</div>
                     <div className="text-xs font-bold text-slate-800 mt-1">
                       {activeResult.province} {activeResult.city}
                     </div>
@@ -419,27 +383,25 @@ export const LaborInfoParserTest: React.FC = () => {
               {/* 模块 2: 当事人识别 (employeeParty, employerParty, confidence) */}
               <div className="space-y-2">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                  二、当事人角色识别 (Parties Recognition - 基于语义与组织特征)
-                </h3>
+                  <UserCheck className="w-3.5 h-3.5 text-blue-600" />{t('dataManagement.parserTestUi.copy043')}{' '}</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl">
-                    <div className="text-2xs text-blue-600 font-semibold uppercase">劳动者方 (employeeParty)</div>
+                    <div className="text-2xs text-blue-600 font-semibold uppercase">{t('dataManagement.parserTestUi.copy044')}</div>
                     <div className="text-sm font-bold text-blue-950 mt-1">
-                      {activeResult.employeeParty || <span className="text-slate-400 font-normal">null (无法确定)</span>}
+                      {activeResult.employeeParty || <span className="text-slate-400 font-normal">{t('dataManagement.parserTestUi.copy045')}</span>}
                     </div>
                   </div>
 
                   <div className="p-3.5 bg-purple-50/70 border border-purple-200 rounded-xl">
-                    <div className="text-2xs text-purple-600 font-semibold uppercase">用人单位方 (employerParty)</div>
+                    <div className="text-2xs text-purple-600 font-semibold uppercase">{t('dataManagement.parserTestUi.copy046')}</div>
                     <div className="text-sm font-bold text-purple-950 mt-1 truncate" title={activeResult.employerParty || ''}>
-                      {activeResult.employerParty || <span className="text-slate-400 font-normal">null (无法确定)</span>}
+                      {activeResult.employerParty || <span className="text-slate-400 font-normal">{t('dataManagement.parserTestUi.copy045')}</span>}
                     </div>
                   </div>
 
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
                     <div>
-                      <div className="text-2xs text-slate-500 font-semibold uppercase">识别置信度 (confidence)</div>
+                      <div className="text-2xs text-slate-500 font-semibold uppercase">{t('dataManagement.parserTestUi.copy047')}</div>
                       <div className="text-sm font-bold font-mono text-slate-800 mt-1">
                         {(activeResult.partyConfidence * 100).toFixed(0)}%
                       </div>
@@ -447,7 +409,7 @@ export const LaborInfoParserTest: React.FC = () => {
                     <span className={`px-2 py-0.5 rounded text-2xs font-semibold ${
                       activeResult.partyConfidence >= 0.8 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                     }`}>
-                      {activeResult.partyConfidence >= 0.8 ? '高置信度' : '中等置信度'}
+                      {activeResult.partyConfidence >= 0.8 ? t('dataManagement.parserTestUi.highConfidence') : t('dataManagement.parserTestUi.mediumConfidence')}
                     </span>
                   </div>
                 </div>
@@ -456,9 +418,7 @@ export const LaborInfoParserTest: React.FC = () => {
               {/* 模块 3: 争议类型 (disputeType) */}
               <div className="space-y-2">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                  三、争议类型标签识别 (disputeType)
-                </h3>
+                  <Layers className="w-3.5 h-3.5 text-indigo-600" />{t('dataManagement.parserTestUi.copy048')}{' '}</h3>
                 <div className="flex flex-wrap gap-2 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
                   {activeResult.disputeType.map((dt) => (
                     <span
@@ -474,16 +434,14 @@ export const LaborInfoParserTest: React.FC = () => {
               {/* 模块 4: 诉求解析清单 (claims[]) */}
               <div className="space-y-2">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Scale className="w-3.5 h-3.5 text-emerald-600" />
-                  四、诉求与支持状态解析 (claims[])
-                </h3>
+                  <Scale className="w-3.5 h-3.5 text-emerald-600" />{t('dataManagement.parserTestUi.copy049')}{' '}</h3>
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                       <tr>
-                        <th className="px-3.5 py-2.5">诉求名称 (claimName)</th>
-                        <th className="px-3.5 py-2.5">提出方 (claimant)</th>
-                        <th className="px-3.5 py-2.5 text-right">支持状态 (supportStatus)</th>
+                        <th className="px-3.5 py-2.5">{t('dataManagement.parserTestUi.copy050')}</th>
+                        <th className="px-3.5 py-2.5">{t('dataManagement.parserTestUi.copy051')}</th>
+                        <th className="px-3.5 py-2.5 text-right">{t('dataManagement.parserTestUi.copy052')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -494,7 +452,7 @@ export const LaborInfoParserTest: React.FC = () => {
                             <span className={`px-2 py-0.5 rounded ${
                               c.claimant === 'employee' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
                             }`}>
-                              {c.claimant === 'employee' ? '劳动者 (employee)' : '用人单位 (employer)'}
+                              {c.claimant === 'employee' ? t('dataManagement.parserTestUi.employee') : t('dataManagement.parserTestUi.employer')}
                             </span>
                           </td>
                           <td className="px-3.5 py-2.5 text-right">
@@ -507,7 +465,7 @@ export const LaborInfoParserTest: React.FC = () => {
                                 ? 'bg-rose-100 text-rose-800'
                                 : 'bg-slate-100 text-slate-700'
                             }`}>
-                              {c.supportStatus === 'supported' ? '✅ 获得支持' : c.supportStatus === 'partially_supported' ? '⚖️ 部分支持' : c.supportStatus === 'not_supported' ? '❌ 未获支持' : '❓ 结果不明确'}
+                              {c.supportStatus === 'supported' ? t('dataManagement.parserTestUi.supportedIcon') : c.supportStatus === 'partially_supported' ? t('dataManagement.parserTestUi.partialIcon') : c.supportStatus === 'not_supported' ? t('dataManagement.parserTestUi.notSupportedIcon') : t('dataManagement.parserTestUi.unclearIcon')}
                             </span>
                           </td>
                         </tr>
@@ -522,24 +480,21 @@ export const LaborInfoParserTest: React.FC = () => {
                 {/* 企业抗辩 */}
                 <div className="space-y-2">
                   <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-                    五、企业抗辩理由识别 (employerDefenses)
-                  </h3>
+                    <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />{t('dataManagement.parserTestUi.copy053')}{' '}</h3>
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 min-h-[120px]">
                     {activeResult.employerDefenses.length > 0 ? (
                       activeResult.employerDefenses.map((d, i) => (
                         <div key={i} className="p-2 bg-white border border-rose-100 rounded-lg text-xs">
                           <div className="font-bold text-rose-900 flex items-center justify-between">
                             <span>{d.defenseType}</span>
-                            <span className="text-2xs font-mono text-slate-400">置信度: {(d.confidence * 100).toFixed(0)}%</span>
+                            <span className="text-2xs font-mono text-slate-400">{t('dataManagement.parserTestUi.copy054')}{' '}{(d.confidence * 100).toFixed(0)}%</span>
                           </div>
-                          <div className="text-2xs text-slate-500 mt-1 font-mono bg-slate-50 p-1.5 rounded">
-                            匹配片段: "{d.matchedText}"
+                          <div className="text-2xs text-slate-500 mt-1 font-mono bg-slate-50 p-1.5 rounded">{t('dataManagement.parserTestUi.copy055')}{d.matchedText}"
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-xs text-slate-400 py-4 text-center">未提取到典型企业抗辩特征词</div>
+                      <div className="text-xs text-slate-400 py-4 text-center">{t('dataManagement.parserTestUi.copy056')}</div>
                     )}
                   </div>
                 </div>
@@ -547,24 +502,21 @@ export const LaborInfoParserTest: React.FC = () => {
                 {/* 证据识别 */}
                 <div className="space-y-2">
                   <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <FileCheck className="w-3.5 h-3.5 text-indigo-600" />
-                    六、关键证据识别 (evidence)
-                  </h3>
+                    <FileCheck className="w-3.5 h-3.5 text-indigo-600" />{t('dataManagement.parserTestUi.copy057')}{' '}</h3>
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 min-h-[120px]">
                     {activeResult.evidence.length > 0 ? (
                       activeResult.evidence.map((e, i) => (
                         <div key={i} className="p-2 bg-white border border-indigo-100 rounded-lg text-xs">
                           <div className="font-bold text-indigo-950 flex items-center justify-between">
                             <span>{e.name}</span>
-                            <span className="text-2xs font-mono text-slate-400">置信度: {(e.confidence * 100).toFixed(0)}%</span>
+                            <span className="text-2xs font-mono text-slate-400">{t('dataManagement.parserTestUi.copy054')}{' '}{(e.confidence * 100).toFixed(0)}%</span>
                           </div>
-                          <div className="text-2xs text-slate-500 mt-1 font-mono bg-slate-50 p-1.5 rounded truncate">
-                            匹配依据: "{e.matchedText}"
+                          <div className="text-2xs text-slate-500 mt-1 font-mono bg-slate-50 p-1.5 rounded truncate">{t('dataManagement.parserTestUi.copy058')}{e.matchedText}"
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-xs text-slate-400 py-4 text-center">未提取到典型物证书证名称</div>
+                      <div className="text-xs text-slate-400 py-4 text-center">{t('dataManagement.parserTestUi.copy059')}</div>
                     )}
                   </div>
                 </div>
@@ -573,13 +525,11 @@ export const LaborInfoParserTest: React.FC = () => {
               {/* 模块 7: 裁判理由与法理要点 (courtReasoning & keyLegalPoints) */}
               <div className="space-y-2">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  七、裁判理由与核心要点 (courtReasoning & keyLegalPoints)
-                </h3>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />{t('dataManagement.parserTestUi.copy060')}{' '}</h3>
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                   {/* 法理要点 */}
                   <div className="space-y-1.5">
-                    <div className="text-2xs font-semibold text-slate-500 uppercase">提炼核心要点:</div>
+                    <div className="text-2xs font-semibold text-slate-500 uppercase">{t('dataManagement.parserTestUi.copy061')}</div>
                     <div className="space-y-1">
                       {activeResult.keyLegalPoints.map((pt, i) => (
                         <div key={i} className="text-xs text-slate-800 bg-white p-2 border border-slate-200 rounded-lg flex items-start gap-2">
@@ -592,9 +542,9 @@ export const LaborInfoParserTest: React.FC = () => {
 
                   {/* 裁判说理原文 */}
                   <div>
-                    <div className="text-2xs font-semibold text-slate-500 uppercase mb-1">裁判理由正文片段 (courtReasoning):</div>
+                    <div className="text-2xs font-semibold text-slate-500 uppercase mb-1">{t('dataManagement.parserTestUi.copy062')}</div>
                     <div className="p-3 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap font-sans">
-                      {activeResult.courtReasoning || '（未识别到独立说理段落）'}
+                      {activeResult.courtReasoning || t('dataManagement.parserTestUi.noReasoning')}
                     </div>
                   </div>
                 </div>
@@ -603,24 +553,22 @@ export const LaborInfoParserTest: React.FC = () => {
               {/* 模块 8: 结果四分类判定 (employeeOutcome, employerOutcome, overallResult) */}
               <div className="space-y-2">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Scale className="w-3.5 h-3.5 text-purple-600" />
-                  八、结果四分类判定 (Outcomes - 严禁根据标题猜测)
-                </h3>
+                  <Scale className="w-3.5 h-3.5 text-purple-600" />{t('dataManagement.parserTestUi.copy063')}{' '}</h3>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                    <div className="text-2xs text-slate-500 font-semibold uppercase">劳动者结果 (employeeOutcome)</div>
+                    <div className="text-2xs text-slate-500 font-semibold uppercase">{t('dataManagement.parserTestUi.copy064')}</div>
                     <div className="text-sm font-bold mt-1 font-mono text-slate-900">
                       {activeResult.employeeOutcome}
                     </div>
                   </div>
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                    <div className="text-2xs text-slate-500 font-semibold uppercase">用人单位结果 (employerOutcome)</div>
+                    <div className="text-2xs text-slate-500 font-semibold uppercase">{t('dataManagement.parserTestUi.copy065')}</div>
                     <div className="text-sm font-bold mt-1 font-mono text-slate-900">
                       {activeResult.employerOutcome}
                     </div>
                   </div>
                   <div className="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl text-center">
-                    <div className="text-2xs text-indigo-600 font-semibold uppercase">综合结果 (overallResult)</div>
+                    <div className="text-2xs text-indigo-600 font-semibold uppercase">{t('dataManagement.parserTestUi.copy066')}</div>
                     <div className="text-sm font-bold mt-1 font-mono text-indigo-950">
                       {activeResult.overallResult}
                     </div>
@@ -634,7 +582,7 @@ export const LaborInfoParserTest: React.FC = () => {
           {viewTab === 'arbitrationCase' && (
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>转换后的标准系统级 <code>ArbitrationCase</code> 实体对象：</span>
+                <span>{t('dataManagement.parserTestUi.copy067')}{' '}<code>ArbitrationCase</code>{t('dataManagement.parserTestUi.copy068')}</span>
                 <span className="font-mono text-indigo-600 font-bold">
                   Quality Score: {activeResult.arbitrationCase.parseQuality.overall}/100 ({activeResult.arbitrationCase.parseStatus})
                 </span>
@@ -648,9 +596,7 @@ export const LaborInfoParserTest: React.FC = () => {
           {/* Tab 3: 完整 LaborInfoParsedResult JSON */}
           {viewTab === 'json' && (
             <div className="p-6 space-y-4">
-              <div className="text-xs text-slate-500">
-                包含诊断性能、字段完整度判定及中间提炼结果的完整 JSON 报文：
-              </div>
+              <div className="text-xs text-slate-500">{t('dataManagement.parserTestUi.copy069')}{' '}</div>
               <pre className="p-4 bg-slate-900 rounded-xl text-slate-200 text-xs font-mono overflow-x-auto max-h-[600px] select-text leading-relaxed">
                 {JSON.stringify(activeResult, null, 2)}
               </pre>

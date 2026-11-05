@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   UploadCloud,
   FileText,
@@ -25,6 +26,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
   onImportComplete,
   onNavigateToDatabase,
 }) => {
+  const { t } = useTranslation();
   const [importType, setImportType] = useState<'html' | 'txt' | 'pdf' | 'paste'>('html');
   const [pastedContent, setPastedContent] = useState('');
   const [pastedTitle, setPastedTitle] = useState('');
@@ -82,13 +84,13 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
       }
 
       setImportedCases(newCases);
-      let msg = `🎉 成功解析并入库 ${newCases.length} 份裁决文书！`;
-      if (duplicateCount > 0) msg += ` （其中 ${duplicateCount} 篇检测为内容重复件）`;
-      if (scanPdfCount > 0) msg += ` （提示：${scanPdfCount} 个PDF为扫描图像，暂无文字层）`;
+      let msg = t('dataManagement.importUi.importSuccess', { count: newCases.length });
+      if (duplicateCount > 0) msg += ` ${t('dataManagement.importUi.duplicates', { count: duplicateCount })}`;
+      if (scanPdfCount > 0) msg += ` ${t('dataManagement.importUi.scannedPdf', { count: scanPdfCount })}`;
       setNotice({ type: 'success', message: msg });
       onImportComplete?.();
     } catch (err: any) {
-      setNotice({ type: 'error', message: `导入失败: ${err.message}` });
+      setNotice({ type: 'error', message: t('dataManagement.importUi.importFailed', { message: err.message }) });
     } finally {
       setProcessing(false);
     }
@@ -96,7 +98,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
 
   const handlePasteImport = async () => {
     if (!pastedContent.trim()) {
-      setNotice({ type: 'warn', message: '请在文本框中粘贴裁决书内容' });
+      setNotice({ type: 'warn', message: t('dataManagement.importUi.pasteRequired') });
       return;
     }
 
@@ -114,13 +116,13 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
       setImportedCases([res.parsedCase]);
       setNotice({
         type: 'success',
-        message: `🎉 成功解析文书并入库: ${res.parsedCase.caseNumber} (质量评分: ${res.parsedCase.parseQuality.overall}分)`,
+        message: t('dataManagement.importUi.pasteSuccess', { caseNumber: res.parsedCase.caseNumber, score: res.parsedCase.parseQuality.overall }),
       });
       setPastedContent('');
       setPastedTitle('');
       onImportComplete?.();
     } catch (err: any) {
-      setNotice({ type: 'error', message: `解析失败: ${err.message}` });
+      setNotice({ type: 'error', message: t('dataManagement.importUi.parseFailed', { message: err.message }) });
     } finally {
       setProcessing(false);
     }
@@ -147,11 +149,11 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
       setImportedCases(newCases);
       setNotice({
         type: 'success',
-        message: `🎉 成功载入 ${newCases.length} 份合成演示文书！仅用于界面与流程演示，不作为研究分析数据。`,
+        message: t('dataManagement.importUi.demoLoaded', { count: newCases.length }),
       });
       onImportComplete?.();
     } catch (err: any) {
-      setNotice({ type: 'error', message: `载入测试集失败: ${err.message}` });
+      setNotice({ type: 'error', message: t('dataManagement.importUi.demoLoadFailed', { message: err.message }) });
     } finally {
       setProcessing(false);
     }
@@ -162,10 +164,10 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-xl border border-white/80 rounded-[28px] p-7 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-          数据导入与本地解析中心
+          {t('dataManagement.importUi.title')}
         </h2>
         <p className="text-sm text-slate-500 mt-2 leading-6">
-          支持从 PC 浏览器将下载或保存的 .html、.txt、.pdf 裁判文书直接拖入，通过本地规则引擎自动提取案号、当事人、仲裁请求与裁判说理并保存至 IndexedDB
+          {t('dataManagement.importUi.description')}
         </p>
       </div>
 
@@ -193,7 +195,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
               onClick={onNavigateToDatabase}
               className="px-3 py-1 bg-white text-slate-800 rounded font-semibold border border-slate-200 hover:bg-slate-50 flex items-center gap-1 shrink-0"
             >
-              查看案例库 <ArrowRight className="w-3 h-3" />
+              {t('dataManagement.importUi.viewLibrary')} <ArrowRight className="w-3 h-3" />
             </button>
           )}
         </div>
@@ -211,8 +213,8 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
           }`}
         >
           <FileCode className="w-5 h-5 text-blue-600 mb-1.5" />
-          <div className="text-xs font-bold">导入网页 (.html / .mht)</div>
-          <div className="text-2xs text-slate-500 mt-0.5">浏览器网页或 MHTML 存档</div>
+          <div className="text-xs font-bold">{t('dataManagement.importUi.html')}</div>
+          <div className="text-2xs text-slate-500 mt-0.5">{t('dataManagement.importUi.htmlDescription')}</div>
         </button>
 
         <button
@@ -225,8 +227,8 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
           }`}
         >
           <FileText className="w-5 h-5 text-indigo-600 mb-1.5" />
-          <div className="text-xs font-bold">导入文本 (.txt)</div>
-          <div className="text-2xs text-slate-500 mt-0.5">纯文本格式裁决书</div>
+          <div className="text-xs font-bold">{t('dataManagement.importUi.text')}</div>
+          <div className="text-2xs text-slate-500 mt-0.5">{t('dataManagement.importUi.textDescription')}</div>
         </button>
 
         <button
@@ -239,8 +241,8 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
           }`}
         >
           <FileSpreadsheet className="w-5 h-5 text-emerald-600 mb-1.5" />
-          <div className="text-xs font-bold">导入 PDF (.pdf)</div>
-          <div className="text-2xs text-slate-500 mt-0.5">提取文字层 (扫描件除外)</div>
+          <div className="text-xs font-bold">{t('dataManagement.importUi.pdf')}</div>
+          <div className="text-2xs text-slate-500 mt-0.5">{t('dataManagement.importUi.pdfDescription')}</div>
         </button>
 
         <button
@@ -253,8 +255,8 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
           }`}
         >
           <Sparkles className="w-5 h-5 text-purple-600 mb-1.5" />
-          <div className="text-xs font-bold">直接粘贴内容</div>
-          <div className="text-2xs text-slate-500 mt-0.5">粘贴裁决书或HTML代码</div>
+          <div className="text-xs font-bold">{t('dataManagement.importUi.paste')}</div>
+          <div className="text-2xs text-slate-500 mt-0.5">{t('dataManagement.importUi.pasteDescription')}</div>
         </button>
       </div>
 
@@ -267,9 +269,9 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
 
           <div>
             <h3 className="text-sm font-bold text-slate-900">
-              拖拽 {importType.toUpperCase()} 文件至此处，或点击浏览上传
+              {t('dataManagement.importUi.dropFiles', { type: importType.toUpperCase() })}
             </h3>
-            <p className="text-xs text-slate-500 mt-1">支持批量选择，系统将自动进行内容 Hash 去重与要素解析</p>
+            <p className="text-xs text-slate-500 mt-1">{t('dataManagement.importUi.batchHint')}</p>
           </div>
 
           <label
@@ -277,7 +279,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold cursor-pointer shadow-sm transition-colors"
           >
             <Play className="w-3.5 h-3.5" />
-            选择本地文件
+            {t('dataManagement.importUi.chooseFiles')}
             <input
               id="file-upload-input"
               type="file"
@@ -298,7 +300,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
             <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-2xs text-amber-800 max-w-md mx-auto flex items-center gap-2 text-left">
               <ShieldAlert className="w-4 h-4 shrink-0 text-amber-600" />
               <span>
-                提示：本地 PDF 提取依赖文字层；如 PDF 为纯扫描拍照图片，系统将提示「暂不支持 OCR」，不会虚构内容。
+                {t('dataManagement.importUi.pdfNote')}
               </span>
             </div>
           )}
@@ -307,28 +309,28 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
         <div className="bg-white/80 p-6 rounded-[24px] border border-white/80 shadow-sm space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-800 mb-1">
-              文书标题（可选，留空将自动从内容识别）
+              {t('dataManagement.importUi.documentTitle')}
             </label>
             <input
               id="input-paste-title"
               type="text"
               value={pastedTitle}
               onChange={(e) => setPastedTitle(e.target.value)}
-              placeholder="如：深劳人仲案[2024]1208号裁决书"
+              placeholder={t('dataManagement.importUi.documentTitlePlaceholder')}
               className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-800 mb-1">
-              裁决书全文或 HTML 源码
+              {t('dataManagement.importUi.documentContent')}
             </label>
             <textarea
               id="textarea-paste-content"
               rows={10}
               value={pastedContent}
               onChange={(e) => setPastedContent(e.target.value)}
-              placeholder="在此粘贴裁决书全文（包含案号、当事人、经审理查明、本委认为、裁决如下等完整结构）..."
+              placeholder={t('dataManagement.importUi.documentContentPlaceholder')}
               className="w-full p-3 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-mono focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
@@ -340,7 +342,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
               onClick={handlePasteImport}
               className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-colors"
             >
-              {processing ? '正在解析并入库...' : '立即解析并存入本地数据库'}
+              {processing ? t('dataManagement.importUi.processing') : t('dataManagement.importUi.submit')}
             </button>
           </div>
         </div>
@@ -351,12 +353,12 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 rounded text-2xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-              离线测试专用
+              {t('dataManagement.importUi.offlineDemo')}
             </span>
-              <span className="text-xs text-slate-300 font-bold">合成劳动争议演示集</span>
+              <span className="text-xs text-slate-300 font-bold">{t('dataManagement.importUi.demoSet')}</span>
           </div>
           <p className="text-2xs text-slate-400 mt-1 max-w-xl">
-            内置 5 份合成演示文书（含违法解除、年终奖、特殊工时加班费、未签合同二倍工资、调岗降薪争议），仅用于界面与流程演示，不作为研究分析数据。
+            {t('dataManagement.importUi.demoDescription')}
           </p>
         </div>
 
@@ -367,7 +369,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-2 shrink-0 transition-colors"
         >
           <Play className="w-3.5 h-3.5" />
-          一键载入示范数据集
+          {t('dataManagement.importUi.loadDemo')}
         </button>
       </div>
 
@@ -375,8 +377,8 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
       {importedCases.length > 0 && (
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <h3 className="text-xs font-bold text-slate-900">本次导入解析结果明细 ({importedCases.length} 篇)</h3>
-            <span className="text-2xs text-slate-400">已全部安全写入本地 IndexedDB</span>
+            <h3 className="text-xs font-bold text-slate-900">{t('dataManagement.importUi.importedDetails', { count: importedCases.length })}</h3>
+            <span className="text-2xs text-slate-400">{t('dataManagement.importUi.savedLocally')}</span>
           </div>
 
           <div className="divide-y divide-slate-100">
@@ -389,7 +391,7 @@ export const ImportCases: React.FC<ImportCasesProps> = ({
                       {c.arbitrationCommittee}
                     </span>
                     <span className="text-2xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-mono font-semibold">
-                      质量: {c.parseQuality.overall}分
+                      {t('dataManagement.importUi.qualityScore', { score: c.parseQuality.overall })}
                     </span>
                   </div>
                   <p className="text-slate-700 text-2xs truncate mt-0.5">{c.title}</p>

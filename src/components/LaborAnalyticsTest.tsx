@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Building2,
   MapPin,
@@ -44,6 +45,7 @@ import {
   KEY_EVIDENCE_TYPES,
 } from '../services/analytics/LaborDisputeAnalyticsEngine';
 import { getOutcomePresentation } from '../services/outcome/OutcomePresentation';
+import { getDefenseTypeLabel, getDisputeTypeLabel, getEvidenceTypeLabel } from '../services/presentation/domainLabels';
 import { formatCaseDate, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
 import {
   ResearchAnalysisService,
@@ -51,7 +53,7 @@ import {
   type ResearchAnalyticsMetadata,
 } from '../services/analysis/ResearchAnalysisService';
 import { filterAnalyticsEligibleRecords } from '../services/analytics/AnalyticsAdmission';
-import { geographicScopeLabel } from '../services/research/ResearchGeographicScope';
+import { normalizeResearchGeographicScope, type ResearchGeographicScope } from '../services/research/ResearchGeographicScope';
 import { formatRateWithDenominator } from '../services/presentation/MetricPresentation';
 import { ResearchAnalysisHeader } from './ResearchAnalysisHeader';
 
@@ -63,6 +65,14 @@ interface LaborAnalyticsTestProps {
 }
 
 export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialAnalysisRunId = '', onAnalysisRunSelect }) => {
+  const { t } = useTranslation();
+  const geographicScopeDescription = (scope?: ResearchGeographicScope) => {
+    const normalized = normalizeResearchGeographicScope(scope);
+    if (!normalized || normalized.mode === 'all') return t('research.ui.geographicAll');
+    if (normalized.mode === 'province') return normalized.provinces?.join('、') || t('research.ui.geographicProvinceUnselected');
+    if (normalized.mode === 'pearl_river_delta') return t('research.ui.geographicPearlRiverDelta');
+    return normalized.cities?.join('、') || t('research.ui.geographicCustomUnselected');
+  };
   const [allRecords, setAllRecords] = useState<AnalysisCaseRecord[]>([]);
   const [report, setReport] = useState<LaborDisputeReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -87,10 +97,10 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
         if (initialAnalysisRunId && !runs.some((run) => run.id === initialAnalysisRunId)) {
           setSelectedAnalysisRunId('');
           onAnalysisRunSelect('');
-          setResearchError('先前选择的 AnalysisRun 已不存在，请重新选择。');
+          setResearchError(t('research.missingRun'));
         }
       })
-      .catch((error) => setResearchError(error instanceof Error ? error.message : '无法加载 AnalysisRun'));
+      .catch((error) => setResearchError(error instanceof Error ? error.message : t('research.loadRunError')));
   }, [initialAnalysisRunId, onAnalysisRunSelect]);
 
   useEffect(() => {
@@ -100,7 +110,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
   // 从用户明确选择的 AnalysisRun 固定输入执行分析。
   const loadData = async () => {
     if (!selectedAnalysisRunId) {
-      setResearchError('请先选择一个 AnalysisRun。');
+      setResearchError(t('research.noSelectedRun'));
       return;
     }
     setIsLoading(true);
@@ -118,9 +128,9 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
       setAllRecords(execution.context.records);
       setReport(execution.result?.result ?? null);
       setResearchMetadata(execution.result?.metadata ?? null);
-      if (!execution.result) setResearchError('Analytics Gate 或质量门禁已阻止本次正式分析，请查看 Quality issues。');
+      if (!execution.result) setResearchError(t('research.gateBlocked'));
     } catch (err) {
-      setResearchError(err instanceof Error ? err.message : '统计分析引擎执行失败');
+      setResearchError(err instanceof Error ? err.message : t('research.executionError'));
     } finally {
       setIsLoading(false);
     }
@@ -167,13 +177,13 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex flex-wrap items-center gap-3">
-                劳动争议基础统计分析
+                {t('research.overview')}
                 <span className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
-                  正式分析集统计
+                  {t('research.officialSet')}
                 </span>
               </h1>
               <p className="text-sm text-slate-500 mt-2 max-w-2xl leading-6">
-                基于当前选定的分析集，对案件结果、争议类型及其他结构化数据进行统计。
+                {t('research.description')}
               </p>
           </div>
 
@@ -204,16 +214,16 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
           <div className="p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex items-start gap-3 text-slate-700 leading-5">
             <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold text-slate-900">数据范围：</span>
-              分析仅作用于所选 AnalysisRun 的冻结输入；exhaustive 描述 Snapshot 语料，sampled 只描述本次样本。
+              <span className="font-semibold text-slate-900">{t('research.dataScope')}</span>
+              {' '}{t('research.frozenInput')}
             </div>
           </div>
 
           <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-start gap-3 text-emerald-950 leading-5">
             <Percent className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold">客观统计与结果比例定义：</span>
-              结果比例分母<strong>严格排除结果不明确</strong>；部分支持独立统计，不直接计入结果偏有利；证据统计仅反映关联出现频次，不作因果推断。
+              <span className="font-semibold">{t('research.rules')}</span>
+              {' '}{t('research.denominatorRule')}
             </div>
           </div>
         </div>
@@ -224,20 +234,18 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-slate-500 font-semibold uppercase flex items-center gap-1">
-              <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
-              案例总量
-            </div>
+              <FolderOpen className="w-3.5 h-3.5 text-slate-400" />{t('research.totalCases')}</div>
             <div className="text-2xl font-bold font-mono text-slate-800 mt-1">
               {report.overall.totalCases}
             </div>
-            <div className="text-2xs text-slate-400 mt-0.5">所选 AnalysisRun 固定输入</div>
+            <div className="text-2xs text-slate-400 mt-0.5">{t('research.selectedInput')}</div>
           </div>
 
           <div
             onClick={() =>
               handleOpenDrilldown(
-                '正式分析集案件',
-                '质量分 >= 80 或已通过人工审核的合格分析集案例',
+                t('research.eligibleCases'),
+                t('research.eligibilityDescription'),
                 filterAnalyticsEligibleRecords(Array.isArray(allRecords) ? allRecords : []).eligibleRecords
                   .map((r) => r.caseId)
               )
@@ -246,42 +254,36 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
           >
             <div className="text-2xs text-emerald-800 font-semibold uppercase flex items-center justify-between">
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                有效分析量 (Included)
-              </span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />{t('research.ui.includedCountLabel')}</span>
               <ChevronRight className="w-3 h-3 text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
             </div>
             <div className="text-2xl font-bold font-mono text-emerald-700 mt-1">
               {report.overall.includedCases}
             </div>
-            <div className="text-2xs text-emerald-600 mt-0.5">点击查看全部入集案件</div>
+            <div className="text-2xs text-emerald-600 mt-0.5">{t('research.includedCases')}</div>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-slate-500 font-semibold uppercase flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-              平均质量分 (Avg Parser Score)
-            </div>
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />{t('research.ui.avgScoreLabel')}</div>
             <div className="text-2xl font-bold font-mono text-indigo-600 mt-1">
               {report.overall.averageParserScore}{' '}
               <span className="text-xs font-normal text-slate-400">/ 100</span>
             </div>
-            <div className="text-2xs text-slate-400 mt-0.5">合格集平均完整度</div>
+            <div className="text-2xs text-slate-400 mt-0.5">{t('research.avgCompleteness')}</div>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
             <div className="text-2xs text-slate-500 font-semibold uppercase flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-purple-500" />
-              人工审核状态
-            </div>
+              <ShieldCheck className="w-3.5 h-3.5 text-purple-500" />{t('research.ui.manualReviewStatus')}</div>
             <div className="text-sm font-bold text-slate-800 mt-2 flex items-center gap-2 font-mono">
-              <span className="text-emerald-700">{report.overall.reviewApprovedCount} 核准</span>
+              <span className="text-emerald-700">{report.overall.reviewApprovedCount} {t('research.ui.approvedCount')}</span>
               <span className="text-slate-300">|</span>
-              <span className="text-blue-700">{report.overall.modifiedReviewCount} 修订</span>
+              <span className="text-blue-700">{report.overall.modifiedReviewCount} {t('research.ui.revisedCount')}</span>
               <span className="text-slate-300">|</span>
-              <span className="text-slate-500">{report.overall.pendingReviewCount} 待核</span>
+              <span className="text-slate-500">{report.overall.pendingReviewCount} {t('research.ui.pendingCount')}</span>
             </div>
-            <div className="text-2xs text-slate-400 mt-1">人工校验覆盖构成</div>
+            <div className="text-2xs text-slate-400 mt-1">{t('research.reviewCoverage')}</div>
           </div>
         </div>
       )}
@@ -291,10 +293,10 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <Building2 className="w-4 h-4 text-indigo-600" />
-            <h2 className="text-sm font-bold text-slate-900">二、研究地域裁判结果统计</h2>
+            <h2 className="text-sm font-bold text-slate-900">{t('research.cityOutcomes')}</h2>
           </div>
           <span className="text-2xs text-slate-400 font-mono">
-            研究范围：{geographicScopeLabel(researchContext?.analysisRun.geographicScope)}
+            {t('research.ui.selectedScope', { scope: geographicScopeDescription(researchContext?.analysisRun.geographicScope) })}
           </span>
         </div>
 
@@ -317,14 +319,14 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                     <button
                       onClick={() =>
                         handleOpenDrilldown(
-                          `${citySummary.city} - 全部有效分析案件`,
-                          `共检索到 ${citySummary.caseCount} 个入集案例`,
+                          `${citySummary.city} - ${t('research.eligibleCases')}`,
+                          t('research.ui.caseWithCount', { count: citySummary.caseCount }),
                           citySummary.caseIds
                         )
                       }
                       className="px-2 py-0.5 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-indigo-700 rounded-md text-2xs font-mono font-semibold transition-colors cursor-pointer"
                     >
-                      {citySummary.caseCount} 个案例 ↗
+                      {t('research.ui.caseWithCount', { count: citySummary.caseCount })} ↗
                     </button>
                   </div>
 
@@ -335,117 +337,115 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <div
                           onClick={() =>
                             handleOpenDrilldown(
-                              `${citySummary.city} - 企业结果偏有利案例`,
-                              `企业结果归一化为偏有利`,
+                              `${citySummary.city} - ${t('research.employerFavorableRate')}`,
+                              t('research.employerFavorableRate'),
                               citySummary.employerOutcome.caseIds.supported
                             )
                           }
                           className="bg-white p-2.5 rounded-lg border border-slate-200 hover:border-emerald-300 transition-all cursor-pointer group"
                         >
-                          <div className="text-3xs text-slate-500 font-semibold uppercase">企业结果偏有利比例</div>
+                          <div className="text-3xs text-slate-500 font-semibold uppercase">{t('research.employerFavorableRate')}</div>
                           <div className="text-lg font-bold font-mono text-emerald-600 group-hover:text-emerald-700">
-                            {citySummary.employerWinRate === null ? '当前样本不足' : `${citySummary.employerWinRate}%`}
+                            {citySummary.employerWinRate === null ? t('research.sampleInsufficient') : `${citySummary.employerWinRate}%`}
                           </div>
                           <div className="text-3xs text-slate-400 font-mono">
                             {citySummary.employerOutcome.supported} /{' '}
                             {citySummary.employerOutcome.supported +
                               citySummary.employerOutcome.partially_supported +
                               citySummary.employerOutcome.not_supported}{' '}
-                            个案例
+                            {t('research.ui.caseWithCount', { count: citySummary.employerOutcome.supported + citySummary.employerOutcome.partially_supported + citySummary.employerOutcome.not_supported })}
                           </div>
                         </div>
 
                         <div
                           onClick={() =>
                             handleOpenDrilldown(
-                              `${citySummary.city} - 劳动者结果偏有利案例`,
-                              `劳动者结果归一化为偏有利`,
+                              `${citySummary.city} - ${t('research.employeeFavorableRate')}`,
+                              t('research.employeeFavorableRate'),
                               citySummary.employeeOutcome.caseIds.supported
                             )
                           }
                           className="bg-white p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300 transition-all cursor-pointer group"
                         >
-                          <div className="text-3xs text-slate-500 font-semibold uppercase">员工结果偏有利比例</div>
+                          <div className="text-3xs text-slate-500 font-semibold uppercase">{t('research.employeeFavorableRate')}</div>
                           <div className="text-lg font-bold font-mono text-indigo-600 group-hover:text-indigo-700">
-                            {citySummary.employeeWinRate === null ? '当前样本不足' : `${citySummary.employeeWinRate}%`}
+                            {citySummary.employeeWinRate === null ? t('research.sampleInsufficient') : `${citySummary.employeeWinRate}%`}
                           </div>
                           <div className="text-3xs text-slate-400 font-mono">
                             {citySummary.employeeOutcome.supported} /{' '}
                             {citySummary.employeeOutcome.supported +
                               citySummary.employeeOutcome.partially_supported +
                               citySummary.employeeOutcome.not_supported}{' '}
-                            个案例
+                            {t('research.ui.caseWithCount', { count: citySummary.employeeOutcome.supported + citySummary.employeeOutcome.partially_supported + citySummary.employeeOutcome.not_supported })}
                           </div>
                         </div>
                       </div>
 
                       {/* 裁判四分类细目分布 */}
                       <div className="space-y-1.5 text-2xs pt-1 border-t border-slate-200/60">
-                        <div className="text-3xs text-slate-400 font-semibold uppercase">
-                          企业视角四分类结果构成
-                        </div>
+                        <div className="text-3xs text-slate-400 font-semibold uppercase">{t('research.ui.employerView')}</div>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-600">获得支持:</span>
+                          <span className="text-slate-600">{t('research.ui.supportColon')}</span>
                           <button
                             onClick={() =>
                               handleOpenDrilldown(
-                                `${citySummary.city} - 企业结果获得支持案例`,
-                                '企业结果获得支持',
+                                `${citySummary.city} - ${t('research.ui.employerSupportedCases')}`,
+                                t('research.supportedForEmployer'),
                                 citySummary.employerOutcome.caseIds.supported
                               )
                             }
                             className="font-mono font-semibold text-emerald-700 hover:underline cursor-pointer"
                           >
-                            {citySummary.employerOutcome.supported} 个案例
+                            {t('research.ui.caseWithCount', { count: citySummary.employerOutcome.supported })}
                           </button>
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-600">部分支持:</span>
+                          <span className="text-slate-600">{t('research.ui.partialColon')}</span>
                           <button
                             onClick={() =>
                               handleOpenDrilldown(
-                                `${citySummary.city} - 企业部分支持案件`,
-                                '双方各获部分支持',
+                                `${citySummary.city} - ${t('research.ui.employerPartialCases')}`,
+                                t('research.partial'),
                                 citySummary.employerOutcome.caseIds.partially_supported
                               )
                             }
                             className="font-mono font-semibold text-amber-700 hover:underline cursor-pointer"
                           >
-                            {citySummary.employerOutcome.partially_supported} 个案例（
-                              {citySummary.employerPartialRate === null ? '当前样本不足' : `${citySummary.employerPartialRate}%`}
+                            {t('research.ui.caseWithCount', { count: citySummary.employerOutcome.partially_supported })}（
+                              {citySummary.employerPartialRate === null ? t('research.sampleInsufficient') : `${citySummary.employerPartialRate}%`}
                             ）
                           </button>
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-600">未获支持:</span>
+                          <span className="text-slate-600">{t('research.ui.notSupportedColon')}</span>
                           <button
                             onClick={() =>
                               handleOpenDrilldown(
-                                `${citySummary.city} - 企业结果未获支持案例`,
-                                '企业案件结果未获支持；不据此推断具体抗辩是否获法院采纳',
+                                `${citySummary.city} - ${t('research.ui.employerNotSupportedCases')}`,
+                                t('research.ui.doNotInferDefense'),
                                 citySummary.employerOutcome.caseIds.not_supported
                               )
                             }
                             className="font-mono font-semibold text-rose-700 hover:underline cursor-pointer"
                           >
-                            {citySummary.employerOutcome.not_supported} 个案例
+                            {t('research.ui.caseWithCount', { count: citySummary.employerOutcome.not_supported })}
                           </button>
                         </div>
 
                         {citySummary.employerOutcome.unclear > 0 && (
                           <div className="flex items-center justify-between text-slate-400">
-                            <span>结果不明确:</span>
-                            <span className="font-mono">{citySummary.employerOutcome.unclear} 个案例 (已剔除)</span>
+                            <span>{t('research.ui.unclearColon')}</span>
+                            <span className="font-mono">{t('research.ui.caseWithCount', { count: citySummary.employerOutcome.unclear })} ({t('research.ui.knownOutcomesOnly')})</span>
                           </div>
                         )}
                       </div>
                     </>
                   ) : (
                     <div className="py-8 text-center text-xs text-slate-400 bg-white rounded-lg border border-dashed border-slate-200">
-                      当前样本不足
+                      {t('research.sampleInsufficient')}
                     </div>
                   )}
                 </div>
@@ -453,7 +453,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
             })}
           </div>
         ) : (
-          <div className="py-8 text-center text-xs text-slate-400">当前样本不足</div>
+          <div className="py-8 text-center text-xs text-slate-400">{t('research.sampleInsufficient')}</div>
         )}
       </div>
 
@@ -462,10 +462,10 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <Tag className="w-4 h-4 text-purple-600" />
-            <h2 className="text-sm font-bold text-slate-900">三、重点争议类型结果比例与案例量排行</h2>
+            <h2 className="text-sm font-bold text-slate-900">{t('research.disputeRanking')}</h2>
           </div>
           <span className="text-2xs text-slate-400 font-mono">
-            点击任意案例量或结果比例钻取案例列表
+            {t('research.ui.drilldownHint')}
           </span>
         </div>
 
@@ -474,12 +474,12 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-2xs text-slate-500 uppercase bg-slate-50">
-                  <th className="py-2.5 px-3 font-semibold">争议类型标签</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">入集案件量</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">企业结果有利率（排除结果不明确）</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">员工结果偏有利比例</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">部分支持</th>
-                  <th className="py-2.5 px-3 font-semibold text-right">操作溯源</th>
+                  <th className="py-2.5 px-3 font-semibold">{t('research.disputeType')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('research.includedCaseCount')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('research.employerRate')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('research.employeeFavorableRate')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('research.partialSupport')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">{t('research.traceAction')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -492,11 +492,9 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                     <tr key={dt.disputeType} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-2.5 px-3 font-medium text-slate-800">
                         <div className="flex items-center gap-2">
-                          <span>{dt.disputeType}</span>
+                          <span>{getDisputeTypeLabel(dt.disputeType, t)}</span>
                           {isKey && (
-                            <span className="px-1.5 py-0.2 bg-purple-50 border border-purple-200 text-purple-700 rounded text-3xs font-semibold">
-                              重点类型
-                            </span>
+                            <span className="px-1.5 py-0.2 bg-purple-50 border border-purple-200 text-purple-700 rounded text-3xs font-semibold">{t('research.ui.categoryKey')}</span>
                           )}
                         </div>
                       </td>
@@ -505,14 +503,14 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <button
                           onClick={() =>
                             handleOpenDrilldown(
-                              `争议类型: ${dt.disputeType} - 全部案件`,
-                              `共 ${dt.caseCount} 个案例`,
+                              t('research.ui.allDisputeCases', { type: getDisputeTypeLabel(dt.disputeType, t) }),
+                              t('research.ui.caseWithCount', { count: dt.caseCount }),
                               dt.caseIds
                             )
                           }
                           className="hover:text-indigo-600 hover:underline cursor-pointer"
                         >
-                          {dt.caseCount} 个案例
+                          {t('research.ui.caseWithCount', { count: dt.caseCount })}
                         </button>
                       </td>
 
@@ -520,8 +518,8 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <button
                           onClick={() =>
                             handleOpenDrilldown(
-                              `争议类型: ${dt.disputeType} - 企业支持案件`,
-                              `企业获得支持的案件列表`,
+                              `${t('research.disputeType')}: ${getDisputeTypeLabel(dt.disputeType, t)} - ${t('research.ui.employerSupportedCases')}`,
+                              t('research.ui.supportedClaimCases'),
                               dt.employerOutcome.caseIds.supported
                             )
                           }
@@ -535,8 +533,8 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <button
                           onClick={() =>
                             handleOpenDrilldown(
-                              `争议类型: ${dt.disputeType} - 劳动者支持案件`,
-                              `劳动者诉求获得支持的案件列表`,
+                              `${t('research.disputeType')}: ${getDisputeTypeLabel(dt.disputeType, t)} - ${t('research.ui.employeeSupportedCases')}`,
+                              t('research.ui.supportedClaimCases'),
                               dt.employeeOutcome.caseIds.supported
                             )
                           }
@@ -550,14 +548,14 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <button
                           onClick={() =>
                             handleOpenDrilldown(
-                              `争议类型: ${dt.disputeType} - 部分支持案件`,
-                              `部分支持案件列表`,
+                              `${t('research.disputeType')}: ${getDisputeTypeLabel(dt.disputeType, t)} - ${t('research.partial')}`,
+                              t('research.partial'),
                               dt.employerOutcome.caseIds.partially_supported
                             )
                           }
                           className="hover:underline cursor-pointer"
                         >
-                          {dt.employerOutcome.partially_supported} 个案例
+                          {t('research.ui.caseWithCount', { count: dt.employerOutcome.partially_supported })}
                         </button>
                       </td>
 
@@ -565,15 +563,13 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <button
                           onClick={() =>
                             handleOpenDrilldown(
-                              `争议类型: ${dt.disputeType}`,
-                              `查看涉及 ${dt.disputeType} 的全部 ${dt.caseCount} 个案例`,
+                              `${t('research.disputeType')}: ${getDisputeTypeLabel(dt.disputeType, t)}`,
+                              t('research.ui.viewDisputeCases', { type: getDisputeTypeLabel(dt.disputeType, t), count: dt.caseCount }),
                               dt.caseIds
                             )
                           }
                           className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded text-2xs font-medium inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          查看案件
-                          <ChevronRight className="w-3 h-3" />
+                        >{t('research.ui.caseAction')}<ChevronRight className="w-3 h-3" />
                         </button>
                       </td>
                     </tr>
@@ -583,7 +579,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
             </table>
           </div>
         ) : (
-          <div className="py-8 text-center text-xs text-slate-400">当前样本不足</div>
+          <div className="py-8 text-center text-xs text-slate-400">{t('research.sampleInsufficient')}</div>
         )}
       </div>
 
@@ -592,10 +588,10 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-rose-600" />
-            <h2 className="text-sm font-bold text-slate-900">四、企业抗辩与案件结果共现排行</h2>
+            <h2 className="text-sm font-bold text-slate-900">{t('research.defenseRanking')}</h2>
           </div>
           <span className="text-2xs text-slate-400 font-mono">
-             企业结果有利共现率 = 获得支持 /（获得支持 + 部分支持 + 未获支持），排除结果不明确
+             {t('research.ui.employerFavorableFormula')}
           </span>
         </div>
 
@@ -604,13 +600,13 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-2xs text-slate-500 uppercase bg-slate-50">
-                  <th className="py-2.5 px-3 font-semibold">抗辩事由</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">出现总频次</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">涉及案件数</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">企业结果获得支持</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">部分支持</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">企业未获支持</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">有利结果共现率</th>
+                  <th className="py-2.5 px-3 font-semibold">{t('research.defenseType')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('research.frequency')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('research.caseCount')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('research.supportedForEmployer')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('research.partialSupport')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('research.notSupportedForEmployer')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('research.favorableRate')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -622,31 +618,29 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                     <tr key={def.defenseType} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-2.5 px-3 font-medium text-slate-800">
                         <div className="flex items-center gap-2">
-                          <span>{def.defenseType}</span>
+                          <span>{getDefenseTypeLabel(def.defenseType, t)}</span>
                           {isKey && (
-                            <span className="px-1.5 py-0.2 bg-rose-50 border border-rose-200 text-rose-700 rounded text-3xs font-semibold">
-                              核心抗辩
-                            </span>
+                            <span className="px-1.5 py-0.2 bg-rose-50 border border-rose-200 text-rose-700 rounded text-3xs font-semibold">{t('research.ui.defenseKey')}</span>
                           )}
                         </div>
                       </td>
 
                       <td className="py-2.5 px-3 text-center font-mono text-slate-600">
-                        {def.frequency} 次
+                        {t('research.ui.frequencyTimes', { count: def.frequency })}
                       </td>
 
                       <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-800">
                         <button
                           onClick={() =>
                             handleOpenDrilldown(
-                              `抗辩事由: ${def.defenseType} - 涉及案件`,
-                              `共 ${def.caseCount} 个案例提出该抗辩`,
+                              t('research.ui.defenseCases', { type: getDefenseTypeLabel(def.defenseType, t) }),
+                              t('research.ui.defenseCount', { count: def.caseCount }),
                               def.caseIds
                             )
                           }
                           className="hover:text-indigo-600 hover:underline cursor-pointer"
                         >
-                          {def.caseCount} 个案例
+                          {t('research.ui.caseWithCount', { count: def.caseCount })}
                         </button>
                       </td>
 
@@ -654,14 +648,14 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <button
                           onClick={() =>
                             handleOpenDrilldown(
-                              `抗辩事由: ${def.defenseType} - 企业结果偏有利案例`,
-                              `提出该抗辩且企业获支持`,
+                              t('research.ui.defenseFavorable', { type: getDefenseTypeLabel(def.defenseType, t) }),
+                              t('research.ui.defenseAndSupported'),
                               def.employerSupportedCaseIds
                             )
                           }
                           className="font-mono font-bold text-emerald-700 hover:underline cursor-pointer"
                         >
-                          {def.employerSupportedCount} 个案例
+                          {t('research.ui.caseWithCount', { count: def.employerSupportedCount })}
                         </button>
                       </td>
 
@@ -669,14 +663,14 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <button
                           onClick={() =>
                             handleOpenDrilldown(
-                              `抗辩事由: ${def.defenseType} - 企业部分支持案件`,
-                              `提出该抗辩且部分支持`,
+                              t('research.ui.defensePartial', { type: getDefenseTypeLabel(def.defenseType, t) }),
+                              t('research.ui.defenseAndPartial'),
                               def.employerPartialCaseIds
                             )
                           }
                           className="font-mono text-amber-700 hover:underline cursor-pointer"
                         >
-                          {def.employerPartialCount} 个案例
+                          {t('research.ui.caseWithCount', { count: def.employerPartialCount })}
                         </button>
                       </td>
 
@@ -684,14 +678,14 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <button
                           onClick={() =>
                             handleOpenDrilldown(
-                              `抗辩事由: ${def.defenseType} - 企业未获支持案件`,
-                              `提出该抗辩且企业案件结果为不支持；不表示法院明确否定该抗辩`,
+                              t('research.ui.defenseNotSupported', { type: getDefenseTypeLabel(def.defenseType, t) }),
+                              t('research.ui.defenseNoInference'),
                               def.employerNotSupportedCaseIds
                             )
                           }
                           className="font-mono text-rose-700 hover:underline cursor-pointer"
                         >
-                          {def.employerNotSupportedCount} 个案例
+                          {t('research.ui.caseWithCount', { count: def.employerNotSupportedCount })}
                         </button>
                       </td>
 
@@ -715,7 +709,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
             </table>
           </div>
         ) : (
-          <div className="py-8 text-center text-xs text-slate-400">当前样本不足</div>
+          <div className="py-8 text-center text-xs text-slate-400">{t('research.sampleInsufficient')}</div>
         )}
       </div>
 
@@ -724,73 +718,73 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <FileCheck className="w-4 h-4 text-indigo-600" />
-            <h2 className="text-sm font-bold text-slate-900">五、关键证据材料关联频次统计</h2>
+            <h2 className="text-sm font-bold text-slate-900">{t('research.evidenceRanking')}</h2>
           </div>
           <span className="text-2xs text-slate-500 font-medium">
-            ⚠️ 严格统计规范：本栏仅反映证据在支持企业结果案件中的关联出现频率，严禁做因果推断
+            ⚠️ {t('research.ui.strictEvidenceRule')}
           </span>
         </div>
 
         {report && report.evidenceRanking.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {report.evidenceRanking.map((ev) => {
               const isKey = (KEY_EVIDENCE_TYPES as readonly string[]).includes(ev.evidenceName);
 
               return (
                 <div
                   key={ev.evidenceName}
-                  className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5 hover:border-indigo-300 transition-all"
+                  className="min-w-0 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5 hover:border-indigo-300 transition-all"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs">
-                      <span>{ev.evidenceName}</span>
-                      {isKey && (
-                        <span className="px-1.5 py-0.2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-3xs font-semibold">
-                          重点证据
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-2xs text-slate-400 font-mono">
-                      总出现: {ev.frequency} 次
+                  <div className="min-w-0 text-xs font-semibold leading-5 text-slate-900 break-words">
+                    {getEvidenceTypeLabel(ev.evidenceName, t)}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    {isKey && (
+                      <span className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-3xs font-semibold">
+                        {t('research.keyEvidence')}
+                      </span>
+                    )}
+                    <span className="ml-auto shrink-0 whitespace-nowrap text-sm text-slate-500 font-mono">
+                      {t('research.ui.totalAppearance', { count: ev.frequency })}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-2xs pt-1 border-t border-slate-200/60">
-                    <div className="bg-white p-2 rounded-lg border border-slate-200">
-                      <div className="text-3xs text-slate-400">涉及案件总数</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-2 text-2xs pt-1 border-t border-slate-200/60">
+                    <div className="min-w-0 bg-white p-2 rounded-lg border border-slate-200 flex flex-col">
+                      <div className="text-3xs text-slate-400">{t('research.totalCasesInvolved')}</div>
                       <button
                         onClick={() =>
                           handleOpenDrilldown(
-                            `证据: ${ev.evidenceName} - 涉及案件`,
-                            `提交了 [${ev.evidenceName}] 的案件清单`,
+                            t('research.ui.evidenceCases', { type: getEvidenceTypeLabel(ev.evidenceName, t) }),
+                            t('research.ui.submittedEvidenceList'),
                             ev.caseIds
                           )
                         }
-                        className="font-bold font-mono text-slate-800 hover:text-indigo-600 hover:underline cursor-pointer"
+                        className="mt-auto pt-1 font-bold font-mono text-left text-slate-800 hover:text-indigo-600 hover:underline cursor-pointer"
                       >
-                        {ev.caseCount} 个案例
+                        {t('research.ui.caseWithCount', { count: ev.caseCount })}
                       </button>
                     </div>
 
-                    <div className="bg-white p-2 rounded-lg border border-slate-200">
-                      <div className="text-3xs text-slate-400">支持企业案中出现</div>
+                    <div className="min-w-0 bg-white p-2 rounded-lg border border-slate-200 flex flex-col">
+                      <div className="text-3xs text-slate-400">{t('research.ui.appearanceInSupported')}</div>
                       <button
                         onClick={() =>
                           handleOpenDrilldown(
-                            `证据: ${ev.evidenceName} - 企业获支持案件`,
-                            `在支持企业结果案件中出现了 [${ev.evidenceName}]`,
+                            t('research.ui.evidenceSupportedCases', { type: getEvidenceTypeLabel(ev.evidenceName, t) }),
+                            t('research.ui.evidenceInSupported'),
                             ev.appearanceInEmployerSupportedCaseIds
                           )
                         }
-                        className="font-bold font-mono text-emerald-700 hover:underline cursor-pointer"
+                        className="mt-auto pt-1 font-bold font-mono text-left text-emerald-700 hover:underline cursor-pointer"
                       >
-                        {ev.appearanceInEmployerSupportedCount} 个案例
+                        {t('research.ui.caseWithCount', { count: ev.appearanceInEmployerSupportedCount })}
                       </button>
                     </div>
                   </div>
 
                   <div className="text-3xs text-slate-500 bg-emerald-50/60 border border-emerald-100 p-2 rounded-lg flex items-center justify-between font-mono">
-                    <span>企业获支持案件中的出现率:</span>
+                    <span>{t('research.appearanceRate')}</span>
                     <strong className="text-emerald-800">{formatRateWithDenominator(ev.rateInEmployerSupported, ev.appearanceInEmployerSupportedCount, ev.employerSupportedDenominator)}</strong>
                   </div>
                 </div>
@@ -798,7 +792,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
             })}
           </div>
         ) : (
-          <div className="py-8 text-center text-xs text-slate-400">当前样本不足</div>
+          <div className="py-8 text-center text-xs text-slate-400">{t('research.sampleInsufficient')}</div>
         )}
       </div>
 
@@ -814,7 +808,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                   {drilldownTitle}
                 </h3>
                 <p className="text-2xs text-slate-500 mt-0.5">
-                  {drilldownDescription}（共 {drilldownCases.length} 个有效案例）
+                  {t('research.ui.drilldownTitleCount', { title: drilldownDescription, count: drilldownCases.length })}
                 </p>
               </div>
 
@@ -832,9 +826,7 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
             {/* 抽屉主体：案件列表 + 选中详情 */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {drilldownCases.length === 0 ? (
-                <div className="py-16 text-center text-xs text-slate-400">
-                  当前分类下无匹配案件或样本不足
-                </div>
+                <div className="py-16 text-center text-xs text-slate-400">{t('research.ui.noMatchingCases')}</div>
               ) : (
                 <div className="space-y-3">
                   {drilldownCases.map((c) => {
@@ -857,13 +849,13 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                               {c.city}
                             </span>
                             {c.year && (
-                              <span className="text-3xs text-slate-400 font-mono">{c.year}年</span>
+                              <span className="text-3xs text-slate-400 font-mono">{t('research.ui.year', { year: c.year })}</span>
                             )}
                           </div>
 
                           <div className="flex items-center gap-2">
                             <span className={`px-2 py-0.5 rounded text-3xs font-bold font-mono ${employerOutcomePresentation.badgeClassName}`}>
-                              企业: {employerOutcomePresentation.label}
+                              {t('research.ui.employerOutcome')} {t(`status.${employerOutcomePresentation.outcome === 'partially_supported' ? 'partiallySupported' : employerOutcomePresentation.outcome === 'not_supported' ? 'notSupported' : employerOutcomePresentation.outcome}`)}
                             </span>
                           </div>
                         </div>
@@ -871,26 +863,26 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                         <h4 className="font-bold text-slate-900 text-xs line-clamp-1">{c.title}</h4>
 
                         <div className="grid grid-cols-2 gap-2 text-2xs text-slate-500">
-                          <div className="truncate">审理法院: {c.court}</div>
-                          <div className="truncate">裁判日期: {formatCaseDate(c.date)}</div>
+                          <div className="truncate">{t('research.ui.courtLabel')} {c.court}</div>
+                          <div className="truncate">{t('research.ui.dateLabel')} {formatCaseDate(c.date)}</div>
                         </div>
 
                         {isSelected && (
                           <div className="pt-2 border-t border-slate-200 space-y-2 text-2xs text-slate-700 bg-slate-50/50 p-2.5 rounded-lg mt-2">
                             <div>
-                              <span className="text-slate-400">当事人:</span> 劳动者 [{formatPartyName(c.employeeParty)}] vs 用人单位 [{formatPartyName(c.employerParty)}]
+                              <span className="text-slate-400">{t('research.parties')}</span> {t('section.employee')} [{formatPartyName(c.employeeParty)}] vs {t('section.employer')} [{formatPartyName(c.employerParty)}]
                             </div>
                             <div>
-                              <span className="text-slate-400">诉求条目 ({(Array.isArray(c.claims) ? c.claims.length : 0)}):</span>{' '}
-                              {Array.isArray(c.claims) ? c.claims.map((cl) => cl.claimName).join('、') : '无'}
+                              <span className="text-slate-400">{t('research.ui.claimsLabel', { count: (Array.isArray(c.claims) ? c.claims.length : 0) })}</span>{' '}
+                              {Array.isArray(c.claims) ? c.claims.map((cl) => cl.claimName).join('、') : t('research.none')}
                             </div>
                             <div>
-                              <span className="text-slate-400">抗辩事由 ({(Array.isArray(c.employerDefenses) ? c.employerDefenses.length : 0)}):</span>{' '}
-                              {Array.isArray(c.employerDefenses) ? c.employerDefenses.map((d) => d.defenseType).join('、') : '无'}
+                              <span className="text-slate-400">{t('research.ui.defensesLabel', { count: (Array.isArray(c.employerDefenses) ? c.employerDefenses.length : 0) })}</span>{' '}
+                              {Array.isArray(c.employerDefenses) ? c.employerDefenses.map((d) => getDefenseTypeLabel(d.defenseType, t)).join('、') : t('research.none')}
                             </div>
                             <div>
-                              <span className="text-slate-400">提取证据 ({(Array.isArray(c.evidence) ? c.evidence.length : 0)}):</span>{' '}
-                              {Array.isArray(c.evidence) ? c.evidence.map((e) => e.name).join('、') : '无'}
+                              <span className="text-slate-400">{t('research.ui.evidenceLabel', { count: (Array.isArray(c.evidence) ? c.evidence.length : 0) })}</span>{' '}
+                              {Array.isArray(c.evidence) ? c.evidence.map((e) => getEvidenceTypeLabel(e.name, t)).join('、') : t('research.none')}
                             </div>
 
                             <div className="flex justify-end pt-1">
@@ -903,14 +895,10 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
                               >
                                 {copiedId === c.caseId ? (
                                   <>
-                                    <Check className="w-3 h-3 text-emerald-600" />
-                                    已复制
-                                  </>
+                                    <Check className="w-3 h-3 text-emerald-600" />{t('research.ui.copied')}</>
                                 ) : (
                                   <>
-                                    <Copy className="w-3 h-3" />
-                                    复制完整记录 JSON
-                                  </>
+                                    <Copy className="w-3 h-3" />{t('research.ui.copyRecordJson')}</>
                                 )}
                               </button>
                             </div>
@@ -925,16 +913,14 @@ export const LaborAnalyticsTest: React.FC<LaborAnalyticsTestProps> = ({ initialA
 
             {/* 抽屉底部 */}
             <div className="p-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-2xs text-slate-500">
-              <span>数据层直接映射，零推断零污染</span>
+              <span>{t('research.directDataMapping')}</span>
               <button
                 onClick={() => {
                   setDrilldownCaseIds(null);
                   setSelectedCaseDetail(null);
                 }}
                 className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md font-medium cursor-pointer"
-              >
-                关闭面板
-              </button>
+              >{t('research.ui.closePanel')}</button>
             </div>
           </div>
         </div>

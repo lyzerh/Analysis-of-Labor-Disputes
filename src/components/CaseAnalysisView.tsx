@@ -1,10 +1,13 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { AnalysisCaseRecord, CaseParty, OutcomeResolutionDiagnostic, OutcomeReviewItem, ProceduralRole } from '../types';
+import { useTranslation } from 'react-i18next';
+import { JudgmentTranslationReader } from './JudgmentTranslationReader';
+import { AnalysisCaseRecord, OutcomeResolutionDiagnostic, OutcomeReviewItem } from '../types';
 import { Search, FileText, AlertCircle, X } from 'lucide-react';
 import { LaborAnalysisPipeline } from '../services/data/LaborAnalysisPipeline';
-import { getCaseEntityOutcomeLabel, getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
+import { getClaimOwnershipPresentation, getOutcomePresentation, getPartyOutcomePresentations } from '../services/outcome/OutcomePresentation';
 import { evidenceProviderLabel } from '../services/evidence/EvidenceProvider';
-import { createCaseSummaryPresentation, formatCaseDate, formatCaseLevel, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
+import { getCaseLevelLabel, getClaimTypeLabel, getDefenseTypeLabel, getDisputeTypeLabel, getEvidenceTypeLabel, getOutcomeLabel } from '../services/presentation/domainLabels';
+import { createCaseSummaryPresentation, formatCaseDate, formatCaseNumber, formatPartyName } from '../services/presentation/CaseMetadataPresentation';
 import {
   buildOutcomeReviewQueue,
   outcomeReviewReasonLabels,
@@ -28,27 +31,6 @@ import { AnalysisRunService } from '../services/analysis/AnalysisRunService';
 import { db } from '../db';
 import { exportCompetitionValidationSnapshot } from '../services/validation/CompetitionValidationSnapshot';
 import { addCaseToGoldSet, getActiveGoldSet } from '../services/gold/GoldAnnotationStorage';
-
-const proceduralRoleLabels: Record<ProceduralRole, string> = {
-  plaintiff: '原告',
-  defendant: '被告',
-  appellant: '上诉人',
-  appellee: '被上诉人',
-  applicant: '申请人',
-  respondent: '被申请人',
-  counterclaimPlaintiff: '反诉原告',
-  counterclaimDefendant: '反诉被告',
-  counterclaimant: '反诉原告',
-  third_party: '第三人',
-  unknown: '未识别',
-};
-
-const laborRoleLabels: Record<CaseParty['laborRole'], string> = {
-  employee: '劳动者',
-  employer: '用人单位',
-  other: '其他主体',
-  unknown: '未识别',
-};
 
 interface CaseAnalysisViewProps {
   records?: AnalysisCaseRecord[];
@@ -98,6 +80,7 @@ const OutcomeEvidenceFields: React.FC<{
 };
 
 export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: initialRecords, initialAnalysisRunId = '' }) => {
+  const { t } = useTranslation();
   // ① 所有 state
   const [records, setRecords] = useState<AnalysisCaseRecord[]>(Array.isArray(initialRecords) ? initialRecords : []);
   const [loading, setLoading] = useState(true);
@@ -182,8 +165,8 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
   const addSelectedCaseToGoldSet = (caseId: string) => {
     const activeGoldSet = getActiveGoldSet();
     setGoldMessage(activeGoldSet
-      ? (addCaseToGoldSet(activeGoldSet.id, caseId) ? '已加入当前 Gold Set' : '该案例已在 Gold Set 中')
-      : '请先在 Gold 标注页面创建 Gold Set');
+      ? (addCaseToGoldSet(activeGoldSet.id, caseId) ? t('finalUi.caseAnalysisExtras.addedToGold') : t('finalUi.caseAnalysisExtras.alreadyInGold'))
+      : t('finalUi.caseAnalysisExtras.createGoldFirst'));
   };
 
   // Handle auto-selection when filtered list changes
@@ -299,17 +282,17 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
 
   // ④ 最后才允许根据状态 return UI
   if (loading) {
-    return <div className="p-8 text-center text-slate-500 flex flex-col items-center justify-center h-full"><div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>正在加载数据...</div>;
+    return <div className="p-8 text-center text-slate-500 flex flex-col items-center justify-center h-full"><div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>{t('common.loading')}</div>;
   }
 
   if (error) {
-    return <div className="p-8 text-center text-rose-500 flex flex-col items-center justify-center h-full"><AlertCircle className="w-10 h-10 mb-4" />加载案例数据失败: {error.message}</div>;
+    return <div className="p-8 text-center text-rose-500 flex flex-col items-center justify-center h-full"><AlertCircle className="w-10 h-10 mb-4" />{' '}{t('finalUi.caseAnalysis.copy001')}{' '}{error.message}</div>;
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-slate-100/60 shadow-sm" data-testid="case-analysis-workspace">
       <div className="mx-4 mt-4 shrink-0 space-y-2">
-        <div role="tablist" aria-label="案例分析视图" className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs">
+        <div role="tablist" aria-label={t('finalUi.caseAnalysis.copy002')} className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs">
           <button
             type="button"
             role="tab"
@@ -317,8 +300,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
             onClick={() => setActiveSubview('browse')}
             className={`rounded-md px-3 py-1.5 font-medium transition-colors ${activeSubview === 'browse' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
           >
-            案例浏览
-          </button>
+            {' '}{t('finalUi.caseAnalysis.copy003')}{' '}</button>
           <button
             type="button"
             role="tab"
@@ -326,14 +308,13 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
             onClick={() => setActiveSubview('pipeline')}
             className={`rounded-md px-3 py-1.5 font-medium transition-colors ${activeSubview === 'pipeline' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
           >
-            流水线工作台
-          </button>
+            {' '}{t('finalUi.caseAnalysis.copy004')}{' '}</button>
         </div>
         {analysisContext?.analysisRun && (
           <AnalysisContextBar
             run={analysisContext.analysisRun}
             snapshotId={analysisContext.snapshot.id}
-            scopeLabel={analysisContext.statisticalScope === 'corpus' ? '语料总体' : '本次样本'}
+            scopeLabel={analysisContext.statisticalScope === 'corpus' ? t('finalUi.caseAnalysisExtras.corpus') : t('finalUi.caseAnalysisExtras.sample')}
             reviewQueueCount={reviewQueue.length}
             qualityStatus={analysisContext.quality.status}
           />
@@ -351,10 +332,10 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
 
       {activeSubview === 'browse' && selectedReviewItem && selectedCase && selectedReviewItem.caseId === selectedCase.caseId && (
         <div className="mx-4 mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-950">
-          <div className="font-semibold">已定位到当前案例的诊断线索</div>
-          <div className="mt-1">原因：{cleanPipelineDiagnosticMessage(selectedReviewItem.reasonMessage, (selectedReviewItem.reasonCode && outcomeReviewReasonLabels[selectedReviewItem.reasonCode]) || '待复核')}</div>
+          <div className="font-semibold">{' '}{t('finalUi.caseAnalysis.copy005')}{' '}</div>
+          <div className="mt-1">{' '}{t('finalUi.caseAnalysis.copy006')}{' '}{cleanPipelineDiagnosticMessage(selectedReviewItem.reasonMessage, (selectedReviewItem.reasonCode && outcomeReviewReasonLabels[selectedReviewItem.reasonCode]) || t('finalUi.caseAnalysis.copy033'))}</div>
           <details className="mt-1">
-            <summary className="cursor-pointer text-indigo-700">展开诊断证据片段</summary>
+            <summary className="cursor-pointer text-indigo-700">{' '}{t('finalUi.caseAnalysis.copy007')}{' '}</summary>
             <OutcomeEvidenceFields item={selectedReviewItem} />
           </details>
         </div>
@@ -372,7 +353,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="搜索案号、标题、法院..."
+                  placeholder={t('finalUi.caseAnalysis.copy008')}
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
                   className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 text-sm rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-shadow"
@@ -388,7 +369,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
             <div className="text-xs text-slate-500 mt-3 flex justify-between items-center">
               <span>{caseListScopeLabel}</span>
               {keyword.trim() !== '' && (
-                <button onClick={clearSearch} className="text-indigo-600 hover:text-indigo-700 font-medium">清除搜索</button>
+                <button onClick={clearSearch} className="text-indigo-600 hover:text-indigo-700 font-medium">{' '}{t('finalUi.caseAnalysis.copy009')}{' '}</button>
               )}
             </div>
           </div>
@@ -397,11 +378,10 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
             {filteredRecords.length === 0 ? (
               <div className="p-8 text-center text-sm text-slate-400 flex flex-col items-center">
                 <Search className="w-8 h-8 text-slate-300 mb-2" />
-                <p>未找到匹配案例</p>
+                <p>{' '}{t('finalUi.caseAnalysis.copy010')}{' '}</p>
                 {keyword.trim() !== '' && (
                   <button onClick={clearSearch} className="mt-4 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-medium hover:bg-indigo-100 transition-colors">
-                    清除搜索，显示全部
-                  </button>
+                    {' '}{t('finalUi.caseAnalysis.copy011')}{' '}</button>
                 )}
               </div>
             ) : (Array.isArray(filteredRecords) ? filteredRecords : []).map(record => {
@@ -413,7 +393,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                   className={`p-3 rounded-xl cursor-pointer transition-all border ${isSelected ? 'bg-indigo-50 border-indigo-200 border-l-4 border-l-indigo-600' : 'bg-white border-transparent hover:border-slate-200 hover:bg-slate-50'}`}
                 >
                   <h4 className="text-sm font-bold text-slate-900 line-clamp-1">
-                    {record.title || record.caseNumber || '未知案例'}
+                    {record.title || record.caseNumber || t('finalUi.caseAnalysisExtras.unknownCase')}
                   </h4>
                   <div className="text-xs text-slate-500 mt-1 flex gap-2">
                     <span>{record.city}</span>
@@ -423,7 +403,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                   <div className="flex gap-1 flex-wrap mt-1.5">
                     {Array.isArray(record.disputeType) ? record.disputeType.slice(0, 2).map((dt: any, i: number) => (
                       <span key={i} className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px]">
-                        {dt}
+                        {getDisputeTypeLabel(dt, t)}
                       </span>
                     )) : null}
                   </div>
@@ -439,7 +419,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
             {!selectedCase ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400">
                 <FileText className="w-12 h-12 mb-3 text-slate-300" />
-                <p>{filteredRecords.length === 0 ? '暂无匹配案例' : '请在左侧选择案例进行分析'}</p>
+                <p>{filteredRecords.length === 0 ? t('finalUi.caseAnalysisExtras.noMatches') : t('finalUi.caseAnalysisExtras.selectCase')}</p>
               </div>
             ) : (() => {
               const record = selectedCase;
@@ -447,17 +427,17 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
               <div className="space-y-6 h-full">
                   <div className="bg-white border border-slate-200 rounded-[24px] p-6 shadow-sm mb-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-[10px] rounded font-bold">当前案例</span>
-                      <button type="button" onClick={() => addSelectedCaseToGoldSet(record.caseId)} className="px-2 py-1 border border-indigo-200 text-indigo-700 text-[10px] rounded font-semibold hover:bg-indigo-50">加入 Gold Set</button>
+                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-[10px] rounded font-bold">{' '}{t('finalUi.caseAnalysis.copy012')}{' '}</span>
+                      <button type="button" onClick={() => addSelectedCaseToGoldSet(record.caseId)} className="px-2 py-1 border border-indigo-200 text-indigo-700 text-[10px] rounded font-semibold hover:bg-indigo-50">{' '}{t('finalUi.caseAnalysis.copy013')}{' '}</button>
                       {goldMessage && <span className="text-[10px] text-emerald-700">{goldMessage}</span>}
                     </div>
                     <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4">
                       {record.title || record.caseNumber}
                     </h3>
                     {(() => {
-                      const summary = createCaseSummaryPresentation(record);
+                      const summary = createCaseSummaryPresentation(record, t);
                       return (summary.primary || summary.secondary) ? (
-                        <div aria-label="案件摘要" className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-950">
+                        <div aria-label={t('finalUi.caseAnalysis.copy014')} className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-950">
                           {summary.primary && <div className="font-medium">{summary.primary}</div>}
                           {summary.secondary && <div className="mt-0.5 text-[11px] text-indigo-800/80">{summary.secondary}</div>}
                         </div>
@@ -467,40 +447,38 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-3">
                         <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                          基本情况
+                          {' '}{t('finalUi.caseAnalysis.copy015')}{' '}</div>
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs space-y-2">
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">{' '}{t('finalUi.caseAnalysis.copy016')}{' '}</span><span className="font-medium text-slate-900">{formatCaseNumber(record.caseNumber)}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">{' '}{t('finalUi.caseAnalysis.copy017')}{' '}</span><span className="font-medium text-slate-900">{formatCaseDate(record.date)}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">{' '}{t('finalUi.caseAnalysis.copy018')}{' '}</span><span className="font-medium text-slate-900">{record.arbitrationCommittee || record.court || t('finalUi.caseAnalysisExtras.unknown')}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">{' '}{t('finalUi.caseAnalysis.copy019')}{' '}</span><span className="font-medium text-slate-900">{formatPartyName(record.employeeParty)}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">{' '}{t('finalUi.caseAnalysis.copy020')}{' '}</span><span className="font-medium text-slate-900">{formatPartyName(record.employerParty)}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">{' '}{t('finalUi.caseAnalysis.copy021')}{' '}</span><span className="font-medium text-slate-900">{getCaseLevelLabel(record.caseLevel, t)}</span></div>
                         </div>
                         <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs space-y-2">
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">案号：</span><span className="font-medium text-slate-900">{formatCaseNumber(record.caseNumber)}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">裁判日期：</span><span className="font-medium text-slate-900">{formatCaseDate(record.date)}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">裁判机构：</span><span className="font-medium text-slate-900">{record.arbitrationCommittee || record.court || '未知'}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">劳动者：</span><span className="font-medium text-slate-900">{formatPartyName(record.employeeParty)}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">用人单位：</span><span className="font-medium text-slate-900">{formatPartyName(record.employerParty)}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">审理程序：</span><span className="font-medium text-slate-900">{formatCaseLevel(record.caseLevel)}</span></div>
-                        </div>
-                        <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs space-y-2">
-                          <div className="font-bold text-slate-800">程序身份映射</div>
+                          <div className="font-bold text-slate-800">{' '}{t('finalUi.caseAnalysis.copy022')}{' '}</div>
                           {record.parties?.length ? record.parties.map((party) => (
                             <div key={party.id} className="flex items-start gap-2">
                               <span className="text-slate-500 min-w-[4.5rem]">{party.proceduralRoles.length
-                                ? party.proceduralRoles.map((role) => proceduralRoleLabels[role] || '未识别').join(' / ')
-                                : '未识别'}：</span>
-                              <span className="font-medium text-slate-900">{formatPartyName(party.name)}｜{laborRoleLabels[party.laborRole] || '未识别'}</span>
+                                ? party.proceduralRoles.map((role) => t(`finalUi.caseAnalysisRoles.procedural.${role}`)).join(' / ')
+                                : t('finalUi.caseAnalysisExtras.unknown')}：</span>
+                              <span className="font-medium text-slate-900">{formatPartyName(party.name)}｜{t(`finalUi.caseAnalysisRoles.labor.${party.laborRole}`)}</span>
                             </div>
-                          )) : <div className="text-slate-400">未识别</div>}
+                          )) : <div className="text-slate-400">{' '}{t('finalUi.caseAnalysis.copy023')}{' '}</div>}
                         </div>
                       </div>
                       
                       <div className="space-y-3">
                         <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                          裁判结果与要点
-                        </div>
+                          {' '}{t('finalUi.caseAnalysis.copy024')}{' '}</div>
                         {selectedOutcomePresentations && <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs space-y-2">
-                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">劳动者实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{getCaseEntityOutcomeLabel(record.employeeOutcome)}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">用人单位实体结果：</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{getCaseEntityOutcomeLabel(record.employerOutcome)}</span></div>
-                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">争议类型：</span><span className="font-medium text-slate-900">{Array.isArray(record.disputeType) ? record.disputeType.join('、') : (record.disputeType || '未知')}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">{' '}{t('finalUi.caseAnalysis.copy025')}{' '}</span><span className={`font-bold ${selectedOutcomePresentations.employee.textClassName}`}>{getOutcomeLabel(record.employeeOutcome, t)}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[6rem]">{' '}{t('finalUi.caseAnalysis.copy026')}{' '}</span><span className={`font-bold ${selectedOutcomePresentations.employer.textClassName}`}>{getOutcomeLabel(record.employerOutcome, t)}</span></div>
+                          <div className="flex"><span className="text-slate-500 min-w-[5rem]">{' '}{t('finalUi.caseAnalysis.copy027')}{' '}</span><span className="font-medium text-slate-900">{Array.isArray(record.disputeType) ? record.disputeType.map((value) => getDisputeTypeLabel(value, t)).join('、') : (record.disputeType || t('finalUi.caseAnalysisExtras.unknown'))}</span></div>
                           {Array.isArray(record.keyLegalPoints) && record.keyLegalPoints.length > 0 && (
                             <div className="flex flex-col mt-2">
-                              <span className="text-slate-500 mb-1">关键裁判要点：</span>
+                              <span className="text-slate-500 mb-1">{' '}{t('finalUi.caseAnalysis.copy028')}{' '}</span>
                               <span className="font-medium text-slate-900 leading-relaxed bg-white p-2 rounded border border-purple-100">{record.keyLegalPoints.join('；')}</span>
                             </div>
                           )}
@@ -512,8 +490,7 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                       <div className="space-y-6">
                         <div className="space-y-3">
                           <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            诉求与裁判结果
-                          </div>
+                            {' '}{t('finalUi.caseAnalysis.copy029')}{' '}</div>
                           {Array.isArray(record.claims) && record.claims.length > 0 ? (
                             <div className="space-y-2">
                               {record.claims.map((claim, idx) => {
@@ -524,17 +501,17 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                                 return (
                                   <div key={idx} className={`bg-white border p-2.5 rounded-lg text-xs flex justify-between items-start gap-2 ${isFocused ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-slate-200'}`}>
                                     <div className="text-slate-800 leading-relaxed">
-                                      {claim.claimName}
+                                      {getClaimTypeLabel(claim.claimName, t)}
                                       <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-                                        <span>提出方：{ownership.claimantLabel}</span>
-                                        {ownership.beneficiaryLabel && <span>实质受益方：{ownership.beneficiaryLabel}</span>}
-                                        {ownership.relatedLabel && <span>关联权益：{ownership.relatedLabel}</span>}
-                                        {diagnostic?.needsReview && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">待复核</span>}
+                                        <span>{' '}{t('finalUi.caseAnalysis.copy030')}{' '}{ownership.claimantLabel}</span>
+                                        {ownership.beneficiaryLabel && <span>{' '}{t('finalUi.caseAnalysis.copy031')}{' '}{ownership.beneficiaryLabel}</span>}
+                                        {ownership.relatedLabel && <span>{' '}{t('finalUi.caseAnalysis.copy032')}{' '}{ownership.relatedLabel}</span>}
+                                        {diagnostic?.needsReview && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">{' '}{t('finalUi.caseAnalysis.copy033')}{' '}</span>}
                                       </div>
-                                      {diagnostic?.reasonMessage ? <span className="block text-amber-700 mt-1">当前语义结果尚未明确：{diagnostic.reasonMessage}</span> : null}
+                                      {diagnostic?.reasonMessage ? <span className="block text-amber-700 mt-1">{' '}{t('finalUi.caseAnalysis.copy034')}{' '}{diagnostic.reasonMessage}</span> : null}
                                       {diagnostic?.needsReview ? (
                                         <details className="mt-1 text-[11px] text-slate-600">
-                                          <summary className="cursor-pointer text-indigo-700">展开诊断证据片段</summary>
+                                          <summary className="cursor-pointer text-indigo-700">{' '}{t('finalUi.caseAnalysis.copy007')}{' '}</summary>
                                           <OutcomeEvidenceFields item={{
                                             ...diagnostic,
                                             caseId: record.caseId,
@@ -549,32 +526,31 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                                       ) : null}
                                     </div>
                                     <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${presentation.badgeClassName}`}>
-                                      {presentation.label}
+                                      {getOutcomeLabel(claim.supportStatus, t)}
                                     </span>
                                   </div>
                                 );
                               })}
                             </div>
                           ) : (
-                            <div className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-xl border border-slate-100">未识别</div>
+                            <div className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-xl border border-slate-100">{' '}{t('finalUi.caseAnalysis.copy023')}{' '}</div>
                           )}
                         </div>
                         
                         <div className="space-y-3">
                           <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                            企业抗辩
-                          </div>
+                            {' '}{t('finalUi.caseAnalysis.copy035')}{' '}</div>
                           {Array.isArray(record.employerDefenses) && record.employerDefenses.length > 0 ? (
                             <div className="space-y-2">
                               {record.employerDefenses.map((def: any, idx: number) => (
                                 <div key={idx} className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg text-xs space-y-1">
-                                  <div className="font-bold text-emerald-900">{def.defenseType || def.type}</div>
+                                  <div className="font-bold text-emerald-900">{getDefenseTypeLabel(def.defenseType || def.type, t)}</div>
                                   <CollapsibleText text={def.matchedText || def.text} collapsedLines={4} className="text-slate-700 leading-relaxed" />
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-xl border border-slate-100">未识别</div>
+                            <div className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-xl border border-slate-100">{' '}{t('finalUi.caseAnalysis.copy023')}{' '}</div>
                           )}
                         </div>
                       </div>
@@ -582,39 +558,39 @@ export const CaseAnalysisView: React.FC<CaseAnalysisViewProps> = ({ records: ini
                     
                     <details className="mt-6 pt-6 border-t border-slate-100">
                       <summary className="flex cursor-pointer list-none items-center gap-1.5 font-bold text-slate-800 text-sm">
-                        关键证据与法院认定：{(record.evidence || []).length} 条证据｜{record.courtReasoning?.trim() ? '1' : '0'} 条认定理由
-                      </summary>
+                        {' '}{t('finalUi.caseAnalysis.copy036')}{' '}{(record.evidence || []).length} {' '}{t('finalUi.caseAnalysis.copy037')}{' '}{record.courtReasoning?.trim() ? '1' : '0'} {' '}{t('finalUi.caseAnalysis.copy038')}{' '}</summary>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                         <div className="bg-white border border-slate-200 p-3 rounded-xl">
-                          <div className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">关键证据</div>
+                          <div className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">{' '}{t('finalUi.caseAnalysis.copy039')}{' '}</div>
                           {Array.isArray(record.evidence) && record.evidence.length > 0 ? (
                             <ul className="list-disc list-inside text-xs text-slate-700 space-y-1">
                               {record.evidence.map((ev: any, idx: number) => (
                                 <li key={idx}>
                                   <span className="font-medium text-slate-900">【{evidenceProviderLabel(ev.provider)}】</span>
-                                  <span className="ml-1">{ev.name || ev.type}：</span>
+                                  <span className="ml-1">{getEvidenceTypeLabel(ev.name || ev.type, t)}：</span>
                                   <CollapsibleText text={ev.matchedText || ev.text} collapsedLines={4} className="mt-0.5" />
                                 </li>
                               ))}
                             </ul>
                           ) : (
-                            <div className="text-xs text-slate-400">未识别</div>
+                            <div className="text-xs text-slate-400">{' '}{t('finalUi.caseAnalysis.copy023')}{' '}</div>
                           )}
                         </div>
                         <div className="bg-white border border-slate-200 p-3 rounded-xl">
-                          <div className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">法院/仲裁委认定理由</div>
+                          <div className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">{' '}{t('finalUi.caseAnalysis.copy040')}{' '}</div>
                           {typeof record.courtReasoning === 'string' && record.courtReasoning.trim().length > 0 ? (
                             <div className="text-xs text-slate-700 bg-white p-2 border border-slate-100 rounded leading-relaxed">
                               <CollapsibleText text={record.courtReasoning} collapsedLines={4} />
                             </div>
                           ) : (
-                            <div className="text-xs text-slate-400">未识别</div>
+                            <div className="text-xs text-slate-400">{' '}{t('finalUi.caseAnalysis.copy023')}{' '}</div>
                           )}
                         </div>
                       </div>
                     </details>
                     
                   </div>
+                  {record.rawDocumentId && <div key={record.rawDocumentId}><JudgmentTranslationReader rawDocumentId={record.rawDocumentId} /></div>}
               </div>
               );
             })()}

@@ -25,7 +25,7 @@ describe('BUG-010 research navigation context', () => {
     // "当前 Snapshot" label.
     expect(workspaceSource).toMatch(/<AnalysisContextBar/);
     expect(workspaceSource).toMatch(/Snapshot ID：/);
-    expect(workspaceSource).toMatch(/高级设置 \/ 技术详情/);
+    expect(workspaceSource).toContain("t('finalUi.researchWorkspace.copy067')");
   });
 
   it('restores Snapshot A after a Workspace refresh', () => {

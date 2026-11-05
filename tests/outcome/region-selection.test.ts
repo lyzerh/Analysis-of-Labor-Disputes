@@ -68,13 +68,14 @@ describe('research region selection contract', () => {
 
   it('renders semantic region controls with a combined research summary', () => {
     const source = readFileSync(new URL('../../src/components/ResearchWorkspace.tsx', import.meta.url), 'utf8');
-    expect(source).toMatch(/地区范围/);
+    expect(source).toContain("t('finalUi.researchWorkspace.copy023')");
     expect(source).toMatch(/geographicScopeMode === 'province'/);
     expect(source).toMatch(/geographicScopeMode === 'pearl_river_delta'/);
     expect(source).toMatch(/geographicScopeMode === 'custom_cities'/);
     expect(source).toMatch(/geographicOptions\.provinces\.map/);
     expect(source).toMatch(/geographicOptions\.cities\.map/);
-    expect(source).toMatch(/研究地域摘要：\{geographicScopeLabel\(geographicScope\)\}/);
+    expect(source).toContain("t('finalUi.researchWorkspace.copy031')");
+    expect(source).toContain('geographicScopeLabel(geographicScope)');
     expect(source).not.toMatch(/snapshotProvinces|snapshotCities/);
   });
 });

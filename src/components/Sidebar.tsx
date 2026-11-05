@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { isLlmAvailable, useLlmRuntimeSettings } from '../services/semantic/LlmRuntimeSettings';
 import { getConfiguredLlmProvider } from '../services/semantic/LlmRuntimeProvider';
+import { useTranslation } from 'react-i18next';
 
 export type NavTab =
   | 'caseLibrary'
@@ -59,27 +60,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
 }) => {
+  const { t } = useTranslation();
   const { settings: llmSettings } = useLlmRuntimeSettings();
   const llmEnabled = isLlmAvailable(llmSettings);
   const llmProvider = getConfiguredLlmProvider();
 
   const navGroups: NavGroup[] = [
     {
-      title: '工作台',
+      title: t('finalUi.sidebar.workspace'),
       items: [
-        { id: 'caseLibrary', label: '劳动争议案例库', icon: FolderKanban, badge: null },
-        { id: 'caseAnalysis', label: '案例分析', icon: Scale, badge: null },
-        { id: 'researchWorkspace', label: '研究工作区', icon: FlaskConical, badge: null },
-        { id: 'caseResearch', label: '案例研究', icon: BarChart3, badge: null },
-        { id: 'defenseReference', label: '应诉参考', icon: ShieldAlert, badge: null },
+        { id: 'caseLibrary', label: t('navigation.caseLibrary'), icon: FolderKanban, badge: null },
+        { id: 'caseAnalysis', label: t('finalUi.sidebar.caseAnalysis'), icon: Scale, badge: null },
+        { id: 'researchWorkspace', label: t('finalUi.sidebar.researchWorkspace'), icon: FlaskConical, badge: null },
+        { id: 'caseResearch', label: t('navigation.caseResearch'), icon: BarChart3, badge: null },
+        { id: 'defenseReference', label: t('navigation.defenseInsights'), icon: ShieldAlert, badge: null },
       ],
     },
     {
-      title: '高级工具',
+      title: t('finalUi.sidebar.advancedTools'),
       items: [
-        { id: 'dataManagement', label: '数据管理', icon: Database, badge: null },
-        { id: 'goldAnnotation', label: 'Gold 标注', icon: FileCheck2, badge: null },
-        { id: 'settings', label: '系统设置', icon: Settings, badge: null },
+        { id: 'dataManagement', label: t('navigation.dataManagement'), icon: Database, badge: null },
+        { id: 'goldAnnotation', label: t('finalUi.sidebar.goldAnnotation'), icon: FileCheck2, badge: null },
+        { id: 'settings', label: t('navigation.settings'), icon: Settings, badge: null },
       ],
     },
   ];
@@ -93,7 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             LawLens
           </h1>
           <p className="text-xs text-slate-500 truncate flex items-center gap-1 mt-0.5">
-            劳动争议研究工作台
+            {t('finalUi.sidebar.subtitle')}
           </p>
         </div>
       </div>
@@ -149,7 +151,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="bg-white rounded-xl p-2.5 border border-slate-200 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-slate-600 font-medium">本地数据存储</span>
+            <span className="text-slate-600 font-medium">{t('finalUi.sidebar.localStorage')}</span>
           </div>
           <span className="text-2xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded font-mono">
             IndexedDB
@@ -158,14 +160,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="mt-2 flex items-center justify-between px-1 text-2xs">
           <div className="flex items-center gap-1.5 text-slate-500">
             <span className={`h-1.5 w-1.5 rounded-full ${llmEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-            <span>{llmEnabled ? `${llmProvider.providerLabel} 已启用` : 'AI 未启用'}</span>
+            <span>{llmEnabled ? t('finalUi.sidebar.providerEnabled', { provider: llmProvider.providerLabel }) : t('finalUi.sidebar.aiDisabled')}</span>
           </div>
           <span className="text-slate-500">
-            {llmEnabled ? 'BYOK' : '可选'}
+            {llmEnabled ? 'BYOK' : t('finalUi.sidebar.optional')}
           </span>
         </div>
         <div className="text-2xs text-slate-500 text-center mt-2">
-          裁判文书事实与证据抗辩关联库
+          {t('finalUi.sidebar.footer')}
         </div>
       </div>
     </div>

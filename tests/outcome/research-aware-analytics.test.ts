@@ -340,7 +340,7 @@ describe('Stage 5 Step 6 research-aware analytics', () => {
       expect(source).toMatch(/ResearchAnalysisService/);
       expect(source).toMatch(/selectedAnalysisRunId/);
       expect(source).not.toMatch(/抗辩未被采纳|采纳支持率|未获采纳/);
-      expect(source).toMatch(/共现/);
+      expect(source).toMatch(/t\('(research\.[^']*|defense\.coOccurrence)'/);
     }
   });
 

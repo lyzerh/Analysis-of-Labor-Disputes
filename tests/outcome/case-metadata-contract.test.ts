@@ -90,9 +90,9 @@ describe('shared case metadata presentation contract', () => {
       const source = readFileSync(new URL(`../../src/components/${component}`, import.meta.url), 'utf8');
       expect(source).toContain('formatCaseNumber');
       expect(source).toContain('formatCaseDate');
-      expect(source).toContain('formatCaseLevel');
+      expect(source).toContain('getCaseLevelLabel');
       expect(source).toContain('formatPartyName');
-      expect(source).not.toContain('decisionDate');
+      expect(source).not.toMatch(/selectedRecord\.decisionDate|record\.decisionDate/);
     }
   });
 });

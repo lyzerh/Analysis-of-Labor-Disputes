@@ -3,7 +3,6 @@ import { evaluateAnalyticsAdmission } from '../analytics/AnalyticsAdmission';
 import type { SemanticReviewItem } from '../semantic/SemanticReviewQueue';
 import { executableUnresolvedReferences, hasExecutableSemanticTask } from '../semantic/SemanticTaskEligibility';
 import { isTechnicalResolverError, isTechnicalSemanticStatus } from '../semantic/SemanticWorkflowState';
-import { getWorkflowDisplayPresentation } from './WorkflowPresentation';
 
 /** User-facing processing stages for the deterministic → semantic → human pipeline. */
 export type ProcessingStage = 'safe' | 'awaiting_llm' | 'llm_processing' | 'review_pending' | 'technical_failure' | 'blocked';
@@ -86,50 +85,52 @@ export function mapAnalysisRecordToProcessingStage(
   return executableTask ? 'awaiting_llm' : 'blocked';
 }
 
-export function processingStageLabel(stage: ProcessingStage): string {
-  if (stage === 'safe') return '可安全入库';
-  if (stage === 'review_pending') return getWorkflowDisplayPresentation('needs_review').label;
-  if (stage === 'awaiting_llm') return '待 AI 语义分析';
-  if (stage === 'technical_failure') return getWorkflowDisplayPresentation('technical_failure').label;
-  if (stage === 'blocked') return getWorkflowDisplayPresentation('blocked').label;
-  if (stage === 'llm_processing') return 'AI 语义分析中';
+export function processingStageLabelKey(stage: ProcessingStage): string {
+  if (stage === 'safe') return 'pipeline.safeToStore';
+  if (stage === 'review_pending') return 'pipeline.humanReview';
+  if (stage === 'awaiting_llm') return 'pipeline.pendingSemantic';
+  if (stage === 'technical_failure') return 'pipeline.technicalFailure';
+  if (stage === 'blocked') return 'pipeline.notEligible';
+  if (stage === 'llm_processing') return 'pipeline.closure.stageProcessing';
   switch (stage) {
-    default: return '待处理';
+    default: return 'pipeline.closure.stagePending';
   }
 }
 
-export function processingStageDescription(stage: ProcessingStage): string {
-  if (stage === 'safe') return '规则解析或已完成语义核验，当前结果可用于分析。';
-  if (stage === 'review_pending') return getWorkflowDisplayPresentation('needs_review').description;
-  if (stage === 'awaiting_llm') return getWorkflowDisplayPresentation('awaiting_llm').description;
-  if (stage === 'technical_failure') return getWorkflowDisplayPresentation('technical_failure').description;
-  if (stage === 'blocked') return getWorkflowDisplayPresentation('blocked').description;
-  if (stage === 'llm_processing') return '正在按当前分析集逐案处理，结果尚未进入统计。';
+export function processingStageDescriptionKey(stage: ProcessingStage): string {
+  if (stage === 'safe') return 'pipeline.closure.stageSafeDescription';
+  if (stage === 'review_pending') return 'pipeline.closure.stageReviewDescription';
+  if (stage === 'awaiting_llm') return 'pipeline.closure.stageAwaitingDescription';
+  if (stage === 'technical_failure') return 'pipeline.closure.stageTechnicalDescription';
+  if (stage === 'blocked') return 'pipeline.closure.stageBlockedDescription';
+  if (stage === 'llm_processing') return 'pipeline.closure.stageProcessingDescription';
   switch (stage) {
-    default: return '等待流水线继续处理。';
+    default: return 'pipeline.closure.stagePendingDescription';
   }
 }
 
-export function processingProvenanceLabel(record: PipelineRecord): string {
-  if (record.reviewStatus === 'approved' || record.reviewStatus === 'modified') return '人工确认';
-  if (record.semanticResolutionStatus === 'resolved') return 'AI解析';
-  return '规则解析';
+export function processingProvenanceKey(record: PipelineRecord): string {
+  if (record.reviewStatus === 'approved' || record.reviewStatus === 'modified') return 'pipeline.closure.humanConfirmed';
+  if (record.semanticResolutionStatus === 'resolved') return 'pipeline.closure.aiParsed';
+  return 'pipeline.closure.ruleParsed';
 }
 
-export function processingStageReason(record: PipelineRecord, reviewItems?: readonly SemanticReviewItem[]): string {
+export function processingStageReason(record: PipelineRecord, reviewItems?: readonly SemanticReviewItem[]): { key: string; count?: number } {
   const stage = mapAnalysisRecordToProcessingStage(record, reviewItems);
   if (stage === 'review_pending') {
-    return getWorkflowDisplayPresentation('needs_review').description;
+    return { key: 'pipeline.closure.stageReviewDescription' };
   }
   if (stage === 'technical_failure') {
-    return '语义处理未完成（技术失败），可重新尝试 AI 或直接进入人工复核。';
+    return { key: 'pipeline.closure.technicalFailureReason' };
   }
   if (stage === 'awaiting_llm') {
     const count = executableUnresolvedReferences(record).length;
-    return count > 0 ? `待处理语义关联 ${count} 项。` : '等待语义分析。';
+    return count > 0
+      ? { key: 'pipeline.closure.pendingReferenceCount', count }
+      : { key: 'pipeline.closure.waitingForSemantic' };
   }
-  if (stage === 'blocked') return '缺少可执行语义输入。';
-  return processingStageDescription(stage);
+  if (stage === 'blocked') return { key: 'pipeline.closure.stageBlockedDescription' };
+  return { key: processingStageDescriptionKey(stage) };
 }
 
 /** Keep persisted diagnostic explanations useful without resurfacing retired routing instructions. */
